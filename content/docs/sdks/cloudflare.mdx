@@ -26,7 +26,7 @@ export default {
   async fetch(_request: Request, env: Env): Promise<Response> {
     const lumen = new Lumen({
       apiKey: env.LUMEN_API_KEY,
-      baseUrl: "https://lumen.lumiscia.com",
+      baseUrl: "https://api.lumiscia.com",
     });
 
     const plate = await lumen.createUrlMedia({

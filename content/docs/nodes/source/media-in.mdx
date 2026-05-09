@@ -1,0 +1,25 @@
+---
+title: media_in
+description: Load a registered image or video source.
+---
+
+`media_in` reads an image or video source by media manifest alias.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property      | Type   | Default | Notes                                   |
+| ------------- | ------ | ------- | --------------------------------------- |
+| `kind`        | int    | `0`     | `0` image, `1` video.                   |
+| `source`      | string | `""`    | Alias from the render `media` manifest. |
+| `range_start` | int    | `0`     | Video trim start frame.                 |
+| `range_end`   | int    | `0`     | Video trim end frame. `0` = none.       |
+| `speed`       | float  | `1`     | Playback speed multiplier.              |
+| `loop_mode`   | int    | `0`     | `0` clamp, `1` repeat, `2` ping-pong.   |
+
+Images ignore video playback fields.

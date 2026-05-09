@@ -1,0 +1,51 @@
+---
+title: Webhooks
+description: Receive render lifecycle updates.
+---
+
+Include a `webhookUrl` when creating a render if you want Lumen to notify your backend when a job finishes.
+
+```json
+{
+  "media": {},
+  "composition": {
+    "timeline": { "fps": 30, "duration_frames": 90 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [],
+    "connections": []
+  },
+  "webhookUrl": "https://example.com/lumen/webhook"
+}
+```
+
+Webhook URLs must use `https`.
+
+## Event Payload
+
+Terminal webhook deliveries use one of these event names:
+
+- `render.succeeded`
+- `render.failed`
+
+Example payload:
+
+```json
+{
+  "event": "render.succeeded",
+  "id": "r_123",
+  "organizationId": "org_123",
+  "status": "succeeded",
+  "costCents": 1.5,
+  "createdAt": "2026-05-05T12:00:00.000Z",
+  "artifactUrl": "/api/v1/renders/r_123/artifact"
+}
+```
+
+Webhook handlers should be idempotent. A delivery may be retried, and your application should safely handle duplicate notifications for the same render id.
+
+## Recommended Handler Behavior
+
+- Verify that the render id belongs to your account or workspace.
+- Fetch the render from the API before making irreversible user-visible changes.
+- Store the latest known render status.
+- Treat unknown event fields as forward-compatible additions.

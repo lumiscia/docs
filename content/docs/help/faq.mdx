@@ -1,0 +1,28 @@
+---
+title: FAQ
+description: Common questions about Lumen during beta.
+---
+
+## Is Lumen ready for production?
+
+Lumen is in beta. You can build real integrations with it, but pricing, SDKs, render concurrency, limits, and operational behavior may change before general availability. Read [Beta Notes](../beta-notes) before relying on it for production workloads.
+
+## How does pricing work?
+
+Cloud rendering is priced by render-seconds. Browser previews run locally and do not count as cloud render charges unless your app submits preview renders to the API. See [Pricing](../pricing) for the current model.
+
+## Do I need to upload media before rendering?
+
+Yes. Media must be uploaded or ingested before render creation. Composition `media_in` nodes use aliases, and the render request maps those aliases to the returned Lumen media ids.
+
+## Can I preview compositions in the browser?
+
+Yes. Use the React or Svelte packages with the local wasm bindings for browser previews. Cloud rendering still happens through the API when you submit a render.
+
+## Why is my render queued?
+
+Render concurrency is conservative during beta. Queue times can be longer when workers are cold, capacity is changing, several renders are active, or your composition uses large media, high resolution, or long timelines.
+
+## Where should I report issues?
+
+Use the [Support](support) page. Include render ids, input hashes, SDK versions, composition JSON, and media details when they apply.

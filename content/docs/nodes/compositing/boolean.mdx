@@ -1,0 +1,21 @@
+---
+title: boolean
+description: Combine two raster alpha masks.
+---
+
+`boolean` combines two raster alpha masks with a boolean operation.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `a`      | input     | raster | yes      |
+| `b`      | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property    | Type  | Default | Notes                                                        |
+| ----------- | ----- | ------- | ------------------------------------------------------------ |
+| `operation` | int   | `0`     | `0` union, `1` intersect, `2` subtract, `3` difference.      |
+| `threshold` | float | `0`     | Alpha threshold used when converting inputs to binary masks. |

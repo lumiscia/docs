@@ -1,0 +1,22 @@
+---
+title: memo
+description: Cache a raster branch within a frame.
+---
+
+`memo` passes its input through while giving the renderer a reusable branch boundary.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `source` | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property            | Type   | Default | Notes                                                          |
+| ------------------- | ------ | ------- | -------------------------------------------------------------- |
+| `cache_id`          | string | `""`    | Stable cache key for the branch boundary.                      |
+| `allow_expressions` | bool   | `false` | Allow expression-driven cache keys when your graph needs them. |
+
+Use it when a costly branch feeds multiple downstream nodes.

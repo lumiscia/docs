@@ -1,0 +1,197 @@
+---
+title: Composition Format
+description: The render document shape accepted by Lumen.
+---
+
+A Lumen composition is a JSON document that describes a frame graph. The canonical shape is generated from `lumen-definitions` and exported as `LumenComposition` from `@lumiscia/lumen-types`.
+
+```ts
+import type { LumenComposition } from "@lumiscia/lumen-types";
+```
+
+```json
+{
+  "timeline": {
+    "fps": 30,
+    "duration_frames": 120
+  },
+  "render_settings": {
+    "width": 1280,
+    "height": 720,
+    "background_color": [0, 0, 0, 0]
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "type": "solid_color",
+      "properties": {
+        "width": 1280,
+        "height": 720,
+        "color": [18, 24, 32, 255]
+      }
+    },
+    {
+      "id": 1,
+      "type": "media_output",
+      "properties": {}
+    }
+  ],
+  "connections": [
+    {
+      "from_node": 0,
+      "from_port": "output",
+      "to_node": 1,
+      "to_port": "source"
+    }
+  ]
+}
+```
+
+## Top-Level Fields
+
+| Field                | Required | Description                                              |
+| -------------------- | -------- | -------------------------------------------------------- |
+| `timeline`           | Yes      | Frame rate and total frame count.                        |
+| `render_settings`    | Yes      | Output dimensions and optional background color.         |
+| `nodes`              | Yes      | The graph nodes to evaluate.                             |
+| `connections`        | Yes      | Edges from node output ports to node input ports.        |
+| `metadata`           | No       | App-owned metadata. `metadata.name` is reserved by type. |
+| `$schema`            | No       | Optional JSON Schema pointer.                            |
+| `schemaVersion`      | No       | Optional schema version string.                          |
+| `lumenSchemaVersion` | No       | Optional Lumen schema version string.                    |
+
+Unknown top-level fields are allowed so applications can attach their own state. Node fields and node properties are validated more strictly by the renderer and API.
+
+## Timeline
+
+`timeline.fps` is the playback frame rate. `timeline.duration_frames` is the exact number of output frames to render.
+
+```json
+{
+  "timeline": {
+    "fps": 24,
+    "duration_frames": 96
+  }
+}
+```
+
+The render API validates that both values are present and within workspace limits.
+
+## Render Settings
+
+`render_settings.width` and `render_settings.height` define the output size in pixels. `background_color` is optional and accepts the same color values as node properties.
+
+```json
+{
+  "render_settings": {
+    "width": 1920,
+    "height": 1080,
+    "background_color": "#000000"
+  }
+}
+```
+
+Colors can be CSS-style hex strings or numeric arrays, depending on where the value is used. Generated TypeScript exposes color values as `Color`.
+
+## Nodes
+
+Every node has a numeric `id`, a canonical `type`, and optional `properties`.
+
+```json
+{
+  "id": 12,
+  "type": "transform",
+  "properties": {
+    "translate_x": "=sin(time * 2) * 48",
+    "translate_y": 0,
+    "scale_x": 1,
+    "scale_y": 1,
+    "rotate": 0
+  }
+}
+```
+
+Node types, ports, property names, default values, and enum options come from `lumen-definitions/meta.json` and are published through `@lumiscia/lumen-types`.
+
+```ts
+import { meta } from "@lumiscia/lumen-types";
+
+const transformSpec = meta.nodeSpecs.transform;
+```
+
+Property names in JSON use canonical snake_case names such as `font_size`, `background_color`, and `duration_frames`. The TypeScript `Composition` builder can expose friendlier method names, but `toJSON()` emits the canonical format.
+
+## Connections
+
+Connections wire one node output to one node input.
+
+```json
+{
+  "from_node": 4,
+  "from_port": "output",
+  "to_node": 5,
+  "to_port": "source"
+}
+```
+
+`from_port` is optional in the generated type, but most hand-written compositions should include it. `to_port` is required.
+
+The renderer validates that connected ports exist and have matching kinds. Most current ports are `raster_frame`, with node-specific names like `source`, `input`, `base`, `overlay`, and `layers`.
+
+## Output
+
+A renderable composition must contain exactly one `media_output` node, and that node must receive the raster stream that should be encoded or previewed.
+
+```json
+{
+  "id": 99,
+  "type": "media_output",
+  "properties": {}
+}
+```
+
+## Media References
+
+`media_in.source` stores a composition-local alias, not a raw upload id and not a file.
+
+```json
+{
+  "id": 1,
+  "type": "media_in",
+  "properties": {
+    "kind": 0,
+    "source": "hero"
+  }
+}
+```
+
+Before creating a render, upload or ingest media and pass a media manifest that maps each alias to the returned Lumen media id.
+
+```ts
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({ apiKey: process.env.LUMEN_API_KEY });
+const hero = await lumen.uploadMedia(new File([bytes], "hero.png"));
+
+await lumen.render(composition, {
+  media: {
+    hero: mediaReference(hero),
+  },
+});
+```
+
+Lumen media ids returned by the API already use the `lumen:` prefix.
+
+## Expressions
+
+Any property represented by the generated type as `ExpressionValue<T>` can receive either a literal value or an expression string that starts with `=`.
+
+```json
+{
+  "properties": {
+    "opacity": "=clamp(frame / 30, 0, 1)"
+  }
+}
+```
+
+See [Expressions](expressions) for the expression syntax and runtime globals.

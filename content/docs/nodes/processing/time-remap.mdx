@@ -1,0 +1,19 @@
+---
+title: time_remap
+description: Sample a raster input at a different frame.
+---
+
+## Properties
+
+| Property       | Type  | Default | Notes                                    |
+| -------------- | ----- | ------- | ---------------------------------------- |
+| `frame`        | float | `0`     | Source frame to sample.                  |
+| `loop_enabled` | bool  | `false` | Wrap remapped frames inside a loop span. |
+| `loop_start`   | int   | `0`     | Inclusive loop start frame.              |
+| `loop_end`     | int   | `0`     | Exclusive loop end frame.                |
+
+Use expressions to create slow motion, loops, holds, and reverse playback.
+
+```json
+{ "frame": "=duration_frames - frame - 1" }
+```

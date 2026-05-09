@@ -1,0 +1,25 @@
+---
+title: wgsl_shader
+description: Apply a custom WGSL shader to raster inputs.
+---
+
+## Properties
+
+| Property   | Type   | Default         | Notes                              |
+| ---------- | ------ | --------------- | ---------------------------------- |
+| `shader`   | string | identity shader | WGSL compute shader source.        |
+| `bindings` | string | `""`            | One parameter assignment per line. |
+
+Use shader nodes for specialized pixel effects that are not covered by built-in processors. Connect the raster input through `source`.
+
+For configurable parameters, declare a WGSL uniform struct at `@group(0) @binding(1)` and bind its fields by name:
+
+```wgsl
+struct Params { phase: f32, tint: vec3<f32> };
+@group(0) @binding(1) var<uniform> params: Params;
+```
+
+```text
+phase = =time * 4.0
+tint = 0.1, 0.0, 0.2
+```

@@ -1,0 +1,174 @@
+---
+title: Expressions
+description: Runtime expression syntax for animating composition properties.
+---
+
+Expressions let a node property resolve dynamically while a frame renders. In composition JSON, an expression is a string value whose first character is `=`.
+
+```json
+{
+  "type": "transform",
+  "properties": {
+    "translate_x": "=sin(time * 2) * 48",
+    "rotate": "=frame * 2"
+  }
+}
+```
+
+The TypeScript generated types model this as `ExpressionValue<T>`:
+
+```ts
+export type ExpressionString = `=${string}`;
+export type ExpressionValue<T> = T | ExpressionString;
+```
+
+The leading `=` is part of the serialized JSON value. The renderer strips it and parses the rest of the expression.
+
+## Where Expressions Work
+
+Generated node properties that use `ExpressionValue<T>` can receive expression strings at the type level. At runtime, expressions currently resolve into scalar number, boolean, or string values. Color and vector properties are parsed as literal values by the renderer today.
+
+The editor UI currently exposes expression editing by default for number and text fields, unless a field explicitly disables it. The serialized composition format is broader because it follows the generated node schema.
+
+## Values
+
+Expressions can produce numbers, booleans, and strings.
+
+```txt
+=42
+=true
+="Hello"
+```
+
+Boolean values coerce to numbers when a numeric property needs one: `true` becomes `1`, and `false` becomes `0`. Numbers and booleans can also be converted to strings for string properties.
+
+## Globals
+
+| Name     | Value                                                 |
+| -------- | ----------------------------------------------------- |
+| `frame`  | Current zero-based output frame.                      |
+| `time`   | Current time in seconds, computed from `frame / fps`. |
+| `fps`    | Composition timeline frame rate.                      |
+| `width`  | Output width from `render_settings.width`.            |
+| `height` | Output height from `render_settings.height`.          |
+
+`duration_frames` is available in the expression context internally, but it is not currently exposed as a named global by the parser. Use a literal duration value for now when an expression needs the total frame count.
+
+## Operators
+
+| Operators                    | Description           |
+| ---------------------------- | --------------------- |
+| `+`, `-`, `*`, `/`, `%`      | Numeric arithmetic.   |
+| `>`, `<`, `>=`, `<=`         | Numeric comparisons.  |
+| `==`, `!=`                   | Equality comparisons. |
+| `&&`, <code>\|\|</code>, `!` | Boolean logic.        |
+| `( ... )`                    | Grouping.             |
+
+Division and modulo by zero fail expression evaluation.
+
+## Conditionals
+
+Use `if(condition, when_true, when_false)` for conditional values.
+
+```json
+{
+  "selected_layer": "=if(frame < 30, 0, 1)"
+}
+```
+
+`&&` and `||` short-circuit, so only the needed side is evaluated.
+
+## Built-In Functions
+
+| Function                      | Description                                     |
+| ----------------------------- | ----------------------------------------------- |
+| `min(a, b, ...)`              | Smallest numeric argument.                      |
+| `max(a, b, ...)`              | Largest numeric argument.                       |
+| `abs(x)`                      | Absolute value.                                 |
+| `floor(x)`                    | Round down.                                     |
+| `ceil(x)`                     | Round up.                                       |
+| `round(x)`                    | Round to nearest integer.                       |
+| `sin(x)`                      | Sine, in radians.                               |
+| `cos(x)`                      | Cosine, in radians.                             |
+| `clamp(x, min, max)`          | Clamp a number.                                 |
+| `lerp(start, end, t)`         | Linear interpolation.                           |
+| `linear(start, end, t)`       | Linear interpolation.                           |
+| `pow(base, exponent)`         | Power.                                          |
+| `mod(a, b)`                   | Numeric remainder.                              |
+| `fract(x)`                    | Fractional part.                                |
+| `smoothstep(edge0, edge1, x)` | Smooth Hermite interpolation from 0 to 1.       |
+| `step(start, end, t)`         | Returns `start` while `t < 1`, otherwise `end`. |
+| `uppercase(value)`            | String uppercase conversion.                    |
+| `lowercase(value)`            | String lowercase conversion.                    |
+| `text_width(...)`             | Measure text width.                             |
+| `text_height(...)`            | Measure text height.                            |
+
+`text_width` and `text_height` accept either a text node reference or explicit text inputs.
+
+```txt
+=text_width(node(8))
+=text_width("Launch", 64, 400, "Inter")
+=text_height("Launch", 64, 400, "Inter")
+```
+
+When passing explicit text inputs, the arguments are `text`, optional `font_size`, optional `max_width`, and optional `font_family`.
+
+## Node References
+
+Expressions can reference another node or one of its scalar properties.
+
+```txt
+=node(8, "content")
+=text_width(node(8))
+```
+
+`node(id, "property_path")` can read properties that evaluate to numbers, booleans, or strings. Non-scalar properties such as colors and vectors are not currently converted into expression values.
+
+`node(id)` is only valid in built-ins that explicitly accept node references, such as `text_width(node(id))` and `text_height(node(id))`.
+
+## Examples
+
+Fade in over the first second:
+
+```json
+{
+  "opacity": "=clamp(frame / fps, 0, 1)"
+}
+```
+
+Move horizontally with a two-second oscillation:
+
+```json
+{
+  "translate_x": "=sin(time * 3.14159) * 120"
+}
+```
+
+Cut between two inputs in a `switch` node:
+
+```json
+{
+  "selected_layer": "=if(frame < 45, 0, 1)"
+}
+```
+
+Drive text content from a measured value:
+
+```json
+{
+  "content": "=uppercase(node(3, \"content\"))"
+}
+```
+
+Prefer scalar expressions for production payloads until the corresponding node documentation says a color or vector property supports dynamic expression resolution.
+
+## Errors
+
+Expression parse and evaluation errors are returned as render validation or render execution errors. Common causes are:
+
+- missing the leading `=`,
+- using assignment `=` instead of equality `==`,
+- referencing an unknown global,
+- calling an unknown function,
+- dividing by zero,
+- returning a value that cannot be converted to the target property type.

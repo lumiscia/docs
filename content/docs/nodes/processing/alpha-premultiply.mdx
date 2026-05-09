@@ -1,0 +1,19 @@
+---
+title: alpha_premultiply
+description: Convert between straight and premultiplied alpha.
+---
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `source` | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property | Type   | Default         | Notes                                         |
+| -------- | ------ | --------------- | --------------------------------------------- |
+| `mode`   | string | `"premultiply"` | Use `premultiply` or `unpremultiply` aliases. |
+
+Use this when media interchange expects a specific alpha representation.

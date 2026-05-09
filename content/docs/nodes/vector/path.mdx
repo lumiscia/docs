@@ -1,0 +1,24 @@
+---
+title: path
+description: Create rasterized path geometry.
+---
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property         | Type   | Default                               |
+| ---------------- | ------ | ------------------------------------- |
+| `data`           | string | `"M 0 0 L 100 0 L 100 100 L 0 100 Z"` |
+| `position`       | vec2   | `[0, 0]`                              |
+| `fill_enabled`   | bool   | `true`                                |
+| `fill_color`     | color  | `[255,255,255,255]`                   |
+| `stroke_enabled` | bool   | `false`                               |
+| `stroke_color`   | color  | `[0,0,0,255]`                         |
+| `stroke_width`   | float  | `1`                                   |
+
+`data` accepts SVG-style path text. Numeric coordinate pairs are flattened into the rasterized path.

@@ -1,0 +1,16 @@
+---
+title: shadow
+description: Generate a soft shadow from a raster's alpha.
+---
+
+## Properties
+
+| Property   | Type  | Default          |
+| ---------- | ----- | ---------------- |
+| `offset_x` | float | `8`              |
+| `offset_y` | float | `8`              |
+| `radius`   | float | `8`              |
+| `color`    | color | `[0, 0, 0, 255]` |
+| `opacity`  | float | `0.5`            |
+
+Composite the shadow with the original layer using `merge` or `raster_multimerge`.

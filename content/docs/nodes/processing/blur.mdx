@@ -1,0 +1,19 @@
+---
+title: blur
+description: Apply a simple box blur to a raster.
+---
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `source` | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property | Type  | Default | Notes                                  |
+| -------- | ----- | ------- | -------------------------------------- |
+| `radius` | float | `4`     | Values near `0` keep the source sharp. |
+
+Blur can expand the visible raster bounds so soft edges are not clipped.

@@ -1,0 +1,24 @@
+{
+  "title": "Lumen",
+  "pages": [
+    "---Guide---",
+    "index",
+    "beta-notes",
+    "pricing",
+    "how-it-works",
+    "---Creating Compositions---",
+    "composition-format",
+    "expressions",
+    "guides",
+    "nodes",
+    "---API & SDKs---",
+    "sdks/node",
+    "sdks/cloudflare",
+    "sdks/react",
+    "sdks/svelte",
+    "sdks/browser",
+    "---Help---",
+    "help/faq",
+    "help/support"
+  ]
+}

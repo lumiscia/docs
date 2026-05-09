@@ -1,0 +1,121 @@
+---
+title: Quick Start
+description: Create your first Lumen render from a composition graph.
+---
+
+Lumen renders video and motion graphics from JSON composition graphs. A composition describes the timeline, canvas size, manifest media aliases, node graph, and final output. You can build graphs visually in the editor or generate them from code.
+
+> **Beta note:** Lumen is evolving quickly. Pricing, render concurrency, queue times, SDK APIs, and availability can change during beta. Read [Beta Notes](beta-notes) before depending on Lumen for production workloads.
+
+## 1. Create a composition
+
+Every render needs a timeline, output settings, nodes, and connections. This minimal composition draws a solid background into the final output.
+
+```json
+{
+  "timeline": { "fps": 30, "duration_frames": 90 },
+  "render_settings": { "width": 1280, "height": 720 },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "solid_color",
+      "properties": {
+        "color": [18, 24, 32, 255],
+        "width": 0,
+        "height": 0
+      }
+    },
+    { "id": 2, "type": "media_output" }
+  ],
+  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+}
+```
+
+`width` and `height` of `0` on `solid_color` mean "match the composition size."
+
+## 2. Add media
+
+Use `media_in` when a graph needs an uploaded image or video. Upload the file first, then give it an alias in the render request's `media` manifest. The node's `source` value should be that alias, not the raw media id. Audio sources use the same manifest alias pattern anywhere the composition expects an audio source id.
+
+With the TypeScript SDK:
+
+```ts
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMEN_API_KEY!,
+  baseUrl: "https://lumen.lumiscia.com",
+});
+
+const heroMedia = await lumen.uploadMedia({
+  body: file,
+  contentType: "image/png",
+  fileName: "hero.png",
+  sizeBytes: fileSize,
+});
+```
+
+Keep the returned media id. Render requests reference it with `mediaReference(heroMedia)` in the top-level `media` manifest.
+
+```json
+{
+  "id": 3,
+  "type": "media_in",
+  "properties": {
+    "kind": 0,
+    "source": "hero"
+  }
+}
+```
+
+## 3. Submit a render
+
+```ts
+const { id, error, render } = await lumen.render(composition, {
+  media: {
+    hero: mediaReference(heroMedia),
+  },
+});
+
+if (error) {
+  throw new Error(error.message);
+}
+
+console.log(id, render?.status);
+```
+
+`@lumiscia/lumen-sdk` appends `/api/v1` internally. Use `@lumiscia/lumen-sdk/cloudflare` for Cloudflare Workers.
+
+## 4. Subscribe for completion
+
+```ts
+if (!id) {
+  throw new Error("Missing render id");
+}
+
+const subscription = await lumen.subscribeToRender(id, {
+  onEvent: async (event) => {
+    if (event.type === "render.completed") {
+      subscription.close();
+      const artifact = await lumen.getRenderArtifact(id);
+      console.log("Artifact bytes:", artifact.size);
+    }
+
+    if (event.type === "render.failed") {
+      subscription.close();
+      console.error(event.error);
+    }
+  },
+  onError: console.error,
+});
+```
+
+## What's next
+
+- [How it works](how-it-works): composition structure, validation, media loading, and frame rendering.
+- [Pricing](pricing): render-second billing and optimization tips.
+- [Node SDK](sdks/node): server-side rendering with `@lumiscia/lumen-sdk`.
+- [Cloudflare SDK](sdks/cloudflare): Worker-native rendering and subscriptions.
+- [React SDK](sdks/react) and [Svelte SDK](sdks/svelte): browser previews.
+- [Guides](guides): practical workflows for media, animation, and graph design.
+- [Nodes](nodes): complete public reference for every node kind.

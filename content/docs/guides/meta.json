@@ -1,0 +1,11 @@
+{
+  "title": "Guides",
+  "pages": [
+    "composition-builder",
+    "composition-json",
+    "media-sources",
+    "animation",
+    "preview-to-render",
+    "webhooks"
+  ]
+}

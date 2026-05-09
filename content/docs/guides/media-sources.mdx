@@ -1,0 +1,112 @@
+---
+title: Media Sources
+description: Upload images, video, and audio for Lumen compositions.
+---
+
+Media nodes do not store file bytes directly in the graph. A render request includes a `media` manifest that maps stable aliases to Lumen media ids, and composition nodes reference those aliases.
+
+## Upload First
+
+Media must be registered before rendering. The Node and Cloudflare SDKs expose three common paths:
+
+- `uploadMedia()` for direct uploads.
+- `uploadMedia({ multipart: true })` for large direct uploads.
+- `createUrlMedia()` for URL ingest.
+
+Direct upload maps to this API flow:
+
+1. `POST /api/v1/media` with `fileName`, `contentType`, and `sizeBytes`
+2. `PUT /api/v1/media/:id/content` with the file body
+3. Add the returned `media.id` to the render request with `mediaReference(media)`
+4. Use the manifest alias in `media_in`
+
+```ts
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const uploaded = await lumen.uploadMedia({
+  body: fileBytes,
+  contentType: "image/png",
+  fileName: "hero.png",
+  sizeBytes: fileBytes.byteLength,
+});
+
+const media = {
+  hero: mediaReference(uploaded),
+};
+```
+
+URL ingest is useful when the source is already reachable:
+
+```ts
+const ingested = await lumen.createUrlMedia({
+  fileName: "intro.mp4",
+  url: "https://example.com/intro.mp4",
+});
+```
+
+```json
+{
+  "type": "media_in",
+  "properties": {
+    "kind": 0,
+    "source": "hero"
+  }
+}
+```
+
+The render request includes both the media manifest and the composition:
+
+```json
+{
+  "media": {
+    "hero": "lumen:media_hero123",
+    "music": "lumen:media_music456"
+  },
+  "composition": {
+    "timeline": { "fps": 30, "duration_frames": 120 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [],
+    "connections": []
+  }
+}
+```
+
+## Images
+
+Use `kind: 0` for images.
+
+`media_in.source` should be the image alias from the render media manifest.
+
+## Videos
+
+Use `kind: 1` for videos. Video nodes can trim and retime the uploaded source.
+
+```json
+{
+  "kind": 1,
+  "source": "intro",
+  "range_start": 30,
+  "range_end": 180,
+  "speed": 1,
+  "loop_mode": 1
+}
+```
+
+## Audio
+
+Audio uploads use the same media manifest. Reference audio by alias anywhere the composition schema expects an audio source id.
+
+```json
+{
+  "source_id": "music",
+  "start_frame": 0,
+  "end_frame": 180
+}
+```
+
+## Source ID Tips
+
+- Use validated Lumen media ids only inside the top-level `media` manifest.
+- Use readable aliases like `hero`, `intro`, or `voiceover` inside the composition.
+- Keep aliases stable within a composition revision.
+- Use `mediaReference()` to normalize returned media ids into the `lumen:...` manifest form.

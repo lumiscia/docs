@@ -1,0 +1,5 @@
+{
+  "title": "Nodes",
+  "defaultOpen": true,
+  "pages": ["source", "processing", "compositing", "vector", "output"]
+}

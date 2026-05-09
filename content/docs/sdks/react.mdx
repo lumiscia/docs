@@ -1,0 +1,80 @@
+---
+title: React
+description: Preview Lumen compositions in React.
+---
+
+Use `@lumiscia/lumen-react` with `@lumiscia/lumen-shared` and `lumen-bindings`.
+
+Build the composition itself with the [Composition Builder](../guides/composition-builder), then pass serialized JSON into the React preview canvas.
+
+## Install
+
+```bash
+npm install @lumiscia/lumen-react @lumiscia/lumen-shared lumen-bindings
+```
+
+Vite projects should enable WASM and top-level await support:
+
+```bash
+npm install -D vite-plugin-wasm vite-plugin-top-level-await
+```
+
+## Vite Configuration
+
+```ts
+import react from "@vitejs/plugin-react";
+import topLevelAwait from "vite-plugin-top-level-await";
+import wasm from "vite-plugin-wasm";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [react(), wasm(), topLevelAwait()],
+});
+```
+
+## Preview Canvas
+
+```tsx
+import { Composition } from "@lumiscia/lumen-shared";
+import { LumenCanvas, createLumenPreview, useLumenPreview } from "@lumiscia/lumen-react";
+import * as lumenBindings from "lumen-bindings/bundler";
+
+const composition = new Composition({
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 4 },
+});
+const background = composition.addSolidColor({
+  width: 1280,
+  height: 720,
+  color: [25, 28, 36, 255],
+});
+composition.addOutput(background);
+
+const preview = createLumenPreview();
+const compositionJson = JSON.stringify(composition.toJSON());
+
+export function Preview() {
+  const state = useLumenPreview(preview);
+
+  return (
+    <main>
+      <LumenCanvas preview={preview} bindings={lumenBindings} compositionJson={compositionJson} />
+      <button
+        type="button"
+        disabled={!state.isLoaded}
+        onClick={() => (state.isPlaying ? preview.pause() : preview.play())}
+      >
+        {!state.isLoaded ? "Loading" : state.isPlaying ? "Pause" : "Play"}
+      </button>
+      <span>
+        Frame {state.frame} / {state.totalFrames}
+      </span>
+      {state.error ? <pre>{state.error}</pre> : null}
+    </main>
+  );
+}
+```
+
+## Bindings
+
+Use `lumen-bindings/bundler` for Vite and other bundlers that understand wasm-bindgen bundler output. The `bindings` prop lets React preview use whichever wasm-bindgen target your app provides.

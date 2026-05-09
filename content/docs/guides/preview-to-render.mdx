@@ -1,0 +1,85 @@
+---
+title: Preview to Render
+description: Move from an interactive preview to production output.
+---
+
+Browser preview and production rendering use the same composition graph. A good workflow is:
+
+1. Build or edit the graph in your UI.
+2. Upload, multipart upload, or URL-ingest user media, then keep the returned media ids in editor state.
+3. Validate the graph before submission.
+4. Send a media manifest plus the final composition from your backend with `@lumiscia/lumen-sdk`.
+5. Subscribe to render events, fetch render status, or listen for a webhook.
+
+## Preview
+
+Preview should prioritize fast feedback. Your UI can work with local files while upload is in progress, then assign stable aliases such as `hero`, `intro`, or `music`. Before submission, map those aliases to uploaded or ingested Lumen media ids in the render request.
+
+React and Svelte previews use the same composition JSON:
+
+```tsx
+import { Composition } from "@lumiscia/lumen-shared";
+import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-react";
+import * as lumenBindings from "lumen-bindings/bundler";
+
+const preview = createLumenPreview();
+const composition = new Composition({
+  timeline: { fps: 30, durationSeconds: 4 },
+  renderSettings: { width: 1280, height: 720 },
+});
+const compositionJson = JSON.stringify(composition.toJSON());
+
+<LumenCanvas preview={preview} bindings={lumenBindings} compositionJson={compositionJson} />;
+```
+
+## Render
+
+Production renders should use validated uploaded media through the top-level `media` manifest. The composition references aliases; the manifest maps each alias to `lumen:<mediaId>`. The SDK's `mediaReference()` helper accepts either a returned media object or an id string.
+
+```ts
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMEN_API_KEY!,
+  baseUrl: "https://lumen.lumiscia.com",
+});
+
+const media = await lumen.createUrlMedia({
+  fileName: "intro.mp4",
+  url: "https://example.com/intro.mp4",
+});
+
+const { id, error } = await lumen.render(composition, {
+  media: {
+    intro: mediaReference(media),
+  },
+  webhookUrl: "https://example.com/webhooks/lumen",
+});
+```
+
+```json
+{
+  "media": {
+    "intro": "lumen:media_abc",
+    "music": "lumen:media_def"
+  },
+  "composition": {
+    "timeline": { "fps": 30, "duration_frames": 120 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [],
+    "connections": []
+  },
+  "webhookUrl": "https://example.com/webhooks/lumen"
+}
+```
+
+`webhookUrl` is optional. Submit render requests from your backend so secrets remain private. Use `@lumiscia/lumen-sdk/cloudflare` instead of the default SDK import when that backend is a Cloudflare Worker.
+
+## Final Checks
+
+- The preview graph and submitted graph use the same media aliases before render submission.
+- Every submitted media alias exists in the top-level `media` manifest.
+- Every manifest value is a returned Lumen media id, usually through `mediaReference()`.
+- The output size and duration are correct.
+- The graph has one `media_output`.
+- Fonts and media used in preview are also available during render.

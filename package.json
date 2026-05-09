@@ -1,0 +1,32 @@
+{
+  "name": "lumiscia-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev --port 3001",
+    "build": "vp build",
+    "preview": "vp preview",
+    "check": "vp check"
+  },
+  "dependencies": {
+    "@types/mdx": "^2.0.13",
+    "@vitejs/plugin-react": "^6.0.1",
+    "fumadocs-core": "^16.8.5",
+    "fumadocs-mdx": "^14.3.2",
+    "fumadocs-ui": "^16.8.5",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.2.2",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "4.2.2",
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

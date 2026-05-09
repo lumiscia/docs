@@ -1,0 +1,35 @@
+---
+title: switch
+description: Choose one raster input from an expression-controlled layer index.
+---
+
+`switch` selects one raster layer from a variadic input list. Use it for cuts between sources or prebuilt branches without evaluating inactive branches.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `layers` | input     | raster | no       |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property         | Type | Default | Description                 |
+| ---------------- | ---- | ------- | --------------------------- |
+| `selected_layer` | int  | `0`     | Zero-based layer to output. |
+
+## Behavior
+
+Frame selection is controlled by the `selected_layer` property. It can be a literal index or an expression.
+
+```json
+{
+  "id": 7,
+  "type": "switch",
+  "properties": {
+    "selected_layer": "=if(frame < 30, 0, 1)"
+  }
+}
+```
+
+Expressions use `if(condition, then, else)` for conditional selection.

@@ -1,0 +1,29 @@
+---
+title: text
+description: Render text directly into a raster frame.
+---
+
+`text` lays out and rasterizes text as pixels.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property               | Type   | Default             | Notes                                         |
+| ---------------------- | ------ | ------------------- | --------------------------------------------- |
+| `content`              | string | `""`                | Text content. Supports multiline text.        |
+| `font_family`          | string | `"Roboto"`          | Font family.                                  |
+| `font_size`            | float  | `16`                | Pixel size.                                   |
+| `font_weight`          | int    | `400`               | CSS-like weight.                              |
+| `font_style`           | int    | `0`                 | `0` normal, `1` italic, `2` oblique.          |
+| `max_width`            | float  | `0`                 | Wrap width. `0` means automatic.              |
+| `position`             | vec2   | `[0, 0]`            | Raster origin for the text block.             |
+| `color`                | color  | `[255,255,255,255]` | RGBA text color.                              |
+| `alignment_horizontal` | int    | `0`                 | `0` left, `1` center, `2` right, `3` justify. |
+| `alignment_vertical`   | int    | `0`                 | `0` top, `1` middle, `2` bottom.              |
+
+Use `text` for rasterized titles, labels, captions, and UI copy in new compositions.

@@ -1,0 +1,15 @@
+---
+title: resize
+description: Resize a raster frame.
+---
+
+## Properties
+
+| Property   | Type | Default | Notes                                       |
+| ---------- | ---- | ------- | ------------------------------------------- |
+| `width`    | int  | `1`     | Target width in pixels.                     |
+| `height`   | int  | `1`     | Target height in pixels.                    |
+| `mode`     | int  | `0`     | `0` stretch, `1` fit, `2` fill.             |
+| `sampling` | int  | `1`     | `0` nearest-neighbor, `1` linear filtering. |
+
+Use explicit dimensions when preparing a layer for consistent compositing.

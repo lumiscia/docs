@@ -1,0 +1,15 @@
+---
+title: crop
+description: Crop a raster in source pixel coordinates.
+---
+
+## Properties
+
+| Property | Type | Default | Notes                  |
+| -------- | ---- | ------- | ---------------------- |
+| `x`      | int  | `0`     | Left coordinate.       |
+| `y`      | int  | `0`     | Top coordinate.        |
+| `width`  | int  | `1`     | Crop width in pixels.  |
+| `height` | int  | `1`     | Crop height in pixels. |
+
+Crop writes into a fixed output rectangle. Values below `1` collapse to the smallest valid output size.

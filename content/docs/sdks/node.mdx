@@ -1,0 +1,137 @@
+---
+title: Node
+description: Upload media, create renders, and subscribe to render events from Node.js.
+---
+
+Use `@lumiscia/lumen-sdk` from trusted Node.js code. The Node entrypoint uses the `ws` package for render event subscriptions.
+
+Build composition graphs with the shared [Composition Builder](../guides/composition-builder), then use the Node SDK for media uploads, render creation, subscriptions, and artifact downloads.
+
+## Install
+
+```bash
+npm install @lumiscia/lumen-sdk
+```
+
+## Create a Client
+
+```ts
+import { Lumen } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMEN_API_KEY!,
+  baseUrl: "https://lumen.lumiscia.com",
+});
+```
+
+`baseUrl` should be the Lumen origin. The SDK appends `/api/v1`.
+
+## Upload Media
+
+Upload local media before creating a render:
+
+```ts
+import { readFile, stat } from "node:fs/promises";
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const fileName = "hero.png";
+const file = await readFile(fileName);
+const fileStat = await stat(fileName);
+
+const heroMedia = await lumen.uploadMedia({
+  body: file,
+  contentType: "image/png",
+  fileName,
+  sizeBytes: fileStat.size,
+});
+
+const media = {
+  hero: mediaReference(heroMedia),
+};
+```
+
+For remote files, use URL ingest:
+
+```ts
+const plate = await lumen.createUrlMedia({
+  fileName: "plate.png",
+  url: "https://example.com/plate.png",
+});
+```
+
+For large uploads, pass `multipart: true` to `uploadMedia`.
+
+## Render a Composition
+
+```ts
+import { Composition, Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMEN_API_KEY!,
+  baseUrl: "https://lumen.lumiscia.com",
+});
+
+const plate = await lumen.createUrlMedia({
+  fileName: "plate.png",
+  url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1280&h=720&fit=crop",
+});
+
+const composition = new Composition({
+  renderSettings: { width: 1920, height: 1080 },
+  timeline: { fps: 24, durationSeconds: 5 },
+});
+const image = composition.addImage("plate", {
+  rangeStart: 0,
+  rangeEnd: 120,
+  loop: true,
+});
+composition.addOutput(image);
+
+const { id, error } = await lumen.render(composition, {
+  media: {
+    plate: mediaReference(plate),
+  },
+});
+
+if (error) {
+  throw new Error(error.message);
+}
+
+console.log("Render created:", id);
+```
+
+## Subscribe to Render Events
+
+```ts
+if (!id) {
+  throw new Error("Render id missing");
+}
+
+const subscription = await lumen.subscribeToRender(id, {
+  onEvent: async (event) => {
+    console.log(event);
+
+    if (event.type === "render.completed") {
+      subscription.close();
+      const artifact = await lumen.getRenderArtifact(id);
+      console.log("Artifact size:", artifact.size);
+    }
+
+    if (event.type === "render.failed") {
+      subscription.close();
+      console.error(event.error);
+    }
+  },
+  onError: (eventError) => {
+    console.error(eventError);
+  },
+});
+```
+
+## Recommendations
+
+- Use the [Composition Builder](../guides/composition-builder) guide for graph construction patterns.
+- Keep `LUMEN_API_KEY` server-side.
+- Upload or ingest media before render creation.
+- Use `mediaReference(media)` instead of manually adding `lumen:`.
+- Store render ids in your own job records so you can reconnect, fetch status, or download artifacts later.

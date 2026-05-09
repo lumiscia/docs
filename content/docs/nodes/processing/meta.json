@@ -1,0 +1,21 @@
+{
+  "title": "Processing",
+  "defaultOpen": false,
+  "pages": [
+    "alpha-premultiply",
+    "blur",
+    "channel-shuffle",
+    "color-grade",
+    "crop",
+    "curves",
+    "exposure",
+    "hue-saturation",
+    "levels",
+    "memo",
+    "resize",
+    "shadow",
+    "wgsl-shader",
+    "time-remap",
+    "transform"
+  ]
+}

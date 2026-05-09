@@ -1,0 +1,22 @@
+---
+title: media_output
+description: Final raster sink for a Lumen composition.
+---
+
+`media_output` defines the frame that Lumen encodes or previews.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `source` | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+`media_output` has no properties.
+
+## Notes
+
+- A composition must have exactly one `media_output`.
+- Connect the last raster node in the graph to `source`.

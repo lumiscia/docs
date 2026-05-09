@@ -1,0 +1,97 @@
+---
+title: Composition Builder
+description: Build Lumen composition graphs with the TypeScript Composition API.
+---
+
+Use `Composition` from `@lumiscia/lumen-shared` when you want to build graph JSON in TypeScript. The same class is also re-exported by `@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare`.
+
+## Install
+
+```bash
+npm install @lumiscia/lumen-shared
+```
+
+Server projects that already install `@lumiscia/lumen-sdk` can import `Composition` from the SDK instead.
+
+## Create a Graph
+
+```ts
+import { Composition } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  metadata: {
+    name: "Launch card",
+  },
+  renderSettings: {
+    width: 1280,
+    height: 720,
+    background_color: [18, 24, 32, 255],
+  },
+  timeline: {
+    fps: 30,
+    durationSeconds: 4,
+  },
+});
+
+const background = composition.addSolidColor({
+  width: 1280,
+  height: 720,
+  color: [18, 24, 32, 255],
+});
+
+const title = composition.addText({
+  content: "Lumen",
+  fontFamily: "Inter",
+  fontSize: 96,
+  fontWeight: 700,
+  color: [255, 255, 255, 255],
+});
+
+const merge = composition.addNode({
+  type: "merge",
+  properties: {
+    opacity: 1,
+    blend_mode: 0,
+  },
+});
+
+composition.connect(background, merge, { toPort: "base" });
+composition.connect(title, merge, { toPort: "overlay" });
+composition.addOutput(merge);
+```
+
+`Composition` returns node objects as you add them, so you can connect node references instead of hand-managing numeric ids.
+
+## Media Aliases
+
+Media nodes reference aliases, not uploaded media ids:
+
+```ts
+const hero = composition.addImage("hero", {
+  rangeStart: 0,
+  rangeEnd: 120,
+  loop: true,
+});
+```
+
+When you render, provide a media manifest that maps each alias to a Lumen media reference:
+
+```ts
+import { mediaReference } from "@lumiscia/lumen-sdk";
+
+const result = await lumen.render(composition, {
+  media: {
+    hero: mediaReference(uploadedMedia),
+  },
+});
+```
+
+Media must be uploaded or ingested before rendering. See [Media Sources](media-sources) for upload and URL ingest flows.
+
+## Serialize
+
+```ts
+const json = composition.toJSON();
+```
+
+Use `toJSON()` when you need to persist a graph, pass it from a browser editor to a backend, preview it in React or Svelte, or submit it to the render API.

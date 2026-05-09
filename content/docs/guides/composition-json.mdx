@@ -1,0 +1,65 @@
+---
+title: Composition JSON
+description: Understand the JSON shape accepted by Lumen.
+---
+
+A composition is a render document with timeline settings, output settings, nodes, and connections.
+
+```json
+{
+  "timeline": { "fps": 30, "duration_frames": 120 },
+  "render_settings": { "width": 1280, "height": 720 },
+  "nodes": [],
+  "connections": []
+}
+```
+
+When using TypeScript, build this structure with `Composition` from `@lumiscia/lumen-shared` or from the server SDK exports:
+
+```ts
+import { Composition } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  timeline: { fps: 30, durationSeconds: 4 },
+  renderSettings: { width: 1280, height: 720 },
+});
+```
+
+## Nodes
+
+Each node needs an `id`, a `type`, and optional `properties`.
+
+```json
+{
+  "id": 4,
+  "type": "transform",
+  "properties": {
+    "translate_x": 40,
+    "translate_y": 0,
+    "scale_x": 1,
+    "scale_y": 1,
+    "rotate": 0
+  }
+}
+```
+
+## Connections
+
+Connections wire one node output port to another node input port.
+
+```json
+{
+  "from_node": 4,
+  "from_port": "output",
+  "to_node": 5,
+  "to_port": "source"
+}
+```
+
+## Checklist
+
+- Use unique numeric node ids.
+- Connect exactly one raster stream into `media_output`.
+- Match port kinds.
+- Ensure every `media_in.source` points at a media manifest alias submitted with the render request.
+- Upload or ingest media before render creation; the composition stores aliases, not raw files or upload ids.

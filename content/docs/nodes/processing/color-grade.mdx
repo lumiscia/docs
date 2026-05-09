@@ -1,0 +1,18 @@
+---
+title: color_grade
+description: Apply an inline RGB lookup table.
+---
+
+## Properties
+
+| Property        | Type   | Default      | Notes                              |
+| --------------- | ------ | ------------ | ---------------------------------- |
+| `lut_source`    | string | `"identity"` | Inline RGB triplets or `identity`. |
+| `strength`      | float  | `1`          | Blends original to graded result.  |
+| `interpolation` | int    | `1`          | `0` nearest, otherwise linear.     |
+
+LUT example:
+
+```text
+rgb1d: 0,0,0; 255,128,0; 255,255,255
+```

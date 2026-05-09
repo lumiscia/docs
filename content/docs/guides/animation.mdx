@@ -1,0 +1,34 @@
+---
+title: Animation
+description: Animate Lumen node properties with expressions.
+---
+
+Many numeric properties can use expressions instead of fixed values. Expressions are evaluated for each rendered frame.
+
+```json
+{
+  "type": "transform",
+  "properties": {
+    "translate_x": "=sin(time * 2) * 40",
+    "translate_y": "=frame * 0.25",
+    "scale_x": 1,
+    "scale_y": 1,
+    "rotate": "=time * 20"
+  }
+}
+```
+
+## Common Values
+
+- `frame`: zero-based frame index.
+- `time`: seconds from the start of the composition.
+- `fps`: frames per second.
+- `width`: output width.
+- `height`: output height.
+- `duration_frames`: total frame count.
+
+## Tips
+
+- Use `time` for motion that should stay consistent across frame rates.
+- Use `frame` for frame-accurate stepping.
+- Keep expressions simple and deterministic.

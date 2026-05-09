@@ -1,0 +1,107 @@
+---
+title: Beta Notes
+description: What to expect while Lumen is in beta.
+---
+
+Lumen is currently in beta. The core direction is stable, but parts of the product, API, SDKs, pricing, and operational behavior can still change while we learn from real usage.
+
+Use this page as the practical expectation-setting doc before you rely on Lumen for production workloads.
+
+## What Can Change
+
+The following areas may change during beta:
+
+- pricing, plan packaging, included render-seconds, minimum billable render amounts, and overage rates,
+- render concurrency, queue priority, workspace quotas, and burst limits,
+- maximum composition duration, resolution, frame rate, media size, and artifact retention,
+- SDK package names, exports, types, helper APIs, and preview wiring,
+- API request and response shapes, error codes, webhook payloads, and event names,
+- media upload, URL ingest, temporary media, and artifact delivery behavior,
+- renderer behavior for edge cases, unsupported graph shapes, and newly added nodes.
+
+When a change affects existing integrations, we will try to document the migration path and keep the breakage small. During beta, some changes may still require code updates in your application.
+
+## Stability
+
+Expect occasional instability while the platform is evolving. This can include:
+
+- temporary API downtime,
+- delayed render starts,
+- longer queue times during deploys or capacity changes,
+- failed renders from renderer regressions or unsupported media,
+- preview behavior that differs from cloud rendering while wasm bindings evolve,
+- dashboard or docs updates landing slightly ahead of SDK releases.
+
+For important workflows, keep retry logic, user-visible render status, and a manual fallback path in your application.
+
+## Render Queues
+
+Render concurrency is intentionally conservative during beta. Jobs may spend time in `queued` before they move to `processing`, especially when:
+
+- the render workers are cold,
+- several users submit work at the same time,
+- your workspace has multiple active renders,
+- the composition uses large media, long durations, or high resolutions,
+- we are deploying staging or release infrastructure.
+
+Queue time is not the same thing as render compute time. See [Pricing](pricing) for the current render-second billing model.
+
+## Pricing
+
+Pricing is subject to change during beta. The current public pricing model is documented in [Pricing](pricing), but the exact rate, included usage, billing minimums, and plan boundaries may change before general availability.
+
+If you are planning high-volume usage, treat beta pricing as planning guidance rather than a long-term contract unless we have agreed on custom terms.
+
+## SDKs and API Versions
+
+The TypeScript SDKs are expected to move faster during beta than they will after general availability.
+
+You should pin package versions and read changelogs before upgrading:
+
+```json
+{
+  "dependencies": {
+    "@lumiscia/lumen-sdk": "0.1.0",
+    "@lumiscia/lumen-shared": "0.1.0"
+  }
+}
+```
+
+Avoid relying on undocumented response fields. Prefer the documented SDK helpers for render creation, media references, subscriptions, and artifact lookup.
+
+## Media and Artifacts
+
+Media handling is still being hardened. During beta:
+
+- uploaded media should be treated as render inputs, not permanent file storage,
+- temporary media may expire,
+- artifact retention may change,
+- URL ingest can fail if the source is slow, unavailable, too large, or blocked,
+- supported codecs and containers may expand over time.
+
+Upload or ingest media before rendering, and store your own source-of-truth assets outside Lumen.
+
+## Operational Guidance
+
+For beta integrations:
+
+- show render status instead of assuming a render starts immediately,
+- handle validation errors directly in your UI,
+- make render submission idempotent when a user can retry,
+- subscribe to render events where possible,
+- keep a support-facing record of render ids and input hashes,
+- run a short sample render before large batches,
+- keep preview and cloud render paths easy to update as SDKs change.
+
+## Support
+
+When reporting beta issues, include:
+
+- workspace or account context,
+- render id,
+- input hash if available,
+- SDK package and version,
+- composition JSON or a reduced reproduction,
+- media type, codec, dimensions, and duration when media is involved.
+
+This helps separate composition issues, media issues, queue behavior, and platform regressions quickly.

@@ -1,0 +1,28 @@
+---
+title: shape
+description: Create rectangle, ellipse, or polygon geometry.
+---
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property         | Type   | Default             | Notes                                    |
+| ---------------- | ------ | ------------------- | ---------------------------------------- |
+| `geometry_kind`  | int    | `0`                 | `0` rectangle, `1` ellipse, `2` polygon. |
+| `width`          | int    | `1`                 | Width in pixels.                         |
+| `height`         | int    | `1`                 | Height in pixels.                        |
+| `border_radius`  | float  | `0`                 | Rectangle corner radius.                 |
+| `polygon_points` | string | `""`                | Polygon vertex list.                     |
+| `position`       | vec2   | `[0, 0]`            | Shape position.                          |
+| `fill_enabled`   | bool   | `true`              | Enable fill rendering.                   |
+| `fill_color`     | color  | `[255,255,255,255]` | Fill color.                              |
+| `stroke_enabled` | bool   | `false`             | Enable stroke rendering.                 |
+| `stroke_color`   | color  | `[0,0,0,255]`       | Stroke color.                            |
+| `stroke_width`   | float  | `1`                 | Stroke width in pixels.                  |
+
+Use `polygon_points` when `geometry_kind` is `2`.

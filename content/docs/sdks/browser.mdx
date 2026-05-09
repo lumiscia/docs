@@ -1,0 +1,104 @@
+---
+title: Browser
+description: Build composition JSON in the browser and render through your backend.
+---
+
+Browser code should not hold a Lumen API key. Use browser code for composition editing and preview, then send composition JSON and media selections to your backend.
+
+For graph construction patterns, start with the [Composition Builder](../guides/composition-builder). This page focuses on browser-safe ownership boundaries.
+
+## Install Shared Types
+
+```bash
+npm install @lumiscia/lumen-shared
+```
+
+## Build Composition JSON
+
+```ts
+import { Composition } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  renderSettings: {
+    width: 1080,
+    height: 1080,
+    background_color: [8, 10, 16, 255],
+  },
+  timeline: {
+    fps: 30,
+    durationSeconds: 3,
+  },
+});
+
+const plate = composition.addSolidColor({
+  width: 1080,
+  height: 1080,
+  color: [8, 10, 16, 255],
+});
+
+const title = composition.addText({
+  content: "Launch day",
+  fontFamily: "Inter",
+  fontSize: 96,
+  fontWeight: 700,
+  color: [255, 255, 255, 255],
+  maxWidth: 900,
+});
+
+const merge = composition.addNode({
+  type: "merge",
+  properties: {
+    opacity: 1,
+    blend_mode: 0,
+  },
+});
+
+composition.connect(plate, merge, { toPort: "base" });
+composition.connect(title, merge, { toPort: "overlay" });
+composition.addOutput(merge);
+
+const compositionJson = composition.toJSON();
+```
+
+## Submit Through Your Backend
+
+The backend should upload media first, verify ownership, and submit the render with `@lumiscia/lumen-sdk`.
+
+```ts
+await fetch("/api/renders", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    composition: composition.toJSON(),
+    mediaAliases: {
+      hero: uploadedMediaIdFromYourApp,
+    },
+  }),
+});
+```
+
+On the server:
+
+```ts
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMEN_API_KEY!,
+  baseUrl: "https://lumen.lumiscia.com",
+});
+
+const { id, error } = await lumen.render(composition, {
+  media: {
+    hero: mediaReference(uploadedMediaId),
+  },
+});
+```
+
+## Preview Packages
+
+Use the framework packages for live browser previews:
+
+- `@lumiscia/lumen-react`
+- `@lumiscia/lumen-svelte`
+
+Both preview packages need wasm-bindgen glue from `lumen-bindings`, usually `lumen-bindings/bundler` in Vite apps.

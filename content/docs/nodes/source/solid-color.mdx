@@ -1,0 +1,22 @@
+---
+title: solid_color
+description: Create a flat color raster frame.
+---
+
+`solid_color` creates a raster filled with one RGBA color.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property | Type  | Default          | Notes                         |
+| -------- | ----- | ---------------- | ----------------------------- |
+| `color`  | color | `[0, 0, 0, 255]` | RGBA byte array.              |
+| `width`  | int   | `0`              | `0` means composition width.  |
+| `height` | int   | `0`              | `0` means composition height. |
+
+Use it for backgrounds, mattes, placeholders, and color plates.

@@ -1,0 +1,22 @@
+---
+title: raster_multimerge
+description: Composite an ordered list of raster layers.
+---
+
+`raster_multimerge` draws multiple raster layers in input order.
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `layers` | input     | raster | no       |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property     | Type  | Default | Notes                                             |
+| ------------ | ----- | ------- | ------------------------------------------------- |
+| `opacity`    | float | `1`     | Applied to layers after the first base layer.     |
+| `blend_mode` | int   | `0`     | See [Compositing blend modes](index#blend-modes). |
+
+The first connected layer is the base. Remaining layers are drawn over it.

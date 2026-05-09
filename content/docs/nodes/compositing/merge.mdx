@@ -1,0 +1,24 @@
+---
+title: merge
+description: Composite one raster over another.
+---
+
+`merge` draws an overlay raster over a base raster, optionally through a mask.
+
+## Ports
+
+| Port      | Direction | Kind   | Required |
+| --------- | --------- | ------ | -------- |
+| `base`    | input     | raster | yes      |
+| `overlay` | input     | raster | yes      |
+| `mask`    | input     | raster | no       |
+| `output`  | output    | raster | yes      |
+
+## Properties
+
+| Property     | Type  | Default | Notes                                             |
+| ------------ | ----- | ------- | ------------------------------------------------- |
+| `opacity`    | float | `1`     | Overlay opacity, clamped to `0..1`.               |
+| `blend_mode` | int   | `0`     | See [Compositing blend modes](index#blend-modes). |
+
+Use `merge` for one foreground layer. Use `raster_multimerge` for longer layer stacks.

@@ -1,0 +1,24 @@
+---
+title: curves
+description: Apply a 1D RGB curve table to a raster.
+---
+
+## Ports
+
+| Port     | Direction | Kind   | Required |
+| -------- | --------- | ------ | -------- |
+| `source` | input     | raster | yes      |
+| `output` | output    | raster | yes      |
+
+## Properties
+
+| Property       | Type   | Default      | Notes                                    |
+| -------------- | ------ | ------------ | ---------------------------------------- |
+| `curve_source` | string | `"identity"` | Inline curve definition or `identity`.   |
+| `strength`     | float  | `1`          | Blends between the source and the curve. |
+
+Curve example:
+
+```text
+rgb1d: 0,0,0; 128,96,80; 255,255,255
+```

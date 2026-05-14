@@ -1,7 +1,17 @@
 @import "tailwindcss";
-@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
 :root {
   color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  text-rendering: optimizeLegibility;
 }

@@ -1,5 +1,8 @@
 node_modules
 dist
 .source
+.wrangler
+worker-configuration.d.ts
 .env
 .env.local
+.dev.vars

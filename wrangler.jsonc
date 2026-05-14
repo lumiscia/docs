@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lumiscia-docs",
+  "compatibility_date": "2026-05-14",
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "404-page",
+  },
+  "routes": [
+    {
+      "pattern": "docs.lumiscia.com",
+      "custom_domain": true,
+    },
+  ],
+}

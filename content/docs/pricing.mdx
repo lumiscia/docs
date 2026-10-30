@@ -1,255 +1,141 @@
 ---
 title: Pricing
-description: Detailed pricing model, examples, and current billing expectations.
+description: Plans, render-time rates, and how Lumiscia bills cloud renders.
 ---
 
-Lumen pricing is based on cloud rendering usage. Browser preview runs locally and is not counted as a cloud render charge.
-
-The current public rate is:
-
-```text
-$0.003 per render-second
-5 render-second minimum per completed paid render
-```
+Lumiscia bills for the seconds a GPU spends rendering your composition. Browser previews run locally and are free. The current plans and rates are also on [lumiscia.com/pricing](https://lumiscia.com/pricing).
 
 ## Plans
 
-Every workspace starts with included monthly render-seconds before overage usage is charged at the public render-second rate.
+| Plan | Price         | Monthly credit | Renders at a time | Queue priority  | Max resolution |
+| ---- | ------------- | -------------: | ----------------: | --------------- | -------------- |
+| Free | $0            |             $5 |                 1 | After paid work | 1080p          |
+| Pro  | $50 per month |            $50 |                10 | High            | 4K             |
 
-| Plan | Monthly price | Included render-seconds | Support           |
-| ---- | ------------: | ----------------------: | ----------------- |
-| Free |            $0 |                     500 | Community support |
-| Pro  |           $50 |                  25,000 | Premium support   |
+Pro also includes shared workspace billing.
 
-After the included monthly allowance is used, additional cloud renders continue at `$0.003` per render-second unless a custom volume agreement applies. Completed paid renders have a 5 render-second minimum, equal to `$0.015`.
+Each month's credit is spent first. When it runs out, renders draw from your workspace balance. You top up the balance in the dashboard, from $10 per top-up.
 
-## Render-seconds
-
-A render-second is compute time spent rendering in the cloud. It is different from output video duration.
-
-Two 30-second videos can cost different amounts if one renders quickly and the other uses heavier nodes, larger media, higher resolution, more frames, or expensive effects.
-
-At a high level:
+## Rates
 
 ```text
-render_seconds = measured_cloud_render_time_seconds
-billable_render_seconds = max(render_seconds, 5) when the render is outside included allowance
-cost = billable_render_seconds * 0.003
+$0.002 per second of render time
+5 second minimum per completed render ($0.01)
+$0.005 per GB uploaded
 ```
 
-For planning before a render finishes, estimate from frame count and expected per-frame render time:
+The GPU worker times each render to the millisecond. Failed renders are never charged. Time spent queued or waiting for a GPU worker to start is not render time, so it never shows up on your bill.
 
-```text
-frames = duration_seconds * fps
-estimated_render_compute_seconds = frames * estimated_seconds_per_frame
-estimated_encode_seconds = frames / 180
-estimated_render_seconds = max(estimated_render_compute_seconds, estimated_encode_seconds)
-estimated_billable_render_seconds = max(estimated_render_seconds, 5)
-estimated_cost = estimated_billable_render_seconds * 0.003
-```
+## Queue priority
 
-## Quick examples
+Renders queue by tier:
 
-### Lightweight preview-quality render
+- Free workspaces run after paid work.
+- Any top-up moves a workspace to standard priority.
+- Pro workspaces get high priority. So does any workspace that has spent $100 in total, without a subscription.
 
-```text
-duration = 10s
-fps = 30
-frames = 300
-estimated render time per frame = 0.001s
-estimated render_compute_seconds = 300 * 0.001 = 0.3
-estimated_encode_seconds = 300 / 180 = 1.7
-estimated render_seconds = max(0.3, 1.7) = 1.7
-estimated billable_render_seconds = 5
-estimated cost = 5 * 0.003 = $0.015
-```
+## Render time
 
-### Standard short-form render
+Render time is the GPU time spent rendering, not the length of the output video. A 30-second clip can take a few seconds or a few dozen, depending on resolution, frame rate, and effects.
 
-```text
-duration = 30s
-fps = 30
-frames = 900
-estimated render time per frame = 0.0015s
-estimated render_compute_seconds = 900 * 0.0015 = 1.35
-estimated_encode_seconds = 900 / 180 = 5
-estimated render_seconds = max(1.35, 5) = 5
-estimated cost = 5 * 0.003 = $0.015
-```
-
-### Batch template render
-
-```text
-duration = 60s
-fps = 30
-frames = 1,800
-estimated render time per frame = 0.002s
-estimated render_compute_seconds = 1,800 * 0.002 = 3.6
-estimated_encode_seconds = 1,800 / 180 = 10
-estimated render_seconds = max(3.6, 10) = 10
-estimated cost = 10 * 0.003 = $0.03
-```
-
-## What affects render time
-
-The strongest cost drivers are usually:
+The strongest drivers of render time are usually:
 
 - total output frames,
 - output resolution,
-- encoding throughput,
 - source media resolution and decode cost,
 - number of video sources needed per frame,
-- blur, shadow, shader, matte, and filter-heavy processing,
-- repeated long renders,
-- cache misses from submitting slightly different payloads.
+- blur, shadow, shader, and other filter-heavy processing.
 
-Graph structure matters too. Nodes reachable from `media_output` can contribute to the render. Unused branches do not affect final frame evaluation, but they still make compositions harder to reason about and should be removed from production payloads.
+Nodes that are not reachable from `media_output` are not evaluated. Remove them from production payloads anyway; they make compositions harder to reason about.
 
-## What is included
+## Estimating cost
 
-The render-second rate covers measured renderer execution for the submitted composition:
+The calculator on the pricing page assumes the GPU renders roughly this many frames per second of render time:
 
-- source reading needed by the render,
-- compositing and processing nodes,
-- vector rendering and rasterization,
-- shader and filter work,
-- frame evaluation for the requested output,
+| Complexity | Frames per second | Typical graph                     |
+| ---------- | ----------------: | --------------------------------- |
+| Simple     |               360 | Text, shapes, and images          |
+| Standard   |               180 | Video plates, merges, transforms  |
+| Heavy      |                60 | Custom shaders, blur, many layers |
 
-Media staging, queue time, artifact upload, and normal job orchestration are not currently included in the measured `durationMs` used for render-second billing.
+These are rough figures. 4K output takes longer, and every real render reports its exact time.
 
-Separate product or infrastructure charges may still apply outside the render-second rate, such as external storage, CDN egress, custom hosting, enterprise support, or third-party services used by your own pipeline.
+```text
+frames = duration_seconds * fps
+render_seconds = max(frames / frames_per_second, 5)
+cost = render_seconds * 0.002
+```
 
-## Browser previews
+| Scenario                 | Frames | Render time |  Cost |
+| ------------------------ | -----: | ----------: | ----: |
+| 10 s at 30 fps, simple   |    300 |   5 s (min) | $0.01 |
+| 30 s at 30 fps, standard |    900 |         5 s | $0.01 |
+| 60 s at 30 fps, heavy    |  1,800 |        30 s | $0.06 |
 
-Browser previews run through the wasm renderer in the user's browser. They are useful for interactive editing, scrubbing, and short validation loops.
+For example, 400 standard 30-second renders a month use 2,000 seconds of render time, or $4.00, which the Free plan's $5 credit covers.
 
-Previews do not count as cloud render-seconds unless your application separately submits preview renders to the API.
+```ts
+function estimateRenderCost({
+  durationSeconds,
+  fps,
+  framesPerSecond,
+}: {
+  durationSeconds: number;
+  fps: number;
+  framesPerSecond: number;
+}) {
+  const frames = durationSeconds * fps;
+  const renderSeconds = Math.max(frames / framesPerSecond, 5);
+
+  return { frames, renderSeconds, dollars: renderSeconds * 0.002 };
+}
+
+console.log(estimateRenderCost({ durationSeconds: 30, fps: 30, framesPerSecond: 180 }));
+// { frames: 900, renderSeconds: 5, dollars: 0.01 }
+```
+
+For a closer estimate, render a short representative range and scale its render time by the full frame count.
 
 ## API billing behavior
 
-The dashboard API records a render job when `POST /api/v1/renders` accepts a payload. The response includes `cached` plus a `render` object that contains `costCents`, `status`, and `inputHash`.
+`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. An identical recent submission from the same workspace returns `200` with `cached: true` and the existing render. Treat both as successful submissions.
 
-Identical recent submissions for the same organization can return `cached: true`. Treat cached render responses as successful submissions; they should not be retried just because the HTTP status is `200` rather than `202`.
-
-Current render job statuses are:
+The `render` object includes `status`, `inputHash`, and `costMicros` (cost in millionths of a dollar). Render statuses are:
 
 - `queued`
 - `processing`
 - `succeeded`
 - `failed`
 
-Failed cloud renders should not be treated as successful output. The current API records cost when a render succeeds, based on the RunPod worker's reported render execution duration. If your account view looks wrong, use the render ID and input hash when contacting support.
-
-## Estimating before rendering
-
-Use this rough workflow:
-
-1. Compute total frames from timeline duration and fps.
-2. Estimate seconds per frame from a short sample render.
-3. Estimate encode time from frame count.
-4. Use the slower of render compute time and encode time.
-5. Apply the 5 render-second minimum.
-6. Multiply billable render-seconds by `$0.003`.
-7. Add a buffer for heavier scenes, larger source files, or cold media caches.
-
-Example TypeScript helper:
-
-```ts
-function estimateRenderCost({
-  durationSeconds,
-  fps,
-  secondsPerFrame,
-}: {
-  durationSeconds: number;
-  fps: number;
-  secondsPerFrame: number;
-}) {
-  const frames = durationSeconds * fps;
-  const renderComputeSeconds = frames * secondsPerFrame;
-  const encodeSeconds = frames / 180;
-  const renderSeconds = Math.max(renderComputeSeconds, encodeSeconds);
-  const billableRenderSeconds = Math.max(renderSeconds, 5);
-  const dollars = billableRenderSeconds * 0.003;
-
-  return {
-    billableRenderSeconds,
-    dollars,
-    encodeSeconds,
-    frames,
-    renderComputeSeconds,
-    renderSeconds,
-  };
-}
-
-console.log(
-  estimateRenderCost({
-    durationSeconds: 30,
-    fps: 30,
-    secondsPerFrame: 0.015,
-  }),
-);
-```
+Do not rely on deduplication as a permanent cache. Repeated renders outside the deduplication window are billed again.
 
 ## Optimization tips
 
 - Render a short representative range before running a full batch.
-- Lower preview resolution while editing, then switch to final resolution for the production render.
-- Avoid unnecessarily high fps for content that does not benefit from it.
-- Trim video sources with `range_start` and `range_end` when only part of a clip is needed.
-- Prefer explicit source reuse over uploading or referencing duplicate media.
-- Remove unreachable graph branches before submitting production payloads.
-- Use `memo` or graph reuse patterns when a shared expensive result feeds multiple downstream nodes.
-- Keep text and vector content in vector form until the point where it must be rasterized.
-- Watch for accidental expression changes that produce unique payload hashes and bypass render deduplication.
-
-## Planning table
-
-| Scenario                      | Frames | Assumed render seconds/frame | Encode seconds | Render-seconds | Estimated cost |
-| ----------------------------- | -----: | ---------------------------: | -------------: | -------------: | -------------: |
-| 10s at 30 fps, light graph    |    300 |                        0.001 |            1.7 |            1.7 |         $0.015 |
-| 30s at 30 fps, AI compositor  |    900 |                       0.0015 |            5.0 |            5.0 |         $0.015 |
-| 60s at 30 fps, batch template |  1,800 |                        0.002 |           10.0 |           10.0 |          $0.03 |
-
-These are planning examples, not guarantees. Actual render-seconds are measured from the render job.
-
-## Volume and enterprise plans
-
-High-volume teams can request:
-
-- volume discounts,
-- committed usage terms,
-- account-level invoicing,
-- dedicated support arrangements,
-- custom operational limits.
-
-Use the dashboard or sales contact path for commitments above standard public usage.
+- Lower the resolution while editing, then switch to final resolution for the production render.
+- Avoid high frame rates for content that does not benefit from them.
+- Trim video sources with `range_start` and `range_end` when you only need part of a clip.
+- Use `memo` when a shared expensive result feeds several downstream nodes.
+- Watch for expression changes that produce a new input hash and bypass deduplication.
 
 ## FAQ
 
 ### Is there a monthly minimum?
 
-No monthly minimum is required for standard usage.
+No. The Free plan has no monthly fee. You pay only for render time and uploads beyond your monthly credit.
 
 ### Is there a per-render minimum?
 
-Yes. Completed paid renders have a 5 render-second minimum. If included monthly render-seconds fully cover the render, no overage charge is created.
-
-### What time is billed?
-
-Billing currently uses the renderer execution duration reported by the RunPod worker. It starts immediately before Lumen calls the MP4 render pipeline and stops when that pipeline returns. It does not currently include API queue time, RunPod queue time, media staging, or artifact upload.
+Yes. Every completed render counts at least 5 seconds of render time ($0.01). After that, render time is measured to the millisecond.
 
 ### Are node types priced differently?
 
-No hidden node-type multipliers are applied in the public model. Heavier nodes can still increase measured render time, which can increase render-seconds.
+No. Heavier nodes take longer to render, which increases render time.
 
-### Do I pay for local previews?
+### Do I pay for browser previews?
 
-No. Local wasm previews are not cloud renders.
+No. Previews run on your users' devices through WebAssembly. You only pay when you call the render API.
 
-### Do repeated renders cost money?
+### How do I check what I was charged?
 
-Yes, repeated cloud renders can cost money. Recent identical API submissions may be deduplicated, but you should not rely on deduplication as a permanent cache for production billing control.
-
-### How should I debug an unexpected bill?
-
-Start with render history, render IDs, input hashes, source counts, output resolution, and the composition timeline. Those fields usually explain whether cost came from duration, frame count, graph complexity, or repeated submissions.
+Every charge shows up in the usage history in the dashboard. For questions about a charge, contact [support](help/support) with the render ids involved.

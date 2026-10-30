@@ -130,16 +130,16 @@ curl -o render.mp4 http://127.0.0.1:8080/renders/<id>/artifact
 
 ## HTTP routes
 
-| Route                       | Returns                                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `GET /health`               | `{"ok":true,"service":"lumen-server"}`. Never requires a token.                                            |
-| `POST /renders`             | `202` with `{ cached, render }`. Rendering starts in a background task.                                    |
-| `GET /renders/:id`          | `{ render }` with its `status`: `queued`, `succeeded`, or `failed`.                                        |
-| `GET /renders/:id/progress` | `{ progress, render }`, where `progress` has `state`, `stage`, and `progress` from `0` to `1`.             |
-| `GET /renders/:id/socket`   | A WebSocket that sends `render.queued`, `render.progress`, `render.completed`, and `render.failed` events. |
-| `GET /renders/:id/artifact` | The MP4 file, or `404` until the render succeeds.                                                          |
+| Route                       | Returns                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`               | `{"ok":true,"service":"lumen-server"}`. Never requires a token.                                                              |
+| `POST /renders`             | `202` with `{ cached, render }`. Rendering starts in a background task.                                                      |
+| `GET /renders/:id`          | `{ render }` with its `status`: `queued`, `succeeded`, or `failed`.                                                          |
+| `GET /renders/:id/progress` | `{ progress, render }`, where `progress` has `state`, `stage`, and `progress` from `0` to `1`.                               |
+| `GET /renders/:id/socket`   | A WebSocket that sends `render.queued`, `render.started`, `render.progress`, `render.completed`, and `render.failed` events. |
+| `GET /renders/:id/artifact` | The MP4 file, or `404` until the render succeeds.                                                                            |
 
-The progress endpoint and WebSocket use the same event shape as the hosted API, so the SDK's `subscribeToRender` and `waitForRender` work against a local server.
+WebSocket events from `lumen-server` are flat objects with `type`, `renderId`, `progress`, `url`, and `error` fields, which match the SDK's declared event types. The hosted API sends `{ type, state }` instead, so code written against one doesn't read the other's events without changes (see [Node.js SDK](../sdks/node)).
 
 ## Media
 

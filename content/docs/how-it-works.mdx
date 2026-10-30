@@ -56,7 +56,7 @@ Lumen renders on demand. For each frame, it starts at `media_output` and walks u
 - Nodes that don't connect to `media_output` never render.
 - A `switch` node renders only its selected layer.
 - A `time_remap` node requests only the source frame it maps to.
-- A node whose params don't change from frame to frame reuses its earlier output. Use `memo` to control this for an expensive branch.
+- A static branch reuses its earlier output. A node is static when its params are literal values (no expressions) and all of its inputs are static. Media, shader, and output nodes always render. Use `memo` to control caching for an expensive branch.
 
 Most params accept an expression, which is a string that starts with `=`. Lumen evaluates expressions every frame with these globals:
 

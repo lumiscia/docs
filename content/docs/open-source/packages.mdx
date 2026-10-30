@@ -1,0 +1,51 @@
+---
+title: Packages and crates
+description: What each Lumen npm package and Rust crate does, and when to use it.
+---
+
+Lumen is published as `@lumiscia/lumen-*` packages on npm and as Rust crates. All of them are developed in [lumiscia/lumen-oss](https://github.com/lumiscia/lumen-oss).
+
+## Which ones you need
+
+- To render on Lumiscia from a backend, install `@lumiscia/lumen-sdk`. It includes the composition builder.
+- To build compositions in the browser, install `@lumiscia/lumen-shared`.
+- To preview compositions in the browser, install `@lumiscia/lumen-react` or `@lumiscia/lumen-svelte` with `@lumiscia/lumen-shared` and `@lumiscia/lumen-bindings`.
+- To render on your own GPU, run `lumen-server`. See [Self-hosting](self-hosting).
+
+## npm packages
+
+| Package                    | What it does                                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@lumiscia/lumen-sdk`      | API client for media uploads, URL ingest, renders, render events, and artifacts. Exports the `Lumen` class, with a `/cloudflare` entry for Workers. |
+| `@lumiscia/lumen-shared`   | Dependency-light composition builder (`Composition`, `AudioTrack`). Safe to use in the browser.                                                     |
+| `@lumiscia/lumen-types`    | Generated TypeScript types and node metadata for the composition schema, such as `LumenComposition`.                                                |
+| `@lumiscia/lumen-preview`  | Browser preview engine and media bridge. The React and Svelte packages are built on it.                                                             |
+| `@lumiscia/lumen-react`    | React preview components and hooks, such as `LumenCanvas` and `useLumenPreview`.                                                                    |
+| `@lumiscia/lumen-svelte`   | Svelte preview components and state helpers, such as `LumenCanvas`.                                                                                 |
+| `@lumiscia/lumen-bindings` | Generated WebAssembly bindings with the compiled module included. Entry points: `/bundler`, `/browser`, and `/node`.                                |
+
+See [Node](../sdks/node), [Cloudflare](../sdks/cloudflare), [React](../sdks/react), and [Svelte](../sdks/svelte) for setup.
+
+## Rust crates
+
+| Crate                 | What it does                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `lumen-server`        | Render service primitives for custom render platforms, plus the `lumen-server` local HTTP binary. |
+| `lumen-engine`        | Core composition model, node system, media handling, and GPU render orchestration.                |
+| `lumen-engine-gpu`    | Lower-level `wgpu` renderer resources, programs, passes, and Vulkan export helpers.               |
+| `lumen-engine-ffmpeg` | FFmpeg bindings for decode, encode, muxing, and GPU frame interop.                                |
+| `lumen-engine-text`   | Text layout and glyph data helpers.                                                               |
+| `lumen-engine-macros` | Internal procedural macros for node metadata. Not a stable public API.                            |
+
+Start with `lumen-server`. The other crates track renderer internals and change often.
+
+The repository also contains crates that are not published:
+
+- `lumen-local`: a local render and debugging CLI.
+- `lumen-bench`: benchmarks for composition rendering, JSON parsing, decode, and text.
+- `lumen-generators`: generates the JSON schema and node metadata from the Rust node definitions.
+- `lumen-wasm`: the browser bindings, compiled into `@lumiscia/lumen-bindings`.
+
+The generated schema lives in [`definitions/composition.schema.json`](https://github.com/lumiscia/lumen-oss/blob/main/definitions/composition.schema.json).
+
+All packages and crates are experimental. Pin versions and read the changelogs before upgrading.

@@ -8,6 +8,7 @@ import { DocsLayout } from "@/src/components/docs/layout";
 import { DocsPage } from "@/src/components/docs/page";
 import { mdxComponents } from "@/src/components/mdx";
 import { Link } from "@/src/components/mdx/prose";
+import { resolveDocsHref } from "@/src/lib/docs-href";
 
 import type { source } from "./source";
 
@@ -42,26 +43,10 @@ export const docsClientLoader = browserCollections.docs.createClientLoader<DocsC
 function getMdxComponents(path: string) {
   return {
     ...mdxComponents,
-    a: (props: ComponentProps<"a">) => <Link {...props} href={resolveDocsHref(path, props.href)} />,
+    a: (props: ComponentProps<"a">) => (
+      <Link {...props} href={props.href && resolveDocsHref(path, props.href)} />
+    ),
   };
-}
-
-function resolveDocsHref(path: string, href: ComponentProps<"a">["href"]) {
-  if (
-    !href ||
-    href.startsWith("/") ||
-    href.startsWith("#") ||
-    href.startsWith("//") ||
-    /^[a-z][a-z\d+.-]*:/i.test(href)
-  ) {
-    return href;
-  }
-
-  const sourceDir = path.replace(/\/?[^/]+\.(md|mdx)$/, "");
-  const url = new URL(href, `https://docs.local/${sourceDir ? `${sourceDir}/` : ""}`);
-  const pathname = url.pathname.replace(/\/index$/, "");
-
-  return `${pathname}${url.search}${url.hash}`;
 }
 
 export function DocsContent({ data }: { data: DocsPageData }) {

@@ -5,7 +5,9 @@ import { DocsContent } from "@/src/lib/docs-page";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const data = (await getDocsPageData({ data: [] })) as import("@/src/lib/docs-page").DocsPageData;
+    const data = (await getDocsPageData({
+      data: [],
+    })) as import("@/src/lib/docs-page").DocsPageData;
     return data;
   },
   head: ({ loaderData }) => ({

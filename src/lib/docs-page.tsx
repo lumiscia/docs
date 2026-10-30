@@ -42,7 +42,13 @@ function getMdxComponents(path: string) {
 }
 
 function resolveDocsHref(path: string, href: ComponentProps<"a">["href"]) {
-  if (!href || href.startsWith("/") || href.startsWith("#") || href.startsWith("//") || /^[a-z][a-z\d+.-]*:/i.test(href)) {
+  if (
+    !href ||
+    href.startsWith("/") ||
+    href.startsWith("#") ||
+    href.startsWith("//") ||
+    /^[a-z][a-z\d+.-]*:/i.test(href)
+  ) {
     return href;
   }
 

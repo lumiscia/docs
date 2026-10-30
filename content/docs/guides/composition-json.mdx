@@ -1,65 +1,110 @@
 ---
 title: Composition JSON
-description: Understand the JSON shape accepted by the Lumiscia API.
+description: Write a title card composition by hand, from timeline to output.
 ---
 
-A composition is a render document with timeline settings, output settings, nodes, and connections.
+A composition is plain JSON, so you can write it in any language and send it to the render API. The example here is a 3-second title card with text that fades in over a dark background. [Composition format](../composition-format) is the full reference.
+
+<Steps>
+<Step>
+### Set the timeline and size
+
+`duration_frames` and `fps` set the length. 90 frames at 30 fps is 3 seconds.
 
 ```json
 {
-  "timeline": { "fps": 30, "duration_frames": 120 },
+  "timeline": { "fps": 30, "duration_frames": 90 },
   "render_settings": { "width": 1280, "height": 720 },
   "nodes": [],
   "connections": []
 }
 ```
 
-When using TypeScript, build this structure with `Composition` from `@lumiscia/lumen-shared` or from the server SDK exports:
+</Step>
+<Step>
+### Add the nodes
 
-```ts
-import { Composition } from "@lumiscia/lumen-shared";
-
-const composition = new Composition({
-  timeline: { fps: 30, durationSeconds: 4 },
-  renderSettings: { width: 1280, height: 720 },
-});
-```
-
-## Nodes
-
-Each node needs an `id`, a `type`, and optional `properties`.
+Each node needs an `id` that is unique in the graph and a `type`. Params you leave out take their defaults, and `background` fills the whole frame when `width` and `height` are 0 (the default).
 
 ```json
+[
+  { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
+  {
+    "id": 2,
+    "type": "text",
+    "params": {
+      "content": "Lumiscia",
+      "font_size": 96,
+      "position": [120, 300],
+      "opacity": "=progress(0, 1s)"
+    }
+  },
+  { "id": 3, "type": "merge" },
+  { "id": 4, "type": "media_output" }
+]
+```
+
+The text's `opacity` is an [expression](../expressions): it rises from 0 to 1 over the first second.
+
+</Step>
+<Step>
+### Connect them
+
+Connections run from a node's `output` port to a named input port. `merge` draws its `overlay` input over its `base` input, and `media_output` encodes whatever reaches its `source`.
+
+```json
+[
+  { "from_node": 1, "from_port": "output", "to_node": 3, "to_port": "base" },
+  { "from_node": 2, "from_port": "output", "to_node": 3, "to_port": "overlay" },
+  { "from_node": 3, "from_port": "output", "to_node": 4, "to_port": "source" }
+]
+```
+
+</Step>
+</Steps>
+
+The finished composition:
+
+```json title="title-card.json"
 {
-  "id": 4,
-  "type": "transform",
-  "properties": {
-    "translate_x": 40,
-    "translate_y": 0,
-    "scale_x": 1,
-    "scale_y": 1,
-    "rotate": 0
-  }
+  "timeline": { "fps": 30, "duration_frames": 90 },
+  "render_settings": { "width": 1280, "height": 720 },
+  "nodes": [
+    { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
+    {
+      "id": 2,
+      "type": "text",
+      "params": {
+        "content": "Lumiscia",
+        "font_size": 96,
+        "position": [120, 300],
+        "opacity": "=progress(0, 1s)"
+      }
+    },
+    { "id": 3, "type": "merge" },
+    { "id": 4, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "from_port": "output", "to_node": 3, "to_port": "base" },
+    { "from_node": 2, "from_port": "output", "to_node": 3, "to_port": "overlay" },
+    { "from_node": 3, "from_port": "output", "to_node": 4, "to_port": "source" }
+  ]
 }
 ```
 
-## Connections
+Send it as `composition` in `POST https://api.lumiscia.com/v1/renders`, with an empty `media` manifest since it uses no uploaded files:
 
-Connections wire one node output port to another node input port.
-
-```json
-{
-  "from_node": 4,
-  "from_port": "output",
-  "to_node": 5,
-  "to_port": "source"
-}
+```bash
+curl https://api.lumiscia.com/v1/renders \
+  -H "authorization: Bearer $LUMISCIA_API_KEY" \
+  -H "content-type: application/json" \
+  -d "{\"media\": {}, \"composition\": $(cat title-card.json)}"
 ```
 
-## Checklist
+## Before you render
 
-- Use unique numeric node ids.
-- Connect exactly one raster stream into `media_output`.
-- Match port kinds.
-- Ensure every `media_in.source` points at a media manifest alias submitted with the render request.
-- Upload or ingest media before render creation; the composition stores aliases, not raw files or upload ids.
+- Every node id is unique within its graph.
+- The graph has exactly one `media_output`, connected to the stream you want.
+- Every connection names a `to_port` that exists on the target node.
+- Enum params use string names, such as `"blend_mode": "multiply"`.
+- Every `media_in.source` is an alias in the render request's `media` manifest. See [Media sources](media-sources).

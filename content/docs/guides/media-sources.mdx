@@ -1,112 +1,142 @@
 ---
-title: Media Sources
-description: Upload images, video, and audio for compositions.
+title: Media sources
+description: Upload or ingest images, video and audio, and reference them in a composition by alias.
 ---
 
-Media nodes do not store file bytes directly in the graph. A render request includes a `media` manifest that maps stable aliases to media ids, and composition nodes reference those aliases.
-
-## Upload First
-
-Media must be registered before rendering. The Node and Cloudflare SDKs expose three common paths:
-
-- `uploadMedia()` for direct uploads.
-- `uploadMedia({ multipart: true })` for large direct uploads.
-- `createUrlMedia()` for URL ingest.
-
-Direct upload maps to this API flow:
-
-1. `POST https://api.lumiscia.com/v1/media` with `fileName`, `contentType`, and `sizeBytes`
-2. `PUT` the file body to the returned `uploadUrl` (`/v1/media/:id/content`)
-3. Add the returned `media.id` to the render request with `mediaReference(media)`
-4. Use the manifest alias in `media_in`
-
-```ts
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
-
-const uploaded = await lumen.uploadMedia({
-  body: fileBytes,
-  contentType: "image/png",
-  fileName: "hero.png",
-  sizeBytes: fileBytes.byteLength,
-});
-
-const media = {
-  hero: mediaReference(uploaded),
-};
-```
-
-URL ingest is useful when the source is already reachable:
-
-```ts
-const ingested = await lumen.createUrlMedia({
-  fileName: "intro.mp4",
-  url: "https://example.com/intro.mp4",
-});
-```
-
-```json
-{
-  "type": "media_in",
-  "properties": {
-    "kind": 0,
-    "source": "hero"
-  }
-}
-```
-
-The render request includes both the media manifest and the composition:
+A composition never contains files or URLs. Each `media_in` node and audio clip names a manifest alias such as `hero`, and the render request's top-level `media` manifest maps each alias to media you uploaded to Lumiscia:
 
 ```json
 {
   "media": {
-    "hero": "lumen:media_hero123",
-    "music": "lumen:media_music456"
+    "hero": "lumen:media_3f9a1c2b7d4e5f60",
+    "music": "lumen:media_8b0e2d4f6a1c3e5d"
   },
   "composition": {
-    "timeline": { "fps": 30, "duration_frames": 120 },
+    "timeline": { "fps": 30, "duration_frames": 90 },
     "render_settings": { "width": 1280, "height": 720 },
-    "nodes": [],
-    "connections": []
+    "nodes": [
+      { "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } },
+      { "id": 2, "type": "media_output" }
+    ],
+    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
   }
 }
 ```
 
+The same composition renders with different files when you change only the manifest.
+
+## Upload a file
+
+`uploadMedia()` creates the media and uploads its bytes. `mediaReference()` turns the result, or a media id, into the `lumen:<media_id>` form the manifest takes.
+
+```ts
+import { readFile } from "node:fs/promises";
+import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
+});
+
+const bytes = await readFile("hero.png");
+const hero = await lumen.uploadMedia({
+  body: bytes,
+  contentType: "image/png",
+  fileName: "hero.png",
+  sizeBytes: bytes.byteLength,
+});
+
+const { id, error } = await lumen.render(composition, {
+  media: { hero: mediaReference(hero) },
+});
+```
+
+Without the SDK, the upload is two requests:
+
+1. `POST /v1/media` with `fileName`, `contentType` and `sizeBytes`. The response has the `media` object, an `uploadUrl` (`/v1/media/<id>/content`) and `maxBytes`, the largest upload allowed.
+2. `PUT` the file to `uploadUrl` with your API key and a `content-length` header. The response has the updated `media` object.
+
+For large files, pass `multipart: true` to upload in 8 MiB parts, or `multipart: { partSizeBytes }` to choose the part size.
+
+## Ingest from a URL
+
+`createUrlMedia()` has Lumiscia fetch a file that is already online. The URL must use `https`, and can't point at `localhost` or contain credentials.
+
+```ts
+const intro = await lumen.createUrlMedia({
+  url: "https://example.com/intro.mp4",
+  fileName: "intro.mp4",
+});
+```
+
+`fileName` is optional and defaults to the last segment of the URL path.
+
+## Before you render
+
+Lumiscia probes every file after it arrives. A render accepts only media whose `status` is `validated`. If the probe hasn't finished, `status` is `uploaded`, and `GET /v1/media/<id>` returns the current status. A file that fails the probe is `rejected`, with the reason in `rejectionReason`.
+
+| Rule             | Value                                                                       |
+| ---------------- | --------------------------------------------------------------------------- |
+| Content types    | `image/*`, `video/*` and `audio/*`                                          |
+| Expiry           | 24 hours after you create the media (`expiresAt`)                           |
+| Manifest entries | Up to 50 per render                                                         |
+| Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit. |
+| Manifest values  | `lumen:<media_id>`                                                          |
+
+Media is temporary, so upload it again for a render after it expires. Uploads and URL ingests are billed per GB; see [Pricing](../pricing). A composition that puts an `http://` or `https://` URL in `source` fails validation.
+
 ## Images
 
-Use `kind: 0` for images.
+A `media_in` node with `kind: "image"` shows the image on every frame.
 
-`media_in.source` should be the image alias from the render media manifest.
+```json
+{ "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
+```
 
-## Videos
+## Video
 
-Use `kind: 1` for videos. Video nodes can trim and retime the uploaded source.
+Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to source frames `range_start` up to, but not including, `range_end`. When `range_end` is not greater than `range_start` (both default to 0), the whole video plays.
 
 ```json
 {
-  "kind": 1,
-  "source": "intro",
-  "range_start": 30,
-  "range_end": 180,
-  "speed": 1,
-  "loop_mode": 1
+  "id": 2,
+  "type": "media_in",
+  "params": {
+    "kind": "video",
+    "source": "intro",
+    "range_start": 30,
+    "range_end": 180,
+    "speed": 1,
+    "loop_mode": "repeat"
+  }
 }
 ```
+
+`speed` scales playback, and a negative speed plays backwards. `loop_mode` sets what happens past the end of the range: `clamp` (the default) holds the last frame, `repeat` starts over, and `ping_pong` plays back and forth. Playback follows the video's own frame rate, so a 24 fps video plays at normal speed in a 30 fps composition.
 
 ## Audio
 
-Audio uploads use the same media manifest. Reference audio by alias anywhere the composition schema expects an audio source id.
+Audio files use the same manifest. Reference the alias as `source_id` in the composition's `audio` clips:
 
 ```json
 {
-  "source_id": "music",
-  "start_frame": 0,
-  "end_frame": 180
+  "audio": {
+    "tracks": [{ "id": "soundtrack" }],
+    "clips": [
+      {
+        "id": "intro",
+        "track_id": "soundtrack",
+        "source_id": "music",
+        "start_ms": 0,
+        "duration_ms": 3000
+      }
+    ]
+  }
 }
 ```
 
-## Source ID Tips
+See [Audio](../composition-format#audio) for the clip fields.
 
-- Use validated media ids only inside the top-level `media` manifest.
-- Use readable aliases like `hero`, `intro`, or `voiceover` inside the composition.
-- Keep aliases stable within a composition revision.
-- Use `mediaReference()` to normalize returned media ids into the `lumen:...` manifest form.
+## Preview with local files
+
+The browser preview doesn't read the manifest. It takes files directly, registered under the same aliases, so you can preview before an upload finishes. See [Preview to render](preview-to-render).

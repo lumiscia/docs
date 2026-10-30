@@ -1,97 +1,152 @@
 ---
-title: Composition Builder
-description: Build composition graphs with the TypeScript Composition API.
+title: Composition builder
+description: Build compositions in TypeScript with Composition, typed params and expression helpers.
 ---
 
-Use `Composition` from `@lumiscia/lumen-shared` when you want to build graph JSON in TypeScript. The same class is also re-exported by `@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare`.
-
-## Install
+`Composition` from `@lumiscia/lumen-shared` builds composition JSON in TypeScript. Node types and params are typed from the generated schema, so a wrong param name or enum value is a type error.
 
 ```bash
 npm install @lumiscia/lumen-shared
 ```
 
-Server projects that already install `@lumiscia/lumen-sdk` can import `Composition` from the SDK instead.
+`@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare` re-export `Composition` and `AudioTrack`. The expression helpers, `defineComposition`, `prop`, `fn` and `wgslShader` come only from `@lumiscia/lumen-shared`.
 
-## Create a Graph
+## Create a composition
 
 ```ts
 import { Composition } from "@lumiscia/lumen-shared";
 
 const composition = new Composition({
-  metadata: {
-    name: "Launch card",
-  },
-  renderSettings: {
-    width: 1280,
-    height: 720,
-    background_color: [18, 24, 32, 255],
-  },
-  timeline: {
-    fps: 30,
-    durationSeconds: 4,
-  },
+  metadata: { name: "Launch card" },
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 4 },
 });
-
-const background = composition.addSolidColor({
-  width: 1280,
-  height: 720,
-  color: [18, 24, 32, 255],
-});
-
-const title = composition.addText({
-  content: "Lumiscia",
-  fontFamily: "Inter",
-  fontSize: 96,
-  fontWeight: 700,
-  color: [255, 255, 255, 255],
-});
-
-const merge = composition.addNode({
-  type: "merge",
-  properties: {
-    opacity: 1,
-    blend_mode: 0,
-  },
-});
-
-composition.connect(background, merge, { toPort: "base" });
-composition.connect(title, merge, { toPort: "overlay" });
-composition.addOutput(merge);
 ```
 
-`Composition` returns node objects as you add them, so you can connect node references instead of hand-managing numeric ids.
+`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. `setSize()`, `setFps()`, `setDurationFrames()`, `setDurationSeconds()`, `setBackgroundColor()` and `setMetadata()` change these later.
 
-## Media Aliases
+## Add and connect nodes
 
-Media nodes reference aliases, not uploaded media ids:
+`addNode()` takes the node's `type` and `params`, with the same snake_case names as the JSON, and returns the node. Ids count up from 0 unless you pass an `id`.
 
 ```ts
-const hero = composition.addImage("hero", {
-  rangeStart: 0,
-  rangeEnd: 120,
-  loop: true,
+const background = composition.addNode({
+  type: "background",
+  params: { paint: [18, 24, 32, 255] },
 });
+
+const title = composition.addNode({
+  type: "text",
+  params: {
+    content: "Lumiscia",
+    font_size: 96,
+    position: [120, 300],
+  },
+});
+
+const stack = composition.addNode({ type: "raster_multimerge" });
+const output = composition.addNode({ type: "media_output" });
+
+composition
+  .connect(background, stack, { toPort: "layers" })
+  .connect(title, stack, { toPort: "layers" })
+  .connect(stack, output, { toPort: "source" });
 ```
 
-When you render, provide a media manifest that maps each alias to a media reference (`lumen:<media_id>`):
+`raster_multimerge` stacks its `layers` in connection order, so the title draws over the background.
+
+`connect(from, to, options)` takes nodes or ids. Pass `toPort` on every call: the default, `"input"`, isn't a port on any current node. `fromPort` defaults to `output`. See [Connections](../composition-format#connections) for each node's port names.
+
+## Animate params
+
+A param that takes an expression string such as `"=progress(0, 30)"` also takes an `Expr` from the expression helpers, type-checked against the param. This version of the title fades in over 1 second and rises 40 pixels:
 
 ```ts
-import { mediaReference } from "@lumiscia/lumen-sdk";
+import { ease, progress, sec, tween } from "@lumiscia/lumen-shared";
 
-const result = await lumen.render(composition, {
-  media: {
-    hero: mediaReference(uploadedMedia),
+const title = composition.addNode({
+  type: "text",
+  params: {
+    content: "Lumiscia",
+    font_size: 96,
+    opacity: progress(0, sec(1)),
+    position: tween([120, 340], [120, 300], 0, sec(0.6), ease.outCubic),
   },
 });
 ```
 
-Media must be uploaded or ingested before rendering. See [Media Sources](media-sources) for upload and URL ingest flows.
+`toJSON()` writes these as `"=progress(0, 1s)"` and `"=tween(vec2(120, 340), vec2(120, 300), 0, 0.6s, 'out_cubic')"`.
 
-## Serialize
+`fn()` defines a reusable expression function, and `addFunction()` adds it to the composition's `functions`:
 
 ```ts
-const json = composition.toJSON();
+import { fn, tween, type Num } from "@lumiscia/lumen-shared";
+
+const rise = fn("rise(start)", (start: Num) => tween(0, 1, start, 12, "out_cubic"));
+composition.addFunction(rise);
 ```
 
-Use `toJSON()` when you need to persist a graph, pass it from a browser editor to a backend, preview it in React or Svelte, or submit it to the render API.
+`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
+
+## Reuse a template
+
+`defineComposition()` builds a template that `clip` nodes play. `build` adds the template's nodes and returns the node it outputs, and the builder adds the template's `media_output`. Props declared with `prop.string()`, `prop.number()`, `prop.color()` or `prop.vec2()` arrive in `build` as typed expressions.
+
+```ts
+import { defineComposition, prop } from "@lumiscia/lumen-shared";
+
+const lowerThird = defineComposition({
+  name: "lower_third",
+  size: { width: 800, height: 160 },
+  duration: 90,
+  props: { name: prop.string("Untitled"), accent: prop.color([255, 196, 0, 255]) },
+  build: (c, { name, accent }) =>
+    c.addNode({
+      type: "text",
+      params: { content: name, color: accent, font_size: 56 },
+    }),
+});
+
+const card = composition.addNode(lowerThird.clip({ start: 15, props: { name: "Ada Lovelace" } }));
+const placed = composition.addNode({
+  type: "transform",
+  params: { translate_x: 80, translate_y: 520 },
+});
+
+composition
+  .connect(card, placed, { toPort: "source" })
+  .connect(placed, stack, { toPort: "layers" });
+```
+
+Adding a clip registers its template in `compositions`. A clip draws at the template's size from the top-left corner of the canvas, so the `transform` moves it into place. `clip()` also takes `duration`, `offset`, `speed` and `end`; see [Templates](../composition-format#templates).
+
+## Add audio
+
+`AudioTrack` holds the clips on one track. Clip times are in seconds or milliseconds, and clips on a track can't overlap.
+
+```ts
+import { AudioTrack } from "@lumiscia/lumen-shared";
+
+const music = new AudioTrack({ id: "music", volume: 0.8 });
+music.addClip({ sourceId: "song", startSeconds: 0, durationSeconds: 4 });
+composition.addAudioTrack(music);
+```
+
+`sourceId` is the manifest alias of an uploaded audio file.
+
+## Serialize and render
+
+`toJSON()` returns the composition as plain JSON. Use it to store a composition, send it from a browser editor to your backend, or pass it to a preview. `render()` from `@lumiscia/lumen-sdk` accepts the `Composition` itself.
+
+```ts
+import { Lumen } from "@lumiscia/lumen-sdk";
+
+const lumen = new Lumen({
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
+});
+
+const { id, error } = await lumen.render(composition);
+```
+
+A composition that uses media, like the `song` alias above, also needs a `media` manifest. See [Media sources](media-sources).

@@ -1,86 +1,82 @@
 ---
-title: Preview to Render
-description: Move from an interactive preview to production output.
+title: Preview to render
+description: Preview a composition in the browser, then render the same composition through your backend.
 ---
 
-Browser preview and production rendering use the same composition graph. A good workflow is:
+The browser preview and Lumiscia's GPU workers run the same Lumen engine on the same composition JSON. You build and preview a composition in the browser, then send it unchanged to your backend for the final render. Media is the main difference. The preview takes files directly, and a render takes a manifest of uploaded media under the same aliases.
 
-1. Build or edit the graph in your UI.
-2. Upload, multipart upload, or URL-ingest user media, then keep the returned media ids in editor state.
-3. Validate the graph before submission.
-4. Send a media manifest plus the final composition from your backend with `@lumiscia/lumen-sdk`.
-5. Subscribe to render events, fetch render status, or listen for a webhook.
+<Steps>
+<Step>
+### Preview with local files
 
-## Preview
+Register each file under the alias its `media_in` node uses. The preview plays the composition with no uploads and no API key.
 
-Preview should prioritize fast feedback. Your UI can work with local files while upload is in progress, then assign stable aliases such as `hero`, `intro`, or `music`. Before submission, map those aliases to uploaded or ingested media ids in the render request.
-
-React and Svelte previews use the same composition JSON:
-
-```tsx
-import { Composition } from "@lumiscia/lumen-shared";
+```tsx title="Editor.tsx"
 import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-react";
+import type { MediaRegistration } from "@lumiscia/lumen-react";
 import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
 
 const preview = createLumenPreview();
-const lumenBindings = createLumenBindings();
-const composition = new Composition({
-  timeline: { fps: 30, durationSeconds: 4 },
-  renderSettings: { width: 1280, height: 720 },
-});
-const compositionJson = JSON.stringify(composition.toJSON());
+const bindings = createLumenBindings();
 
-<LumenCanvas preview={preview} bindings={lumenBindings} compositionJson={compositionJson} />;
+export function Editor({ compositionJson, file }: { compositionJson: string; file: File }) {
+  const mediaSources: MediaRegistration[] = [{ kind: "image", id: "hero", source: file }];
+
+  return (
+    <LumenCanvas
+      preview={preview}
+      bindings={bindings}
+      compositionJson={compositionJson}
+      mediaSources={mediaSources}
+    />
+  );
+}
 ```
 
-## Render
+[React](../sdks/react) and [Svelte](../sdks/svelte) cover setup, playback controls and audio.
 
-Production renders should use validated uploaded media through the top-level `media` manifest. The composition references aliases; the manifest maps each alias to `lumen:<mediaId>`. The SDK's `mediaReference()` helper accepts either a returned media object or an id string.
+</Step>
+<Step>
+### Upload the files
 
-```ts
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+Upload each file to Lumiscia while the user edits, and keep the returned media id next to its alias. Uploads need your API key, so run them on your backend. See [Media sources](media-sources) for upload and URL ingest.
+
+</Step>
+<Step>
+### Render from your backend
+
+Send the composition JSON and the manifest to your backend, and render there with `@lumiscia/lumen-sdk`.
+
+```ts title="render.ts"
+import { Lumen, mediaReference, type LumenComposition } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const media = await lumen.createUrlMedia({
-  fileName: "intro.mp4",
-  url: "https://example.com/intro.mp4",
-});
-
-const { id, error } = await lumen.render(composition, {
-  media: {
-    intro: mediaReference(media),
-  },
-  webhookUrl: "https://example.com/webhooks/lumen",
-});
-```
-
-```json
-{
-  "media": {
-    "intro": "lumen:media_abc",
-    "music": "lumen:media_def"
-  },
-  "composition": {
-    "timeline": { "fps": 30, "duration_frames": 120 },
-    "render_settings": { "width": 1280, "height": 720 },
-    "nodes": [],
-    "connections": []
-  },
-  "webhookUrl": "https://example.com/webhooks/lumen"
+export async function renderEdit(composition: LumenComposition, heroMediaId: string) {
+  return lumen.render(composition, {
+    media: { hero: mediaReference(heroMediaId) },
+    webhookUrl: "https://example.com/webhooks/lumiscia",
+  });
 }
 ```
 
-`webhookUrl` is optional. Submit render requests from your backend so secrets remain private. Use `@lumiscia/lumen-sdk/cloudflare` instead of the default SDK import when that backend is a Cloudflare Worker.
+In a Cloudflare Worker, import from `@lumiscia/lumen-sdk/cloudflare` instead.
 
-## Final Checks
+</Step>
+<Step>
+### Wait for the result
 
-- The preview graph and submitted graph use the same media aliases before render submission.
-- Every submitted media alias exists in the top-level `media` manifest.
-- Every manifest value is a returned media id, usually through `mediaReference()`.
-- The output size and duration are correct.
-- The graph has one `media_output`.
-- Fonts and media used in preview are also available during render.
+`render()` returns the render's `id`. Wait with `waitForRender(id)`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. Then download the artifact with `getRenderArtifact(id)`. See the [Node SDK](../sdks/node).
+
+</Step>
+</Steps>
+
+## What to check before rendering
+
+- Every alias registered in the preview has an entry in the render's `media` manifest.
+- Every manifest entry points at media whose `status` is `validated`, and that hasn't expired.
+- The composition has the size, frame rate and duration you want, within your plan's limits.
+- Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you load into the browser preview isn't part of the render request, so text in another family can look different in the render.

@@ -1,34 +1,150 @@
 ---
 title: Animation
-description: Animate node properties with expressions.
+description: Animate params with tweens, easing, springs, per-glyph staggers and clips.
 ---
 
-Many numeric properties can use expressions instead of fixed values. Expressions are evaluated for each rendered frame.
+You animate a composition by giving params [expressions](../expressions) instead of fixed values. Lumen evaluates each expression on every frame, so a param can change over time without keyframes.
 
 ```json
 {
+  "id": 4,
   "type": "transform",
-  "properties": {
-    "translate_x": "=sin(time * 2) * 40",
-    "translate_y": "=frame * 0.25",
-    "scale_x": 1,
-    "scale_y": 1,
-    "rotate": "=time * 20"
+  "params": {
+    "translate_x": "=tween(-400, 0, 0, 0.6s, 'out_cubic')",
+    "rotate": "=sin(time * 2) * 5"
   }
 }
 ```
 
-## Common Values
+## Time
 
-- `frame`: zero-based frame index.
-- `time`: seconds from the start of the composition.
-- `fps`: frames per second.
-- `width`: output width.
-- `height`: output height.
-- `duration_frames`: total frame count.
+`frame` counts frames from 0, and `time` counts seconds. Durations such as `0.6s` or `300ms` convert to frames at the composition's frame rate, so the same expression keeps its timing at 24, 30 or 60 fps. Use `frame` when you want exact frame steps, such as cutting on frame 45.
 
-## Tips
+## Fades and moves
 
-- Use `time` for motion that should stay consistent across frame rates.
-- Use `frame` for frame-accurate stepping.
-- Keep expressions simple and deterministic.
+`progress(start, end)` goes from 0 at frame `start` to 1 at frame `end` and holds at both ends. It suits fades:
+
+```json
+{ "id": 5, "type": "opacity", "params": { "opacity": "=progress(0, 1s)" } }
+```
+
+`tween(from, to, start, duration, ease)` moves between two values over `duration` frames from frame `start`. It works on numbers, vec2 values and colors.
+
+```json
+{
+  "id": 2,
+  "type": "text",
+  "params": {
+    "content": "Lumiscia",
+    "position": "=tween(vec2(120, 340), vec2(120, 300), 10, 0.5s, 'out_expo')",
+    "opacity": "=tween(0, 1, 10, 0.5s)"
+  }
+}
+```
+
+`ease` is a quoted easing name and defaults to `'linear'`. The `in_*` easings start slow, `out_*` end slow and `in_out_*` do both. The `*_back` easings pull back or overshoot. `cubic_bezier(x1, y1, x2, y2, t)` takes CSS-style curves.
+
+To animate a color, tween or `lerp` between two colors. This background shifts from slate to teal over 90 frames:
+
+```json
+{
+  "id": 1,
+  "type": "background",
+  "params": { "paint": "=lerp(#1e293b, #0f766e, progress(0, 90))" }
+}
+```
+
+## Springs
+
+`spring(t)` rises from 0 to 1 with a physical spring, where `t` is the time in seconds since release. To release at frame 12:
+
+```json
+{
+  "id": 6,
+  "type": "transform",
+  "params": {
+    "scale_x": "=spring((frame - 12) / fps)",
+    "scale_y": "=spring((frame - 12) / fps)"
+  }
+}
+```
+
+`spring(t, stiffness, damping)` takes a stiffness (default 170) and damping (default 26). Lower damping bounces more.
+
+## Per-glyph text
+
+A `text` node evaluates `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` once per glyph. In those params, `glyph`, `word` and `line` give the index of the glyph being drawn, so you can stagger each one:
+
+```json
+{
+  "id": 2,
+  "type": "text",
+  "params": {
+    "content": "One glyph at a time",
+    "font_size": 72,
+    "glyph_opacity": "=tween(0, 1, 10 + glyph * 2, 12)",
+    "glyph_offset": "=tween(vec2(0, 24), vec2(0, 0), 10 + glyph * 2, 12, 'out_cubic')"
+  }
+}
+```
+
+Each glyph starts 2 frames after the one before it. Use `word` or `line` in place of `glyph` to stagger words or lines.
+
+## Reusable motion
+
+Put motion you repeat into a function in the top-level `functions` object, then call it from any param:
+
+```json
+{
+  "functions": {
+    "rise(start)": "tween(0, 1, start, 12, 'out_cubic')"
+  }
+}
+```
+
+`"opacity": "=rise(20)"` then fades in from frame 20. See [Functions](../expressions#functions).
+
+## Clip timing
+
+A `clip` node plays a template on its own clock, so the template's animation starts when the clip does. `start` sets the parent frame it begins on, `speed` changes its playback rate, `offset` skips into it, and `end` chooses whether it hides, holds its last frame or loops when it finishes.
+
+```json
+{
+  "id": 7,
+  "type": "clip",
+  "params": { "composition": "title_card", "start": 30, "speed": 1.5, "end": "hold" }
+}
+```
+
+See [Templates](../composition-format#templates) for defining the template.
+
+## In TypeScript
+
+`@lumiscia/lumen-shared` has a typed helper for each of these functions. They produce the same expression strings:
+
+<Tabs items={["JSON", "TypeScript"]}>
+<Tab value="JSON">
+
+```json
+{
+  "position": "=tween(vec2(120, 340), vec2(120, 300), 10, 0.5s, 'out_expo')",
+  "opacity": "=tween(0, 1, 10, 0.5s)"
+}
+```
+
+</Tab>
+<Tab value="TypeScript">
+
+```ts
+import { ease, sec, tween } from "@lumiscia/lumen-shared";
+
+const params = {
+  position: tween([120, 340], [120, 300], 10, sec(0.5), ease.outExpo),
+  opacity: tween(0, 1, 10, sec(0.5)),
+};
+```
+
+</Tab>
+</Tabs>
+
+See the [Composition builder guide](composition-builder) for using them with `Composition`.

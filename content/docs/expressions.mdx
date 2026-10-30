@@ -1,174 +1,196 @@
 ---
 title: Expressions
-description: Runtime expression syntax for animating composition properties.
+description: Expression syntax, globals and built-in functions for animating node params.
 ---
 
-Expressions let a node property resolve dynamically while a frame renders. In composition JSON, an expression is a string value whose first character is `=`.
+An expression is a param value that Lumen evaluates on every frame. In composition JSON it is a string that starts with `=`.
 
 ```json
 {
+  "id": 4,
   "type": "transform",
-  "properties": {
+  "params": {
     "translate_x": "=sin(time * 2) * 48",
     "rotate": "=frame * 2"
   }
 }
 ```
 
-The TypeScript generated types model this as `ExpressionValue<T>`:
+To store a literal string that starts with `=`, write `==`. `"==total"` is the text `=total`.
 
-```ts
-export type ExpressionString = `=${string}`;
-export type ExpressionValue<T> = T | ExpressionString;
-```
+## Where expressions work
 
-The leading `=` is part of the serialized JSON value. The renderer strips it and parses the rest of the expression.
+Most params accept an expression in place of a literal: numbers, booleans, text, vec2 params such as `position`, and paint params such as `fill_paint`. A few params take literals only, mostly enums such as `merge.blend_mode` and `transform.sampling`, plus `clip.composition` and `clip.end`. The [node reference](nodes) lists which.
 
-## Where Expressions Work
-
-Generated node properties that use `ExpressionValue<T>` can receive expression strings at the type level. At runtime, expressions currently resolve into scalar number, boolean, or string values. Color and vector properties are parsed as literal values by the renderer today.
-
-The editor UI currently exposes expression editing by default for number and text fields, unless a field explicitly disables it. The serialized composition format is broader because it follows the generated node schema.
+The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, and a paint param takes a color (a paint expression gives a solid color, not a gradient).
 
 ## Values
 
-Expressions can produce numbers, booleans, and strings.
+Expressions work with numbers, booleans, strings, vec2 values and colors.
 
-```txt
-=42
-=true
-="Hello"
-```
+| Literal                         | Value                                                          |
+| ------------------------------- | -------------------------------------------------------------- |
+| `42`, `0.5`                     | Number.                                                        |
+| `true`, `false`                 | Boolean.                                                       |
+| `'Launch'`, `"Launch"`          | String. Escape quotes and backslashes with `\`.                |
+| `#ff8000`, `#ff800080`          | Color.                                                         |
+| `1.5s`, `300ms`                 | Duration, converted to frames at the composition's frame rate. |
+| `vec2(10, 20)`                  | Vec2.                                                          |
+| `rgb(255, 128, 0)`, `rgba(...)` | Color from components in 0 to 255.                             |
 
-Boolean values coerce to numbers when a numeric property needs one: `true` becomes `1`, and `false` becomes `0`. Numbers and booleans can also be converted to strings for string properties.
+A boolean converts to `1` or `0` where a number is needed, and a numeric string such as `'12'` converts to a number. Any value converts to text for a string param. Vec2 values and colors never convert to numbers.
 
 ## Globals
 
-| Name     | Value                                                 |
-| -------- | ----------------------------------------------------- |
-| `frame`  | Current zero-based output frame.                      |
-| `time`   | Current time in seconds, computed from `frame / fps`. |
-| `fps`    | Composition timeline frame rate.                      |
-| `width`  | Output width from `render_settings.width`.            |
-| `height` | Output height from `render_settings.height`.          |
+| Name     | Value                                   |
+| -------- | --------------------------------------- |
+| `frame`  | Current frame, starting at 0.           |
+| `time`   | Current time in seconds, `frame / fps`. |
+| `fps`    | The timeline's frame rate.              |
+| `width`  | Render width in pixels.                 |
+| `height` | Render height in pixels.                |
 
-`duration_frames` is available in the expression context internally, but it is not currently exposed as a named global by the parser. Use a literal duration value for now when an expression needs the total frame count.
+Inside a template, `frame` and `time` follow the template's own clock, which the playing clip's `start`, `offset` and `speed` set.
+
+The `text` node's `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` params are evaluated once per glyph. In them, `glyph`, `word` and `line` are the zero-based index of the glyph, word and line being drawn, and `glyph_count`, `word_count` and `line_count` are their totals. Anywhere else, these globals are an error.
+
+There is no global for the timeline length. Write the frame count as a number when you need it.
 
 ## Operators
 
-| Operators                    | Description           |
-| ---------------------------- | --------------------- |
-| `+`, `-`, `*`, `/`, `%`      | Numeric arithmetic.   |
-| `>`, `<`, `>=`, `<=`         | Numeric comparisons.  |
-| `==`, `!=`                   | Equality comparisons. |
-| `&&`, <code>\|\|</code>, `!` | Boolean logic.        |
-| `( ... )`                    | Grouping.             |
+| Operators                    | Description                      |
+| ---------------------------- | -------------------------------- |
+| `+`, `-`, `*`, `/`, `%`      | Arithmetic.                      |
+| `>`, `<`, `>=`, `<=`         | Numeric comparison.              |
+| `==`, `!=`                   | Equality.                        |
+| `&&`, <code>\|\|</code>, `!` | Boolean logic, short-circuiting. |
+| `( ... )`                    | Grouping.                        |
 
-Division and modulo by zero fail expression evaluation.
+Two vec2 values add, subtract, multiply and divide component by component, and a number scales a vec2 with `*` or `/`. Colors have no arithmetic; mix them with `lerp`. Division or modulo by zero is an error.
 
-## Conditionals
-
-Use `if(condition, when_true, when_false)` for conditional values.
-
-```json
-{
-  "selected_layer": "=if(frame < 30, 0, 1)"
-}
-```
-
-`&&` and `||` short-circuit, so only the needed side is evaluated.
-
-## Built-In Functions
-
-| Function                      | Description                                     |
-| ----------------------------- | ----------------------------------------------- |
-| `min(a, b, ...)`              | Smallest numeric argument.                      |
-| `max(a, b, ...)`              | Largest numeric argument.                       |
-| `abs(x)`                      | Absolute value.                                 |
-| `floor(x)`                    | Round down.                                     |
-| `ceil(x)`                     | Round up.                                       |
-| `round(x)`                    | Round to nearest integer.                       |
-| `sin(x)`                      | Sine, in radians.                               |
-| `cos(x)`                      | Cosine, in radians.                             |
-| `clamp(x, min, max)`          | Clamp a number.                                 |
-| `lerp(start, end, t)`         | Linear interpolation.                           |
-| `linear(start, end, t)`       | Linear interpolation.                           |
-| `pow(base, exponent)`         | Power.                                          |
-| `mod(a, b)`                   | Numeric remainder.                              |
-| `fract(x)`                    | Fractional part.                                |
-| `smoothstep(edge0, edge1, x)` | Smooth Hermite interpolation from 0 to 1.       |
-| `step(start, end, t)`         | Returns `start` while `t < 1`, otherwise `end`. |
-| `uppercase(value)`            | String uppercase conversion.                    |
-| `lowercase(value)`            | String lowercase conversion.                    |
-| `text_width(...)`             | Measure text width.                             |
-| `text_height(...)`            | Measure text height.                            |
-
-`text_width` and `text_height` accept either a text node reference or explicit text inputs.
+`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch.
 
 ```txt
-=text_width(node(8))
-=text_width("Launch", 64, 400, "Inter")
-=text_height("Launch", 64, 400, "Inter")
+=if(frame < 45, 0, 1)
 ```
 
-When passing explicit text inputs, the arguments are `text`, optional `font_size`, optional `max_width`, and optional `font_family`.
+## Built-in functions
 
-## Node References
+### Math
 
-Expressions can reference another node or one of its scalar properties.
+| Function                      | Result                                                   |
+| ----------------------------- | -------------------------------------------------------- |
+| `min(a, b, ...)`              | Smallest of two or more numbers.                         |
+| `max(a, b, ...)`              | Largest of two or more numbers.                          |
+| `abs(x)`                      | Absolute value.                                          |
+| `floor(x)`                    | Rounds down.                                             |
+| `ceil(x)`                     | Rounds up.                                               |
+| `round(x)`                    | Rounds to the nearest integer.                           |
+| `fract(x)`                    | Fractional part.                                         |
+| `mod(x, divisor)`             | Remainder, with the sign of `x`.                         |
+| `pow(base, exponent)`         | `base` raised to `exponent`.                             |
+| `sin(radians)`                | Sine.                                                    |
+| `cos(radians)`                | Cosine.                                                  |
+| `clamp(x, min, max)`          | `x` limited to `min..max`.                               |
+| `smoothstep(edge0, edge1, x)` | Hermite smoothing of `x` between two edges, from 0 to 1. |
+| `step(from, to, t)`           | `to` once `t >= 1`, otherwise `from`.                    |
+
+### Animation
+
+| Function                                 | Result                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                     |
+| `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`. |
+| `lerp(from, to, t)`                      | Interpolates numbers, vec2 values or colors by `t`. Colors mix premultiplied.                       |
+| `linear(from, to, t)`                    | Same as `lerp`.                                                                                     |
+| `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.         |
+| `cubic_bezier(x1, y1, x2, y2, t)`        | CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t`.                                                 |
+
+`tween` takes an easing name as a quoted string: `'linear'`, `'in_quad'`, `'out_quad'`, `'in_out_quad'`, `'in_cubic'`, `'out_cubic'`, `'in_out_cubic'`, `'in_expo'`, `'out_expo'`, `'in_out_expo'`, `'in_back'`, `'out_back'` or `'in_out_back'`. Each name except `linear` is also a function of one argument, such as `out_expo(t)`, that maps progress from 0 to 1.
+
+### Values and text
+
+| Function                                               | Result                                                            |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| `vec2(x, y)`                                           | A vec2.                                                           |
+| `rgb(r, g, b)`                                         | An opaque color from components in 0 to 255.                      |
+| `rgba(r, g, b, a)`                                     | A color with alpha, components in 0 to 255.                       |
+| `uppercase(text)`                                      | Text in uppercase.                                                |
+| `lowercase(text)`                                      | Text in lowercase.                                                |
+| `text_width(text, font_size, max_width, font_family)`  | Laid-out width of the text in pixels.                             |
+| `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                            |
+| `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template. |
+
+`text_width` and `text_height` need only the first argument. Pass `node(id)` instead of text to measure a `text` node with its own font settings.
 
 ```txt
-=node(8, "content")
-=text_width(node(8))
+=text_width('Launch', 64, 0, 'Roboto')
+=text_width(node(8)) + 48
 ```
 
-`node(id, "property_path")` can read properties that evaluate to numbers, booleans, or strings. Non-scalar properties such as colors and vectors are not currently converted into expression values.
+## Node references
 
-`node(id)` is only valid in built-ins that explicitly accept node references, such as `text_width(node(id))` and `text_height(node(id))`.
+`node(id, 'param')` reads another node's param on the current frame. If that param is an expression, you get its result.
 
-## Examples
+```txt
+=node(3, 'opacity') * 0.5
+```
 
-Fade in over the first second:
+It reads number, boolean, text and vec2 params. Paint params such as `fill_paint` and `text.color` can't be read. The id must be a number literal.
+
+`node(id)` without a param name works only as the argument of `text_width` and `text_height`.
+
+## Functions
+
+The top-level `functions` object defines functions you can call from any expression in the composition, templates included. Each key is a signature and each value is the body.
 
 ```json
 {
-  "opacity": "=clamp(frame / fps, 0, 1)"
+  "functions": {
+    "rise(start)": "tween(0, 1, start, 12, 'out_cubic')",
+    "drift(start, distance)": "rise(start) * distance"
+  },
+  "nodes": [
+    { "id": 2, "type": "opacity", "params": { "opacity": "=rise(10)" } },
+    { "id": 3, "type": "transform", "params": { "translate_y": "=drift(10, -40)" } }
+  ]
 }
 ```
 
-Move horizontally with a two-second oscillation:
+A body can use its parameters, the globals and other functions, and the leading `=` is optional. Lumen expands each call where you use it. Functions can't call each other in a cycle, and a name can't reuse a built-in or global.
 
-```json
-{
-  "translate_x": "=sin(time * 3.14159) * 120"
-}
+## TypeScript helpers
+
+`@lumiscia/lumen-shared` exports a typed helper for every built-in, named in camelCase (`tween`, `outExpo`, `textWidth`), plus the globals (`frame`, `time`, `fps`, `width`, `height`), easing names as `ease.outCubic`, `sec()` and `ms()` for durations, and `hex()` for colors. Each helper returns an `Expr` that node params accept directly and that serializes to an `=` string.
+
+```ts
+import { Composition, ease, frame, sec, sin, tween } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  timeline: { fps: 30, duration_frames: 90 },
+  renderSettings: { width: 1280, height: 720 },
+});
+
+composition.addNode({
+  type: "transform",
+  params: {
+    translate_x: tween(-400, 0, 0, sec(0.6), ease.outCubic),
+    rotate: sin(frame.div(10)).mul(5),
+  },
+});
+// translate_x: "=tween(-400, 0, 0, 0.6s, 'out_cubic')"
+// rotate: "=(sin((frame / 10)) * 5)"
 ```
 
-Cut between two inputs in a `switch` node:
-
-```json
-{
-  "selected_layer": "=if(frame < 45, 0, 1)"
-}
-```
-
-Drive text content from a measured value:
-
-```json
-{
-  "content": "=uppercase(node(3, \"content\"))"
-}
-```
-
-Prefer scalar expressions for production payloads until the corresponding node documentation says a color or vector property supports dynamic expression resolution.
+`fn()` defines a function for `functions` and `Composition.addFunction()` registers it. See the [Composition builder guide](guides/composition-builder).
 
 ## Errors
 
-Expression parse and evaluation errors are returned as render validation or render execution errors. Common causes are:
+An expression mistake fails validation when you submit the render, or fails the render itself. Common causes:
 
-- missing the leading `=`,
-- using assignment `=` instead of equality `==`,
-- referencing an unknown global,
-- calling an unknown function,
-- dividing by zero,
-- returning a value that cannot be converted to the target property type.
+- a missing leading `=`, so the value is read as a literal,
+- `=` where you meant `==`,
+- an unknown global, function or easing name,
+- a `glyph` global outside the `glyph_*` params, or `prop()` outside a template,
+- division or modulo by zero,
+- a result the param can't take, such as a vec2 for a number param.

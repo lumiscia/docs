@@ -35,9 +35,17 @@ export default defineConfig({
       prerender: {
         enabled: true,
         autoStaticPathsDiscovery: false,
+        // Crawl every internal link so a dead one 404s and fails the build.
         crawlLinks: true,
         failOnError: true,
-        filter: ({ path }) => prerenderPaths.has(path),
+        filter: (page) => {
+          const path = page.path.split(/[?#]/)[0]!;
+          if (path === page.path) return true;
+
+          // Fragment and query links reuse their page's render and stay out of the sitemap.
+          page.sitemap = { exclude: true };
+          return !prerenderPaths.has(path);
+        },
       },
       pages: Array.from(prerenderPaths, (path) => ({
         path,

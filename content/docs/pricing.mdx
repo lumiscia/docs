@@ -1,56 +1,59 @@
 ---
 title: Pricing
-description: Plans, render-time rates, and how Lumiscia bills cloud renders.
+description: Plans, render-time rates, workspace limits, and how Lumiscia bills cloud renders.
 ---
 
-Lumiscia bills for the seconds a GPU spends rendering your composition. Browser previews run locally and are free. The current plans and rates are also on [lumiscia.com/pricing](https://lumiscia.com/pricing).
+Lumiscia bills for the time a GPU spends rendering your composition, plus a small fee for media you upload. Browser previews run on the viewer's device and are free. The same plans and rates are on [lumiscia.com/pricing](https://lumiscia.com/pricing).
 
 ## Plans
 
-| Plan | Price         | Monthly credit | Renders at a time | Queue priority  | Max resolution |
-| ---- | ------------- | -------------: | ----------------: | --------------- | -------------- |
-| Free | $0            |             $5 |                 1 | After paid work | 1080p          |
-| Pro  | $50 per month |            $50 |                10 | High            | 4K             |
+| Plan | Price         | Monthly credit |
+| ---- | ------------- | -------------: |
+| Free | $0            |             $5 |
+| Pro  | $50 per month |            $50 |
 
-Pro also includes shared workspace billing.
+Pro also adds high queue priority, 10 renders at a time, 4K output, and shared workspace billing.
 
-Each month's credit is spent first. When it runs out, renders draw from your workspace balance. You top up the balance in the dashboard, from $10 per top-up.
+Charges come out of the monthly credit first, then your workspace balance. Unused credit expires at the end of the month. You top up the balance in the dashboard, $10 minimum per top-up.
 
 ## Rates
 
-```text
-$0.002 per second of render time
-5 second minimum per completed render ($0.01)
-$0.005 per GB uploaded
-```
+| Item        | Rate                                                   |
+| ----------- | ------------------------------------------------------ |
+| Render time | $0.002 per second, 5 second minimum per render ($0.01) |
+| Media       | $0.005 per GB uploaded or imported from a URL          |
 
-The GPU worker times each render to the millisecond. Failed renders are never charged. Time spent queued or waiting for a GPU worker to start is not render time, so it never shows up on your bill.
+The GPU worker measures render time to the millisecond. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing.
+
+To start a render, your monthly credit and balance together must cover the $0.01 minimum. Otherwise the API rejects the request with a `400`.
 
 ## Queue priority
 
-Renders queue by tier:
+Your workspace tier sets its queue priority, concurrency, and output limits:
 
-- Free workspaces run after paid work.
-- Any top-up moves a workspace to standard priority.
-- Pro workspaces get high priority. So does any workspace that has spent $100 in total, without a subscription.
+| Workspace                     | Queue priority  | Renders at a time | Max resolution | Max length | Artifacts kept |
+| ----------------------------- | --------------- | ----------------: | -------------- | ---------- | -------------- |
+| Free, never topped up         | After paid work |                 1 | 1080p          | 2 minutes  | 1 day          |
+| Any top-up                    | Standard        |                 3 | 4K             | No limit   | 7 days         |
+| Pro, or $100 in total top-ups | High            |                10 | 4K             | No limit   | 7 days         |
+
+The resolution limit counts pixels, so 1080p allows 1920×1080 or 1080×1920. Renders past your concurrency limit wait in `queued` until a slot frees up. All tiers share the [API limits](how-it-works#validation), such as 60 fps and 10,800 frames.
 
 ## Render time
 
-Render time is the GPU time spent rendering, not the length of the output video. A 30-second clip can take a few seconds or a few dozen, depending on resolution, frame rate, and effects.
-
-The strongest drivers of render time are usually:
+Render time is GPU time, not the length of the output video. A 30-second clip can take a few seconds or a few dozen, depending on:
 
 - total output frames,
 - output resolution,
 - source media resolution and decode cost,
-- number of video sources needed per frame,
-- blur, shadow, shader, and other filter-heavy processing.
+- the number of video sources each frame needs,
+- blur, shadow, shader, and other filter-heavy nodes.
 
-Nodes that are not reachable from `media_output` are not evaluated. Remove them from production payloads anyway; they make compositions harder to reason about.
+Nodes that don't connect to `media_output` never render, so they add no render time.
 
 ## Estimating cost
 
-The calculator on the pricing page assumes the GPU renders roughly this many frames per second of render time:
+The calculator on the pricing page assumes the GPU renders this many frames per second of render time:
 
 | Complexity | Frames per second | Typical graph                     |
 | ---------- | ----------------: | --------------------------------- |
@@ -58,12 +61,17 @@ The calculator on the pricing page assumes the GPU renders roughly this many fra
 | Standard   |               180 | Video plates, merges, transforms  |
 | Heavy      |                60 | Custom shaders, blur, many layers |
 
-These are rough figures. 4K output takes longer, and every real render reports its exact time.
+These are rough figures. 4K output takes longer, and every render reports its exact cost.
 
-```text
-frames = duration_seconds * fps
-render_seconds = max(frames / frames_per_second, 5)
-cost = render_seconds * 0.002
+```ts
+function estimateRenderCost(durationSeconds: number, fps: number, framesPerSecond: number) {
+  const frames = durationSeconds * fps;
+  const renderSeconds = Math.max(frames / framesPerSecond, 5);
+  return { frames, renderSeconds, dollars: renderSeconds * 0.002 };
+}
+
+console.log(estimateRenderCost(30, 30, 180));
+// { frames: 900, renderSeconds: 5, dollars: 0.01 }
 ```
 
 | Scenario                 | Frames | Render time |  Cost |
@@ -72,51 +80,21 @@ cost = render_seconds * 0.002
 | 30 s at 30 fps, standard |    900 |         5 s | $0.01 |
 | 60 s at 30 fps, heavy    |  1,800 |        30 s | $0.06 |
 
-For example, 400 standard 30-second renders a month use 2,000 seconds of render time, or $4.00, which the Free plan's $5 credit covers.
+At these rates, 400 standard 30-second renders use 2,000 seconds of render time ($4.00), which fits in the Free plan's $5 credit. For a closer estimate, render a short representative range and scale its render time by the full frame count.
 
-```ts
-function estimateRenderCost({
-  durationSeconds,
-  fps,
-  framesPerSecond,
-}: {
-  durationSeconds: number;
-  fps: number;
-  framesPerSecond: number;
-}) {
-  const frames = durationSeconds * fps;
-  const renderSeconds = Math.max(frames / framesPerSecond, 5);
+## Billing in the API
 
-  return { frames, renderSeconds, dollars: renderSeconds * 0.002 };
-}
+`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request (same composition, media manifest, and webhook URL) in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
 
-console.log(estimateRenderCost({ durationSeconds: 30, fps: 30, framesPerSecond: 180 }));
-// { frames: 900, renderSeconds: 5, dollars: 0.01 }
-```
+The response's `render` object includes `status` (`queued`, `processing`, `succeeded`, or `failed`), `inputHash`, and `costMicros`, the cost in millionths of a dollar. `costMicros` stays 0 until the render succeeds.
 
-For a closer estimate, render a short representative range and scale its render time by the full frame count.
+## Lowering cost
 
-## API billing behavior
-
-`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. An identical recent submission from the same workspace returns `200` with `cached: true` and the existing render. Treat both as successful submissions.
-
-The `render` object includes `status`, `inputHash`, and `costMicros` (cost in millionths of a dollar). Render statuses are:
-
-- `queued`
-- `processing`
-- `succeeded`
-- `failed`
-
-Do not rely on deduplication as a permanent cache. Repeated renders outside the deduplication window are billed again.
-
-## Optimization tips
-
-- Render a short representative range before running a full batch.
-- Lower the resolution while editing, then switch to final resolution for the production render.
-- Avoid high frame rates for content that does not benefit from them.
-- Trim video sources with `range_start` and `range_end` when you only need part of a clip.
-- Use `memo` when a shared expensive result feeds several downstream nodes.
-- Watch for expression changes that produce a new input hash and bypass deduplication.
+- Render a short representative range before a full batch.
+- Edit at a lower resolution and render the final version at full size.
+- Use the lowest frame rate your content needs.
+- Trim video sources with `range_start` and `range_end` on `media_in`.
+- Wrap an expensive branch in `memo` so it renders again only when its `key` changes.
 
 ## FAQ
 
@@ -124,18 +102,14 @@ Do not rely on deduplication as a permanent cache. Repeated renders outside the 
 
 No. The Free plan has no monthly fee. You pay only for render time and uploads beyond your monthly credit.
 
-### Is there a per-render minimum?
-
-Yes. Every completed render counts at least 5 seconds of render time ($0.01). After that, render time is measured to the millisecond.
-
 ### Are node types priced differently?
 
-No. Heavier nodes take longer to render, which increases render time.
+No. Heavier nodes take longer to render, so they cost more render time.
 
 ### Do I pay for browser previews?
 
-No. Previews run on your users' devices through WebAssembly. You only pay when you call the render API.
+No. Previews run on the viewer's device through WebAssembly. You pay only when you call the render API.
 
 ### How do I check what I was charged?
 
-Every charge shows up in the usage history in the dashboard. For questions about a charge, contact [support](help/support) with the render ids involved.
+Every charge appears in the usage history in the dashboard. For questions about a charge, contact [support](help/support) with the render ids involved.

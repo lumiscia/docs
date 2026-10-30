@@ -1,122 +1,160 @@
 ---
-title: Quick Start
-description: Create your first Lumiscia render from a composition graph.
+title: Quick start
+description: Render your first video with the Lumiscia API and the TypeScript SDK.
 ---
 
-Lumiscia renders video and motion graphics from JSON composition graphs on hosted GPUs, using Lumen, its open-source rendering engine. A composition describes the timeline, canvas size, manifest media aliases, node graph, and final output. You can build graphs visually in the editor or generate them from code.
+Lumiscia renders video from JSON compositions on hosted GPUs. You send a composition to the API, a GPU worker renders it with Lumen, and you download the MP4 artifact.
 
-> **Beta note:** Lumiscia is evolving quickly. Pricing, render concurrency, queue times, SDK APIs, and availability can change during beta. Read [Beta Notes](beta-notes) before depending on Lumiscia for production workloads.
+<Callout type="info" title="Lumiscia is in beta">
+  Pricing, concurrency, queue times, and SDK APIs can change during beta. Read the [beta
+  notes](beta-notes) before you run production workloads.
+</Callout>
 
-## 1. Create a composition
+<Steps>
+<Step>
 
-Every render needs a timeline, output settings, nodes, and connections. This minimal composition draws a solid background into the final output.
+### Get an API key
 
-```json
-{
-  "timeline": { "fps": 30, "duration_frames": 90 },
-  "render_settings": { "width": 1280, "height": 720 },
-  "nodes": [
-    {
-      "id": 1,
-      "type": "solid_color",
-      "properties": {
-        "color": [18, 24, 32, 255],
-        "width": 0,
-        "height": 0
-      }
-    },
-    { "id": 2, "type": "media_output" }
-  ],
-  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
-}
+Sign up at [lumiscia.com](https://lumiscia.com) and create a key on the API keys page of the dashboard. The Free plan adds $5 of credit each month, enough for 500 renders at the 5-second minimum.
+
+```bash
+export LUMISCIA_API_KEY="your-api-key"
 ```
 
-`width` and `height` of `0` on `solid_color` mean "match the composition size."
+</Step>
+<Step>
 
-## 2. Add media
+### Install the SDK
 
-Use `media_in` when a graph needs an uploaded image or video. Upload the file first, then give it an alias in the render request's `media` manifest. The node's `source` value should be that alias, not the raw media id. Audio sources use the same manifest alias pattern anywhere the composition expects an audio source id.
+```bash
+npm install @lumiscia/lumen-sdk
+```
 
-With the TypeScript SDK:
+The examples on this page run on Node.js. For Cloudflare Workers, import from `@lumiscia/lumen-sdk/cloudflare` instead (see the [Cloudflare SDK](sdks/cloudflare)).
 
-```ts
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+</Step>
+<Step>
 
+### Write a composition
+
+A composition sets the timeline, the output size, and a graph of nodes. This one fills a 1280×720 frame with a dark background for 3 seconds (90 frames at 30 fps).
+
+```ts title="render.mts"
+import { writeFile } from "node:fs/promises";
+import { Lumen, type LumenComposition } from "@lumiscia/lumen-sdk";
+
+const composition: LumenComposition = {
+  timeline: { fps: 30, duration_frames: 90 },
+  render_settings: { width: 1280, height: 720 },
+  nodes: [
+    { id: 1, type: "background", params: { paint: [18, 24, 32, 255] } },
+    { id: 2, type: "media_output" },
+  ],
+  connections: [{ from_node: 1, from_port: "output", to_node: 2, to_port: "source" }],
+};
+```
+
+The `background` node outputs a frame filled with `paint`. Its `width` and `height` default to 0, which matches the composition size. The connection feeds that frame into `media_output`, the node every composition ends at.
+
+</Step>
+<Step>
+
+### Submit the render
+
+Add this to `render.mts`:
+
+```ts title="render.mts"
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const heroMedia = await lumen.uploadMedia({
-  body: file,
+const { id, error } = await lumen.render(composition);
+
+if (error || !id) {
+  throw new Error(error?.message ?? "Render was not created");
+}
+
+console.log("Render queued:", id);
+```
+
+`render()` returns API errors in `error` instead of throwing. A validation error names the field or node that failed. Always set `baseUrl`, because the SDK's default points at the dashboard proxy.
+
+</Step>
+<Step>
+
+### Download the artifact
+
+Wait for the render to finish, then save the MP4:
+
+```ts title="render.mts"
+await lumen.waitForRender(id);
+
+const artifact = await lumen.getRenderArtifact(id);
+await writeFile("render.mp4", Buffer.from(await artifact.arrayBuffer()));
+```
+
+`waitForRender()` listens on the render's event socket and rejects if the render fails. Run the script with Node.js 22.18 or later, which runs TypeScript files directly:
+
+```bash
+node render.mts
+```
+
+</Step>
+</Steps>
+
+## Add media
+
+To use an image or video, upload it, give it an alias in the render's `media` manifest, and reference the alias from a `media_in` node.
+
+```ts
+import { readFile } from "node:fs/promises";
+import { mediaReference } from "@lumiscia/lumen-sdk";
+
+const bytes = await readFile("hero.png");
+const hero = await lumen.uploadMedia({
+  body: bytes,
   contentType: "image/png",
   fileName: "hero.png",
-  sizeBytes: fileSize,
+  sizeBytes: bytes.byteLength,
+});
+
+const { id, error } = await lumen.render(composition, {
+  media: { hero: mediaReference(hero) },
 });
 ```
 
-Keep the returned media id. Render requests reference it with `mediaReference(heroMedia)` in the top-level `media` manifest.
+`mediaReference()` turns the upload into a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, never the media id, and connect its `output` port like any other source:
 
 ```json
-{
-  "id": 3,
-  "type": "media_in",
-  "properties": {
-    "kind": 0,
-    "source": "hero"
-  }
-}
+{ "id": 3, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
 ```
 
-## 3. Submit a render
+Uploads expire after 24 hours, so upload media shortly before you render it. See [Media sources](guides/media-sources) for video, URL ingest, and large files.
 
-```ts
-const { id, error, render } = await lumen.render(composition, {
-  media: {
-    hero: mediaReference(heroMedia),
-  },
-});
+## Next steps
 
-if (error) {
-  throw new Error(error.message);
-}
-
-console.log(id, render?.status);
-```
-
-Set `baseUrl` to `https://api.lumiscia.com/v1`. The SDK appends paths such as `/renders` to it. Use `@lumiscia/lumen-sdk/cloudflare` for Cloudflare Workers.
-
-## 4. Subscribe for completion
-
-```ts
-if (!id) {
-  throw new Error("Missing render id");
-}
-
-const subscription = await lumen.subscribeToRender(id, {
-  onEvent: async (event) => {
-    if (event.type === "render.completed") {
-      subscription.close();
-      const artifact = await lumen.getRenderArtifact(id);
-      console.log("Artifact bytes:", artifact.size);
-    }
-
-    if (event.type === "render.failed") {
-      subscription.close();
-      console.error(event.error);
-    }
-  },
-  onError: console.error,
-});
-```
-
-## What's next
-
-- [How it works](how-it-works): composition structure, validation, media loading, and frame rendering.
-- [Pricing](pricing): plans, render-time billing, and cost estimates.
-- [Node SDK](sdks/node): server-side rendering with `@lumiscia/lumen-sdk`.
-- [Cloudflare SDK](sdks/cloudflare): Worker-native rendering and subscriptions.
-- [React SDK](sdks/react) and [Svelte SDK](sdks/svelte): browser previews.
-- [Guides](guides): practical workflows for media, animation, and graph design.
-- [Nodes](nodes): complete public reference for every node kind.
-- [Open source](open-source): Lumen, the engine that runs your renders, and how to self-host it.
+<Cards>
+  <Card
+    title="How it works"
+    href="how-it-works"
+    description="Graph validation, frame evaluation, and limits."
+  />
+  <Card
+    title="Composition format"
+    href="composition-format"
+    description="Every field in a composition."
+  />
+  <Card title="Nodes" href="nodes" description="Reference for every node type." />
+  <Card
+    title="Node SDK"
+    href="sdks/node"
+    description="Every client method in the TypeScript SDK."
+  />
+  <Card
+    title="Webhooks"
+    href="guides/webhooks"
+    description="Get notified when a render finishes."
+  />
+  <Card title="Pricing" href="pricing" description="Render-time rates and plan limits." />
+</Cards>

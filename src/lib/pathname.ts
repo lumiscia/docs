@@ -1,5 +1,7 @@
 import { useRouterState } from "@tanstack/react-router";
 
+export const notFoundPath = "/404";
+
 export function usePathname() {
   return useRouterState({ select: (state) => state.location.pathname });
 }

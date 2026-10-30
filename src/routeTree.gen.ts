@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as R404RouteImport } from './routes/404'
 import { Route as ApiSearchDotjsonRouteImport } from './routes/api/search[.]json'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const R404Route = R404RouteImport.update({
+  id: '/404',
+  path: '/404',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSearchDotjsonRoute = ApiSearchDotjsonRouteImport.update({
   id: '/api/search.json',
   path: '/api/search.json',
@@ -32,30 +38,34 @@ const ApiSearchDotjsonRoute = ApiSearchDotjsonRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/404': typeof R404Route
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/404': typeof R404Route
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/404': typeof R404Route
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/api/search.json'
+  fullPaths: '/' | '/$' | '/404' | '/api/search.json'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/api/search.json'
-  id: '__root__' | '/' | '/$' | '/api/search.json'
+  to: '/' | '/$' | '/404' | '/api/search.json'
+  id: '__root__' | '/' | '/$' | '/404' | '/api/search.json'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  R404Route: typeof R404Route
   ApiSearchDotjsonRoute: typeof ApiSearchDotjsonRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/404': {
+      id: '/404'
+      path: '/404'
+      fullPath: '/404'
+      preLoaderRoute: typeof R404RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/search.json': {
       id: '/api/search.json'
       path: '/api/search.json'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  R404Route: R404Route,
   ApiSearchDotjsonRoute: ApiSearchDotjsonRoute,
 }
 export const routeTree = rootRouteImport

@@ -3,64 +3,181 @@ title: Self-hosting
 description: Render compositions on your own GPU with lumen-server.
 ---
 
-`lumen-server` is the entry point for running Lumen yourself. It is a crate in [lumen-oss](https://github.com/lumiscia/lumen-oss/tree/main/crates/server) with two targets:
+`lumen-server` is the crate for running Lumen yourself. It lives in [`crates/server`](https://github.com/lumiscia/lumen-oss/tree/main/crates/server) and has two targets:
 
 - the `lumen_server` library, with render service primitives for building your own render platform,
 - the `lumen-server` binary, a small HTTP server for local rendering.
 
-Self-hosting is hands-on. The binary renders on one machine and keeps artifacts in memory. Everything else that the hosted platform provides is yours to build and run. For production workloads, the hosted platform is the smoother path today.
+The binary renders on one machine and keeps artifacts in memory. Queueing, storage, auth, and deployment are yours to build. For production workloads, Lumiscia is the supported path.
 
 ## Requirements
 
 - A GPU. Native rendering does not run without one.
-- Linux with Vulkan, or macOS with Metal. Windows cannot build or run `lumen-server`. See [Platform support](platform-support).
-- Rust stable with Cargo.
-- FFmpeg development libraries. On Debian or Ubuntu, the CI setup installs `libavcodec-dev`, `libavdevice-dev`, `libavfilter-dev`, `libavformat-dev`, `libavutil-dev`, `libswresample-dev`, `libswscale-dev`, `libvulkan1`, `mesa-vulkan-drivers`, `pkg-config`, and `vulkan-tools`.
+- Linux with Vulkan, or macOS with Metal. `lumen-server` does not build or run on Windows. See [Platform support](platform-support).
+- Rust stable with Cargo. The crates use the 2024 edition.
+- FFmpeg development libraries and `pkg-config`.
+- For CUDA/NVENC interop on NVIDIA, the CUDA toolkit with `nvcc` on your `PATH`.
 
 ## Run the HTTP server
+
+<Steps>
+<Step>
+
+### Install system dependencies
+
+On Debian or Ubuntu, install the packages CI uses:
+
+```bash
+sudo apt-get install -y --no-install-recommends \
+  libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev \
+  libavutil-dev libswresample-dev libswscale-dev \
+  libvulkan1 mesa-vulkan-drivers pkg-config vulkan-tools
+```
+
+On macOS, install FFmpeg with its development headers and `pkg-config`.
+
+</Step>
+<Step>
+
+### Build and start the server
+
+The binary needs the `cli` feature. Add the GPU feature for your platform.
+
+<Tabs items={["Linux", "Linux with NVIDIA", "macOS"]}>
+<Tab value="Linux">
 
 ```bash
 git clone https://github.com/lumiscia/lumen-oss.git
 cd lumen-oss
-cargo run -p lumen-server --features cli --bin lumen-server -- --bind 127.0.0.1:8080
+cargo run -p lumen-server --features cli,vulkan --bin lumen-server -- --bind 127.0.0.1:8080
 ```
 
-Enable the feature for your platform alongside `cli`:
+</Tab>
+<Tab value="Linux with NVIDIA">
 
-- Linux: `--features cli,vulkan`. Add `cuda` for CUDA/NVENC interop on NVIDIA GPUs.
-- macOS: `--features cli,metal`.
+```bash
+git clone https://github.com/lumiscia/lumen-oss.git
+cd lumen-oss
+cargo run -p lumen-server --features cli,vulkan,cuda --bin lumen-server -- --bind 127.0.0.1:8080
+```
 
-The server exposes:
+`cuda` compiles a PTX kernel with `nvcc` for `sm_50` by default. Set `LUMEN_CUDA_ARCH` to target another architecture, or `CUDA_NVCC` to use a different compiler path.
 
-- `GET /health`
-- `POST /renders`
-- `GET /renders/:id`
-- `GET /renders/:id/progress`
-- `GET /renders/:id/socket`
-- `GET /renders/:id/artifact`
+</Tab>
+<Tab value="macOS">
 
-`POST /renders` accepts the same payload shape as the hosted API. The difference is the `media` manifest: its values are direct `http` or `https` URLs, which the server downloads. Composition nodes still reference the manifest aliases.
+```bash
+git clone https://github.com/lumiscia/lumen-oss.git
+cd lumen-oss
+cargo run -p lumen-server --features cli,metal --bin lumen-server -- --bind 127.0.0.1:8080
+```
 
-```json
+</Tab>
+</Tabs>
+
+You can also install the published crate with `cargo install lumen-server --features cli,vulkan` (or `cli,metal`) and run `lumen-server --bind 127.0.0.1:8080`.
+
+Check that it is up:
+
+```bash
+curl http://127.0.0.1:8080/health
+# {"ok":true,"service":"lumen-server"}
+```
+
+</Step>
+<Step>
+
+### Submit a render
+
+`POST /renders` takes the same payload shape as the hosted API: a `composition` and an optional `media` manifest.
+
+```json title="render.json"
 {
   "composition": {
-    "timeline": { "fps": 30, "duration_frames": 120 },
+    "timeline": { "fps": 30, "duration_frames": 90 },
     "render_settings": { "width": 1280, "height": 720 },
-    "nodes": [],
-    "connections": []
-  },
-  "media": {
-    "hero": "https://example.com/hero.png",
-    "music": "https://example.com/music.wav"
+    "nodes": [
+      { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
+      { "id": 2, "type": "media_output" }
+    ],
+    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
   }
 }
 ```
 
-The progress endpoint and WebSocket send the same render events as the hosted API, so the SDK's `subscribeToRender` and `waitForRender` work against a local server.
+```bash
+curl -X POST http://127.0.0.1:8080/renders \
+  -H "content-type: application/json" \
+  -d @render.json
+```
+
+The server responds with `202` and the render, whose `id` starts with `r_` and whose `status` is `queued`.
+
+</Step>
+<Step>
+
+### Download the artifact
+
+Poll the render until `status` is `succeeded` or `failed`, then download the MP4:
+
+```bash
+curl http://127.0.0.1:8080/renders/<id>
+curl -o render.mp4 http://127.0.0.1:8080/renders/<id>/artifact
+```
+
+</Step>
+</Steps>
+
+## HTTP routes
+
+| Route                       | Returns                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `GET /health`               | `{"ok":true,"service":"lumen-server"}`. Never requires a token.                                            |
+| `POST /renders`             | `202` with `{ cached, render }`. Rendering starts in a background task.                                    |
+| `GET /renders/:id`          | `{ render }` with its `status`: `queued`, `succeeded`, or `failed`.                                        |
+| `GET /renders/:id/progress` | `{ progress, render }`, where `progress` has `state`, `stage`, and `progress` from `0` to `1`.             |
+| `GET /renders/:id/socket`   | A WebSocket that sends `render.queued`, `render.progress`, `render.completed`, and `render.failed` events. |
+| `GET /renders/:id/artifact` | The MP4 file, or `404` until the render succeeds.                                                          |
+
+The progress endpoint and WebSocket use the same event shape as the hosted API, so the SDK's `subscribeToRender` and `waitForRender` work against a local server.
+
+## Media
+
+In the hosted API, manifest values are uploaded media references like `lumen:<media_id>`. In `lumen-server`, they are direct `http` or `https` URLs, which the server downloads before rendering. Composition nodes still reference media by manifest alias.
+
+```json title="render.json"
+{
+  "composition": {
+    "timeline": { "fps": 30, "duration_frames": 90 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [
+      { "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } },
+      { "id": 2, "type": "media_output" }
+    ],
+    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+  },
+  "media": {
+    "hero": "https://example.com/hero.png"
+  }
+}
+```
+
+The server rejects a render when:
+
+- a composition field named `source`, `url`, `path`, or `source_id` holds a URL or `lumen:` reference instead of an alias,
+- a manifest value is a `lumen:` reference, or not an `http` or `https` URL,
+- an alias is longer than 128 characters or uses characters other than letters, digits, `.`, `_`, and `-`,
+- a URL resolves to `localhost` or a private IP address, or redirects,
+- a file is larger than 512 MiB, or its content type is not `image/*`, `video/*`, `audio/*`, or `application/octet-stream`.
+
+<Callout type="warn" title="No local media URLs">
+  Because private addresses are blocked, the server cannot download media from `localhost` or your
+  LAN. Serve test media from a public URL.
+</Callout>
 
 ## Use the SDK
 
-Point `baseUrl` at the server. Media uploads and URL ingest are not available, so pass URLs in the manifest instead of calling `uploadMedia` or `createUrlMedia`.
+Point `baseUrl` at the server and pass the token as `apiKey`. Media upload and URL ingest do not exist on `lumen-server`, so put URLs in the manifest instead of calling `uploadMedia` or `createUrlMedia`.
 
 ```ts
 import { Lumen } from "@lumiscia/lumen-sdk";
@@ -73,40 +190,64 @@ const lumen = new Lumen({
 const { id, error } = await lumen.render(composition, {
   media: { hero: "https://example.com/hero.png" },
 });
+if (error) throw error;
+
+await lumen.waitForRender(id!);
+const mp4 = await lumen.getRenderArtifact(id!);
 ```
+
+Without `--token`, the server ignores the key, so any string works.
 
 ## Configuration
 
-| Flag                   | Environment variable              | Default          | Effect                                                                                             |
-| ---------------------- | --------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `--bind`               | `LUMEN_SERVER_BIND`               | `127.0.0.1:8080` | Address to listen on.                                                                              |
-| `--token`              | `LUMEN_SERVER_TOKEN`              | none             | Requires `Authorization: Bearer <token>` on render requests.                                       |
-| `--progress-min-delta` | `LUMEN_SERVER_PROGRESS_MIN_DELTA` | `0.02`           | Minimum progress increase, from `0` to `1`, before another progress event. `0` sends every update. |
-| `--verbose-debug`      | `LUMEN_SERVER_VERBOSE_DEBUG`      | `false`          | Logs per-frame progress, GPU device diagnostics, and frame timing.                                 |
+Each flag also reads from an environment variable.
 
-Without `--token`, anyone who can reach the port can submit renders. Keep the default loopback address or set a token.
+| Flag                   | Environment variable              | Default          | Effect                                                                                                                            |
+| ---------------------- | --------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `--bind`               | `LUMEN_SERVER_BIND`               | `127.0.0.1:8080` | Address to listen on.                                                                                                             |
+| `--token`              | `LUMEN_SERVER_TOKEN`              | none             | Requires `Authorization: Bearer <token>` on every route except `/health`.                                                         |
+| `--progress-min-delta` | `LUMEN_SERVER_PROGRESS_MIN_DELTA` | `0.02`           | Minimum progress increase, from `0` to `1`, before another progress event. State changes are always sent. `0` sends every update. |
+| `--verbose-debug`      | `LUMEN_SERVER_VERBOSE_DEBUG`      | `false`          | Logs per-frame progress, CUDA and Vulkan device diagnostics, and frame timing.                                                    |
+
+Logs go to stderr. Set `RUST_LOG` to override the default filter (`lumen_server=info,warn`).
+
+Without a token, anyone who can reach the port can submit renders. Keep the default loopback address or set a token.
+
+## Software Vulkan
+
+To test on a Linux machine without a hardware GPU, force `wgpu` onto a software Vulkan adapter such as lavapipe. This is how CI runs the SDK integration tests. It checks behavior, not performance.
+
+```bash
+LUMEN_GPU_FORCE_FALLBACK_ADAPTER=1 \
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+WGPU_BACKEND=vulkan \
+WGPU_POWER_PREF=none \
+cargo run -p lumen-server --features cli,vulkan --bin lumen-server
+```
+
+The server logs the selected adapter, backend, and driver when each render starts.
 
 ## Limitations
 
-The HTTP server does not implement:
+The HTTP server does not provide:
 
 - media upload or URL ingest APIs,
-- durable queueing (renders run in a local background task),
-- durable artifact storage (artifacts are kept in memory and lost when the process exits),
-- accounts, API keys, or billing,
-- provider progress callbacks or artifact staging.
+- durable queueing (renders run in local background tasks),
+- durable artifact storage (every MP4 stays in memory until the process exits),
+- webhooks (`webhookUrl` is accepted and ignored),
+- accounts, API keys, or billing.
 
-Use it for local development and single-process testing. For anything larger, provide GPU machines, FFmpeg setup, queueing, artifact storage, auth, deployment, and monitoring yourself.
+Use it for local development and single-process testing. For more than that, you provide GPU machines, FFmpeg setup, queueing, artifact storage, auth, deployment, and monitoring.
 
 ## Build your own platform
 
 The `lumen_server` library is built around four traits:
 
-- `RenderQueue`: enqueue, lease, acknowledge, retry, and heartbeat render jobs.
-- `RenderExecutor`: execute a leased render job.
-- `ArtifactStore`: persist render artifacts and return stable artifact references.
-- `ProgressSink`: publish render progress events.
+- `RenderQueue` enqueues, leases, acknowledges, retries, and heartbeats render jobs.
+- `RenderExecutor` runs a leased render job.
+- `ArtifactStore` persists render artifacts and returns stable artifact references.
+- `ProgressSink` publishes render progress events.
 
-It includes `InMemoryRenderQueue`, `LocalRenderExecutor`, `NoopProgressSink`, `CallbackProgressSink`, and `PresignedUrlArtifactStore` (for S3-compatible or R2-style pre-signed uploads). `RenderService::process_next` leases, executes, stores, and acknowledges one queued job.
+It includes `InMemoryRenderQueue`, `LocalRenderExecutor`, `NoopProgressSink`, `CallbackProgressSink` (for HTTP progress callbacks), and `PresignedUrlArtifactStore` (for S3-compatible or R2-style pre-signed uploads). `RenderService::process_next` leases, executes, stores, and acknowledges one queued job.
 
-Build your own API around these traits rather than depending on the binary's request and response types. The traits are experimental and may change. See the [crate README](https://github.com/lumiscia/lumen-oss/blob/main/crates/server/README.md) for details.
+Build your own API on these traits. The binary's request and response types are internal to it. The traits are experimental and may change. See the [crate README](https://github.com/lumiscia/lumen-oss/blob/main/crates/server/README.md) for details.

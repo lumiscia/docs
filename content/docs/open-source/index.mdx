@@ -1,37 +1,53 @@
 ---
-title: Architecture
-description: How Lumiscia runs renders with Lumen, its open-source rendering engine.
+title: Lumen
+description: The open-source engine behind Lumiscia, what it includes, and how hosted renders use it.
 ---
 
-Lumen is the rendering engine behind Lumiscia. It is developed in the public [lumiscia/lumen-oss](https://github.com/lumiscia/lumen-oss) repository under the Apache 2.0 license. Lumiscia is the hosted platform built around it. It runs the API at `https://api.lumiscia.com`, the dashboard at [lumiscia.com](https://lumiscia.com), media storage, billing, and the GPU workers.
+Lumen is the rendering engine behind Lumiscia. It lives in the public [lumiscia/lumen-oss](https://github.com/lumiscia/lumen-oss) repository under the Apache 2.0 license. Lumiscia is the hosted platform around it, with the API at `https://api.lumiscia.com/v1`, the dashboard at [lumiscia.com](https://lumiscia.com), media storage, billing, and the GPU render workers.
 
-## Render pipeline
+Lumen is in heavy beta. Expect breaking changes in crate APIs, schema shapes, node behavior, and package structure.
 
-A cloud render goes through these steps:
+<Cards>
+  <Card
+    title="Packages and crates"
+    href="/open-source/packages"
+    description="What each npm package and Rust crate does."
+  />
+  <Card
+    title="Self-hosting"
+    href="/open-source/self-hosting"
+    description="Render compositions on your own GPU with lumen-server."
+  />
+  <Card
+    title="Platform support"
+    href="/open-source/platform-support"
+    description="Supported operating systems, GPU backends, and encoders."
+  />
+</Cards>
+
+## How a hosted render runs
 
 1. Your backend sends a composition and its media manifest to `POST https://api.lumiscia.com/v1/renders` with an API key.
-2. The API validates the composition and the referenced media, then queues the render. A scheduler for each workspace enforces your plan's concurrency limit and [queue priority](../pricing#queue-priority).
-3. A GPU worker picks up the render and renders it with `lumen-server`, the same crate you can [run yourself](self-hosting).
-4. The worker uploads the MP4 artifact to Lumiscia's storage and reports the result and measured render time to the API.
-5. The API marks the render `succeeded` or `failed`, bills the render time, sends events to subscribers, and delivers your webhook.
+2. The API validates the composition and the media it references, then queues the render. Each workspace has its own scheduler, which enforces your plan's concurrency limit and [queue priority](../pricing).
+3. A GPU render worker picks up the render and runs it with `lumen-server`, the same crate you can [run yourself](self-hosting).
+4. The worker uploads the MP4 artifact to Lumiscia's storage and reports the result and the measured render time.
+5. The API marks the render `succeeded` or `failed`, bills the render time, sends render events to subscribers, and delivers your webhook.
 
-Browser previews skip this pipeline. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` run Lumen compiled to WebAssembly on the viewer's device, so previews are free and need no API key. Preview output can still differ from cloud renders in edge cases while the bindings evolve.
+Browser previews skip this pipeline. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` run Lumen compiled to WebAssembly on the viewer's device, so previews are free and need no API key. Preview output can differ from cloud renders in edge cases while the bindings evolve.
 
 ## What is open source
 
 | Open source in `lumen-oss`                                                  | Hosted only                                    |
 | --------------------------------------------------------------------------- | ---------------------------------------------- |
-| Rendering engine, GPU, FFmpeg, and text crates                              | The Lumiscia API and its render scheduling     |
-| `lumen-server`, the render service and local HTTP server                    | The GPU worker that wraps `lumen-server`       |
+| Rendering engine, GPU, FFmpeg, and text crates                              | The Lumiscia API and render scheduling         |
+| `lumen-server`, with render service primitives and a local HTTP binary      | The GPU worker that wraps `lumen-server`       |
 | Composition schema and node definitions                                     | Media upload, URL ingest, and media validation |
 | TypeScript packages: SDK, composition builder, types, preview, and bindings | Dashboard, editor, accounts, API keys, billing |
 
-The SDK, `@lumiscia/lumen-sdk`, is open source even though it mainly talks to the hosted API. It can also call a local `lumen-server`. See [Packages and crates](packages) for what each piece does.
+`@lumiscia/lumen-sdk` is open source too. It mainly calls the hosted API, and it also works against a local `lumen-server`.
 
 ## Hosted or self-hosted
 
-The hosted platform is the supported production path. It provides managed GPUs, media storage, artifact delivery, and the operational pieces around them.
+Lumiscia is the supported production path. It provides managed GPUs, media storage, artifact delivery, and the operations around them.
 
-Self-hosting is possible but hands-on. `lumen-server` renders compositions on your own GPU, and you provide the queueing, storage, auth, and deployment around it. See [Self-hosting](self-hosting) for what it does today.
-
-Lumen is in heavy beta. Expect breaking changes in crate APIs, schema shapes, node behavior, and package structure.
+Self-hosting works but is hands-on. `lumen-server` renders compositions on your own GPU, and you supply the queueing, storage, auth, and deployment around it.

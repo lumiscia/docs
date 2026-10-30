@@ -1,28 +1,63 @@
 ---
 title: FAQ
-description: Common questions about Lumiscia during beta.
+description: Answers to common questions about Lumiscia renders, media, pricing, and Lumen.
 ---
 
 ## Is Lumiscia ready for production?
 
-Lumiscia is in beta. You can build real integrations with it, but pricing, SDKs, render concurrency, limits, and operational behavior may change before general availability. Read [Beta Notes](../beta-notes) before relying on it for production workloads.
+Lumiscia is in beta. You can build real integrations on it, but pricing, SDKs, render concurrency, limits, and operational behavior may change before general availability. Read the [beta notes](../beta-notes) before you depend on it for production workloads.
+
+## What is a composition?
+
+A composition is a JSON document that describes a video: nodes such as `media_in`, `text`, `shape`, `merge`, and `wgsl_shader`, the connections between them, render settings, and a timeline. The SDK's `Composition` class builds one with types, or you can write the JSON by hand. See [Composition format](../composition-format) and the [node reference](../nodes).
 
 ## How does pricing work?
 
-Cloud renders are billed at $0.002 per second of render time, with a 5 second minimum per render, after your plan's monthly credit. Failed renders are not charged. Browser previews run locally and are free. See [Pricing](../pricing) for the current model.
+You pay $0.002 per second of render time, the GPU time spent rendering, after your plan's monthly credit. Every completed render counts at least 5 seconds ($0.01). Failed renders are free, and time spent queued or waiting for a worker to start is not billed.
 
-## Do I need to upload media before rendering?
+The Free plan includes $5 of credit a month and Pro includes $50. When the credit runs out, renders draw from your workspace balance, which you top up from $10. See [Pricing](../pricing).
 
-Yes. Media must be uploaded or ingested before render creation. Composition `media_in` nodes use aliases, and the render request maps those aliases to the returned media ids.
+## How do I get media into a render?
+
+Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest, and reference the alias from your composition. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
+
+## How do I know when a render finishes?
+
+Use any of these:
+
+- Subscribe to the render's WebSocket. The SDK's `waitForRender` does this for you.
+- Poll `GET https://api.lumiscia.com/v1/renders/:id` until `status` is `succeeded` or `failed`.
+- Pass a `webhookUrl` when you create the render. Lumiscia posts `render.succeeded` or `render.failed` to it. See [Webhooks](../guides/webhooks).
+
+## Can I test without paying for GPU time?
+
+Yes. Renders created with a test API key skip the GPU and media validation and complete with a sample artifact, so you can wire up your integration for free.
 
 ## Can I preview compositions in the browser?
 
-Yes. Use the React or Svelte packages with the local wasm bindings for browser previews. Cloud rendering still happens through the API when you submit a render.
+Yes. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` render previews on the viewer's device with WebAssembly. Previews are free and need no API key. You only pay when you submit a render to the API. See [React](../sdks/react) or [Svelte](../sdks/svelte).
+
+## What are the render limits?
+
+Every render must fit within:
+
+- 3840 pixels wide and 2160 pixels tall,
+- 60 fps,
+- 10,800 frames,
+- 250 nodes,
+- 1 MB of composition JSON,
+- 50 distinct media sources.
+
+Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB.
 
 ## Why is my render queued?
 
-Render concurrency is conservative during beta. Queue times can be longer when workers are cold, capacity is changing, several renders are active, or your composition uses large media, high resolution, or long timelines.
+Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
 
-## Where should I report issues?
+## Can I run Lumen myself?
 
-Use the [Support](support) page. Include render ids, input hashes, SDK versions, composition JSON, and media details when they apply.
+Yes. Lumen, the engine behind Lumiscia, is open source under Apache 2.0. `lumen-server` gives you a local render service, but queueing, storage, scaling, and monitoring are up to you. See [Self-hosting](../open-source/self-hosting).
+
+## Where do I report issues?
+
+See [Support](support). Include render ids, input hashes, SDK versions, composition JSON, and media details where they apply.

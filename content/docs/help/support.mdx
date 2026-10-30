@@ -1,30 +1,50 @@
 ---
 title: Support
-description: How to get help with Lumiscia.
+description: Where to get help with Lumiscia and Lumen, and what to include.
 ---
 
-For support, email [support@lumiscia.com](mailto:support@lumiscia.com) or use the [contact page](https://lumiscia.com/contact).
+Email [support@lumiscia.com](mailto:support@lumiscia.com) or use the [contact form](https://lumiscia.com/contact). The team replies within a business day.
 
-We review reports from all users, but response times can vary during beta.
+<Cards>
+  <Card
+    title="Email support"
+    href="mailto:support@lumiscia.com"
+    description="Integration help, failed renders, and billing."
+  />
+  <Card
+    title="Contact form"
+    href="https://lumiscia.com/contact"
+    description="Support, billing, volume pricing, bug reports, and feature requests."
+  />
+  <Card
+    title="Engine issues"
+    href="https://github.com/lumiscia/lumen-oss/issues"
+    description="Bugs in Lumen, lumen-server, or the @lumiscia/lumen-* packages."
+  />
+  <Card
+    title="Docs"
+    href="https://github.com/lumiscia/docs"
+    description="Source for this site, in the public lumiscia/docs repository."
+  />
+</Cards>
 
-## What To Include
+Report security issues privately as described in the lumen-oss [security policy](https://github.com/lumiscia/lumen-oss/blob/main/SECURITY.md), not in public GitHub issues.
 
-When asking for help, include the details that are relevant to the issue:
+## What to include
 
-- workspace or account context,
-- render id,
-- input hash if available,
+Send the details that apply to your issue:
+
+- workspace,
+- render id and input hash,
 - SDK package and version,
-- composition JSON or a reduced reproduction,
-- media type, codec, dimensions, and duration when media is involved,
-- browser, runtime, or deployment platform if the issue is SDK-related.
+- composition JSON, or a reduced composition that reproduces the problem,
+- media type, codec, dimensions, and duration, when media is involved,
+- browser, runtime, or deployment platform, for SDK and preview issues.
 
-## Render Issues
+## Render issues
 
-For failed or slow renders, include the render id and whether the job was `queued`, `processing`, `succeeded`, or `failed`.
+For failed or slow renders, include the render id and its last status (`queued`, `processing`, `succeeded`, or `failed`). If media is involved, say whether you uploaded the file or registered it from a URL.
 
-If the problem involves media, include whether the file was uploaded directly or ingested from a URL.
+## Billing questions
 
-## Billing Questions
-
-For billing or usage questions, include the workspace, approximate time range, and any render ids or input hashes connected to the charge.
+Include the workspace, the approximate time range, and the render ids or input hashes behind the charge. Every charge also appears in the usage history in the dashboard.

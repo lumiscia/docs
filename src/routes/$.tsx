@@ -33,7 +33,7 @@ export const Route = createFileRoute("/$")({
 });
 
 export const getDocsPageData = createServerFn({ method: "GET" })
-  .inputValidator((slugs: unknown): string[] => {
+  .validator((slugs: unknown): string[] => {
     if (!Array.isArray(slugs)) {
       return [];
     }

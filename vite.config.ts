@@ -4,13 +4,20 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import mdx from "fumadocs-mdx/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 const docsDir = join(import.meta.dirname, "content/docs");
 const docsPages = getDocsPages(docsDir);
 const prerenderPaths = new Set(["/", ...docsPages]);
 
 export default defineConfig({
+  fmt: {
+    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist"],
+  },
+  lint: {
+    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist"],
+    options: { typeAware: true, typeCheck: true },
+  },
   resolve: {
     tsconfigPaths: true,
   },
@@ -25,12 +32,10 @@ export default defineConfig({
         failOnError: true,
         filter: ({ path }) => prerenderPaths.has(path),
       },
-      pages: [
-        ...Array.from(prerenderPaths).map((path) => ({
-          path,
-          prerender: { enabled: true },
-        })),
-      ],
+      pages: Array.from(prerenderPaths, (path) => ({
+        path,
+        prerender: { enabled: true },
+      })),
       sitemap: {
         enabled: true,
         host: "https://docs.lumiscia.com",

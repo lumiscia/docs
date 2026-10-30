@@ -13,10 +13,10 @@ const prerenderPaths = new Set(["/", ...docsPages, searchIndexPath]);
 
 export default defineConfig({
   fmt: {
-    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist"],
+    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist", "schema"],
   },
   lint: {
-    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist"],
+    ignorePatterns: ["src/routeTree.gen.ts", ".source", "dist", "schema"],
     options: { typeAware: true, typeCheck: true },
   },
   resolve: {

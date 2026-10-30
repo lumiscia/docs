@@ -46,13 +46,23 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+function readStoredPreference() {
+  try {
+    return parseThemePreference(localStorage.getItem(storageKey));
+  } catch {
+    return "system";
+  }
+}
+
 function getSnapshot() {
-  current ??= parseThemePreference(localStorage.getItem(storageKey));
+  current ??= readStoredPreference();
   return current;
 }
 
 export function setThemePreference(preference: ThemePreference) {
-  localStorage.setItem(storageKey, preference);
+  try {
+    localStorage.setItem(storageKey, preference);
+  } catch {}
   const root = document.documentElement;
   for (const className of Object.values(themeClasses)) {
     if (className) root.classList.remove(...className.split(" "));

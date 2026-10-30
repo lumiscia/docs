@@ -1,107 +1,69 @@
 ---
-title: Beta Notes
-description: What to expect while Lumiscia is in beta.
+title: Beta notes
+description: What can change while Lumiscia is in beta, and how to build an integration that copes.
 ---
 
-Lumiscia is currently in beta. The core direction is stable, but parts of the product, API, SDKs, pricing, and operational behavior can still change while we learn from real usage.
+Lumiscia is in beta. The API, SDKs, pricing, and limits can still change, and some changes may require code updates in your application. When a change breaks existing integrations, we try to document the migration path and keep the breakage small.
 
-Use this page as the practical expectation-setting doc before you rely on Lumiscia for production workloads.
+## What can change
 
-## What Can Change
+- Pricing, plans, monthly credit, the per-render minimum, and rates.
+- Concurrency, queue priority, and tier thresholds.
+- Limits on duration, resolution, frame rate, node count, media size, media expiry, and artifact retention.
+- SDK package names, exports, types, and helpers.
+- API request and response shapes, error messages, webhook payloads, and event names.
+- Renderer output for edge cases and newly added nodes.
 
-The following areas may change during beta:
-
-- pricing, plan packaging, monthly credit, the per-render minimum, and rates,
-- render concurrency, queue priority, workspace quotas, and burst limits,
-- maximum composition duration, resolution, frame rate, media size, and artifact retention,
-- SDK package names, exports, types, helper APIs, and preview wiring,
-- API request and response shapes, error codes, webhook payloads, and event names,
-- media upload, URL ingest, temporary media, and artifact delivery behavior,
-- renderer behavior for edge cases, unsupported graph shapes, and newly added nodes.
-
-When a change affects existing integrations, we will try to document the migration path and keep the breakage small. During beta, some changes may still require code updates in your application.
+[Pricing](pricing) lists the current rates and tier limits, and [How it works](how-it-works#validation) lists the API limits. If you plan high-volume usage, treat beta pricing as guidance, not a contract, unless we have agreed on custom terms.
 
 ## Stability
 
-Expect occasional instability while the platform is evolving. This can include:
+Expect occasional problems while the platform changes:
 
-- temporary API downtime,
-- delayed render starts,
-- longer queue times during deploys or capacity changes,
-- failed renders from renderer regressions or unsupported media,
-- preview behavior that differs from cloud rendering while wasm bindings evolve,
-- dashboard or docs updates landing slightly ahead of SDK releases.
+- API downtime.
+- Longer queue times during deploys or capacity changes.
+- Failed renders from renderer regressions or unsupported media.
+- Browser previews that differ from cloud renders in edge cases while the WebAssembly bindings evolve.
+- Docs or dashboard changes that land before the matching SDK release.
 
-For important workflows, keep retry logic, user-visible render status, and a manual fallback path in your application.
+## Render queues
 
-## Render Queues
+A render can wait in `queued` before it moves to `processing`. Waits are longer when GPU workers are cold, when your workspace already has as many active renders as its tier allows, or during deploys. Queue time is never billed. See [Pricing](pricing#queue-priority) for concurrency per tier.
 
-Render concurrency is intentionally conservative during beta. Jobs may spend time in `queued` before they move to `processing`, especially when:
+## Media and artifacts
 
-- the render workers are cold,
-- several users submit work at the same time,
-- your workspace has multiple active renders,
-- the composition uses large media, long durations, or high resolutions,
-- we are deploying staging or release infrastructure.
+Treat Lumiscia storage as temporary. Uploaded and URL-imported media expire after 24 hours. Artifacts expire 1 day after the render on the free tier and 7 days after on paid tiers, and the artifact endpoint returns an error once they do. Keep your source assets and finished videos in your own storage.
 
-Queue time is not the same thing as render compute time. See [Pricing](pricing) for how render time is billed.
+URL imports can fail when the source is slow, unreachable, or too large.
 
-## Pricing
+## SDK versions
 
-Pricing is subject to change during beta. The current public pricing model is documented in [Pricing](pricing), but the exact rate, included usage, billing minimums, and plan boundaries may change before general availability.
+The SDK changes faster during beta than it will afterward. Pin an exact version and read the changelog before you upgrade:
 
-If you are planning high-volume usage, treat beta pricing as planning guidance rather than a long-term contract unless we have agreed on custom terms.
-
-## SDKs and API Versions
-
-The TypeScript SDKs are expected to move faster during beta than they will after general availability.
-
-You should pin package versions and read changelogs before upgrading:
-
-```json
+```json title="package.json"
 {
   "dependencies": {
-    "@lumiscia/lumen-sdk": "0.3.0",
-    "@lumiscia/lumen-shared": "0.3.0"
+    "@lumiscia/lumen-sdk": "0.3.0"
   }
 }
 ```
 
-Avoid relying on undocumented response fields. Prefer the documented SDK helpers for render creation, media references, subscriptions, and artifact lookup.
+Use the documented SDK methods for renders, media references, subscriptions, and artifacts. Don't depend on undocumented response fields.
 
-## Media and Artifacts
+## Building for beta
 
-Media handling is still being hardened. During beta:
+- Show render status in your UI instead of assuming a render starts right away.
+- Show validation errors to the user. The `error.message` names the field or limit at fault.
+- Store render ids and input hashes so you can trace a render later.
+- Expect retries to be deduplicated. An identical request within 5 minutes returns the existing render with `cached: true`.
+- Use [webhooks](guides/webhooks) or render events instead of tight polling loops.
+- Run a short sample render before a large batch.
 
-- uploaded media should be treated as render inputs, not permanent file storage,
-- temporary media may expire,
-- artifact retention may change,
-- URL ingest can fail if the source is slow, unavailable, too large, or blocked,
-- supported codecs and containers may expand over time.
+## Reporting issues
 
-Upload or ingest media before rendering, and store your own source-of-truth assets outside Lumiscia.
+When you contact [support](help/support), include:
 
-## Operational Guidance
-
-For beta integrations:
-
-- show render status instead of assuming a render starts immediately,
-- handle validation errors directly in your UI,
-- make render submission idempotent when a user can retry,
-- subscribe to render events where possible,
-- keep a support-facing record of render ids and input hashes,
-- run a short sample render before large batches,
-- keep preview and cloud render paths easy to update as SDKs change.
-
-## Support
-
-When reporting beta issues, include:
-
-- workspace or account context,
-- render id,
-- input hash if available,
-- SDK package and version,
-- composition JSON or a reduced reproduction,
-- media type, codec, dimensions, and duration when media is involved.
-
-This helps separate composition issues, media issues, queue behavior, and platform regressions quickly.
+- the render id and workspace,
+- the SDK version,
+- the composition JSON, or a smaller one that reproduces the problem,
+- the media type, codec, dimensions, and duration, if media is involved.

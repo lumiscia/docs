@@ -1,112 +1,112 @@
 ---
-title: How It Works
-description: The public model for compositions, validation, media loading, and frame rendering.
+title: How it works
+description: How Lumiscia validates a composition, evaluates its node graph, loads media, and renders frames.
 ---
 
-Lumiscia renders compositions with Lumen, its open-source engine. Lumen renders a directed node graph frame by frame. The graph starts from source nodes, passes through processing and compositing nodes, and ends at one `media_output` node.
+Lumiscia renders compositions with Lumen, its open-source engine. A composition is a directed graph of nodes. Frames start at source nodes, pass through processing and compositing nodes, and end at a single `media_output` node.
 
-## Composition Model
+## Compositions
 
-A composition contains:
+A composition is a JSON object with four required fields:
 
-- `timeline`: frame rate and total frame count.
-- `render_settings`: output width, height, and optional background color.
-- `nodes`: graph nodes, each with an id, type, and properties.
-- `connections`: edges between node output ports and input ports.
+| Field             | Contents                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `timeline`        | `fps` (default 30) and `duration_frames`.                                                     |
+| `render_settings` | Output `width` and `height` in pixels, and an optional `background_color`.                    |
+| `nodes`           | Graph nodes. Each has an integer `id`, a `type`, and optional `params`.                       |
+| `connections`     | Edges from an output port (`from_node`, `from_port`) to an input port (`to_node`, `to_port`). |
 
-```json
-{
-  "timeline": { "fps": 30, "duration_frames": 120 },
-  "render_settings": { "width": 1280, "height": 720 },
-  "nodes": [],
-  "connections": []
-}
-```
+Three optional fields extend it. `compositions` holds named templates that `clip` nodes play, `functions` holds reusable expression functions, and `audio` holds audio tracks and clips. See [Composition format](composition-format) for every field.
 
 ## Validation
 
-Lumen validates a composition before rendering:
+The API checks each render request when you submit it. The composition must match the [composition schema](composition-format), use only known node types and params, and stay within these limits:
 
-- The graph has exactly one `media_output`.
+| Limit            | Value               |
+| ---------------- | ------------------- |
+| Frame rate       | Up to 60 fps        |
+| Duration         | Up to 10,800 frames |
+| Width            | Up to 3,840 px      |
+| Height           | Up to 2,160 px      |
+| Nodes            | 1 to 250            |
+| Composition JSON | 1 MB                |
+
+Your workspace tier can lower the resolution and duration limits. Free workspaces that have never topped up render up to 1080p and 2 minutes. See [Pricing](pricing#queue-priority).
+
+A request that fails these checks gets a `400` response with an `error` message that names the field, node, or limit at fault. The SDK returns it as `error.message`, so you can show it in a builder UI as is.
+
+Lumen then checks the graph itself before it renders a frame:
+
+- The graph has exactly one `media_output` node.
+- Every connection points at an existing node and port.
 - Every required input is connected.
-- Every connection references existing nodes and ports.
-- Output port kinds match input port kinds.
-- The graph does not contain cycles.
-- Node properties are valid for their node type.
+- Each connection joins ports of the same kind.
+- The graph has no cycles.
 
-Validation errors are meant to be shown directly in builder UIs. They usually point to a specific node, port, or property.
+A graph that fails these checks fails the render.
 
-## Port Kinds
+## Ports
 
-Ports are typed:
+Every node input and output has a port kind. All current nodes use `raster_frame`, which carries pixels: video, images, text, and rendered shapes. Shape, path, and text nodes output raster frames directly, so you can connect them to any processing, compositing, or output node.
 
-- `raster_frame`: pixel data such as video, images, text, and rendered shapes.
-- `vector`: reserved for future editable geometry flows.
+## Frame evaluation
 
-Shape, path, and text nodes produce raster frames directly, so they can connect to processing, compositing, and output nodes without a separate renderer node.
+Lumen renders on demand. For each frame, it starts at `media_output` and walks upstream, evaluating only the nodes that frame needs:
 
-## Frame Evaluation
+- Nodes that don't connect to `media_output` never render.
+- A `switch` node renders only its selected layer.
+- A `time_remap` node requests only the source frame it maps to.
+- A node whose params don't change from frame to frame reuses its earlier output. Use `memo` to control this for an expensive branch.
 
-Rendering is demand-driven. For a requested frame, Lumen walks upstream from `media_output` and evaluates only the nodes needed for that result.
+Most params accept an expression, which is a string that starts with `=`. Lumen evaluates expressions every frame with these globals:
 
-This means:
-
-- Unconnected graph branches do not render.
-- Switches and time remaps can avoid evaluating unused branches.
-- A node reused by multiple downstream nodes can be cached for the current frame.
-- Expressions are evaluated per frame.
-
-Common expression values include:
-
-- `frame`: zero-based frame index.
-- `time`: current time in seconds.
-- `fps`: composition frame rate.
-- `width` and `height`: output dimensions.
-- `duration_frames`: total composition length.
+| Global   | Value                    |
+| -------- | ------------------------ |
+| `frame`  | Current frame number.    |
+| `time`   | Current time in seconds. |
+| `fps`    | Composition frame rate.  |
+| `width`  | Render width in pixels.  |
+| `height` | Render height in pixels. |
 
 ```json
 {
+  "id": 4,
   "type": "transform",
-  "properties": {
+  "params": {
     "translate_x": "=sin(time * 3.14159) * 120",
     "translate_y": "=frame * 0.5",
-    "scale_x": 1,
-    "scale_y": 1,
     "rotate": "=time * 12"
   }
 }
 ```
 
-## Media Loading
+See [Expressions](expressions) for operators, functions, and easing.
 
-`media_in` nodes reference uploaded images or videos by alias. In the current API flow, the render request includes a top-level `media` manifest that maps each alias to a validated upload id from `POST https://api.lumiscia.com/v1/media`.
+## Media
+
+Nodes reference media through manifest aliases, never by media id. A render request carries a top-level `media` manifest that maps each alias to an uploaded file:
 
 ```json
 {
-  "id": 1,
-  "type": "media_in",
-  "properties": {
-    "kind": 0,
-    "source": "hero"
+  "media": { "hero": "lumen:media_abc123" },
+  "composition": {
+    "timeline": { "fps": 30, "duration_frames": 150 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [
+      { "id": 1, "type": "media_in", "params": { "kind": "video", "source": "hero" } },
+      { "id": 2, "type": "media_output" }
+    ],
+    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
   }
 }
 ```
 
-```json
-{
-  "media": {
-    "hero": "lumen:media_abc123"
-  },
-  "composition": {}
-}
-```
+You get a media id by uploading a file to `POST https://api.lumiscia.com/v1/media` or importing a URL with `POST https://api.lumiscia.com/v1/media/url`. Lumiscia probes each file, and a render can use it only once its status is `validated`. Uploads expire after 24 hours. The API rejects a composition that puts an `http://` or `https://` URL in a node, so import remote files first and reference them by alias.
 
-Video sources can use trim ranges, playback speed, and loop modes. Lumen can determine which source frame is needed before rendering a composition frame, which helps previews and render workers preload only the required media.
+A video `media_in` node can trim the source with `range_start` and `range_end`, change `speed`, and set a `loop_mode`. Lumen works out which source frame each output frame needs before it renders, so workers and previews decode only those frames.
 
-## Output
+## Rendering
 
-`media_output` is the final sink. It accepts one raster input and returns the composition frame.
+The API queues each accepted render as `queued`. A GPU worker picks it up (`processing`), renders every frame with `lumen-server`, encodes an MP4, and uploads it as the render's artifact. The render then ends as `succeeded` or `failed`.
 
-## Practical Limits
-
-Large compositions should keep graph depth, media resolution, canvas size, and total rendered frames reasonable. See [Pricing](pricing) for cost behavior and optimization guidance.
+You can follow a render over its event socket (`subscribeToRender()` or `waitForRender()` in the SDK), with a [webhook](guides/webhooks), or by polling `GET https://api.lumiscia.com/v1/renders/{id}`. Download the artifact from `GET https://api.lumiscia.com/v1/renders/{id}/artifact` before it expires. Artifacts last 1 day on the free tier and 7 days once your workspace has topped up or subscribed to Pro.

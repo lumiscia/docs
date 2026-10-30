@@ -1,17 +1,13 @@
-import "../styles.css";
+import geistMono from "@fontsource-variable/geist-mono?url";
+import interTight from "@fontsource-variable/inter-tight?url";
+import * as stylex from "@stylexjs/stylex";
+import { createRootRoute, HeadContent, Outlet, Scripts, ScriptOnce } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
-import type { ComponentProps, ReactNode } from "react";
-import { useMemo } from "react";
-import {
-  createRootRoute,
-  HeadContent,
-  Outlet,
-  Scripts,
-  useParams,
-  useRouterState,
-} from "@tanstack/react-router";
-import { FrameworkProvider, type Router } from "fumadocs-core/framework";
-import { RootProvider as FumadocsRootProvider } from "fumadocs-ui/provider/base";
+import { themeScript } from "@/src/lib/theme";
+import { colors, fonts } from "@/src/styles/tokens.stylex";
+
+import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -25,25 +21,17 @@ export const Route = createRootRoute({
       },
     ],
     links: [
-      {
-        rel: "icon",
-        href: "/favicon.ico",
-        sizes: "any",
-      },
-      {
-        rel: "icon",
-        href: "/logo.svg",
-        type: "image/svg+xml",
-      },
-      {
-        rel: "apple-touch-icon",
-        href: "/logo192.png",
-      },
-      {
-        rel: "manifest",
-        href: "/manifest.json",
-      },
+      { rel: "stylesheet", href: interTight },
+      { rel: "stylesheet", href: geistMono },
+      { rel: "stylesheet", href: appCss },
+      // StyleX serves its CSS from a virtual module in dev; builds append it to styles.css.
+      ...(import.meta.env.DEV ? [{ rel: "stylesheet", href: "/virtual:stylex.css" }] : []),
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/logo.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/logo192.png" },
+      { rel: "manifest", href: "/manifest.json" },
     ],
+    scripts: import.meta.env.DEV ? [{ type: "module", src: "/virtual:stylex.js" }] : [],
   }),
   component: RootComponent,
 });
@@ -58,53 +46,27 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning {...stylex.props(styles.html)}>
       <head>
+        <ScriptOnce>{themeScript}</ScriptOnce>
         <HeadContent />
       </head>
-      <body className="flex min-h-screen flex-col">
-        <FrameworkProvider
-          Link={StaticDocsLink}
-          useParams={useStaticDocsParams}
-          usePathname={useStaticDocsPathname}
-          useRouter={useStaticDocsRouter}
-        >
-          <FumadocsRootProvider theme={{ defaultTheme: "light", enableSystem: false }}>
-            {children}
-          </FumadocsRootProvider>
-        </FrameworkProvider>
+      <body {...stylex.props(styles.body)}>
+        {children}
         <Scripts />
       </body>
     </html>
   );
 }
 
-function StaticDocsLink({
-  href = "#",
-  prefetch: _prefetch,
-  ...props
-}: ComponentProps<"a"> & { prefetch?: boolean }) {
-  return <a href={href} {...props} />;
-}
-
-function useStaticDocsPathname() {
-  return useRouterState({ select: (state) => state.location.pathname });
-}
-
-function useStaticDocsParams() {
-  return useParams({ strict: false });
-}
-
-function useStaticDocsRouter(): Router {
-  return useMemo(
-    () => ({
-      push(url) {
-        window.location.assign(url);
-      },
-      refresh() {
-        window.location.reload();
-      },
-    }),
-    [],
-  );
-}
+const styles = stylex.create({
+  html: { backgroundColor: colors.page },
+  body: {
+    margin: 0,
+    fontFamily: fonts.sans,
+    backgroundColor: colors.page,
+    color: colors.ink,
+    WebkitFontSmoothing: "antialiased",
+    textRendering: "optimizeLegibility",
+  },
+});

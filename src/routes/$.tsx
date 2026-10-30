@@ -49,6 +49,7 @@ export const getDocsPageData = createServerFn({ method: "GET" })
 
     return {
       path: page.path,
+      url: page.url,
       title: page.data.title,
       description: page.data.description,
       pageTree: await source.serializePageTree(source.pageTree),

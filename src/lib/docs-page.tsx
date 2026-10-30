@@ -1,42 +1,47 @@
 import { Suspense } from "react";
 import type { ComponentProps } from "react";
+import type * as PageTree from "fumadocs-core/page-tree";
 import { useFumadocsLoader } from "fumadocs-core/source/client";
-import { DocsLayout } from "fumadocs-ui/layouts/docs";
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
-import defaultMdxComponents from "fumadocs-ui/mdx";
 import browserCollections from "collections/browser";
+
+import { DocsLayout } from "@/src/components/docs/layout";
+import { DocsPage } from "@/src/components/docs/page";
+import { mdxComponents } from "@/src/components/mdx";
+import { Link } from "@/src/components/mdx/prose";
 
 import type { source } from "./source";
 
 export type DocsPageData = {
   path: string;
+  url: string;
   title: string;
   description?: string;
   pageTree: Awaited<ReturnType<typeof source.serializePageTree>>;
 };
 
-export const docsClientLoader = browserCollections.docs.createClientLoader<DocsPageData>({
+type DocsContentProps = { page: DocsPageData; tree: PageTree.Root };
+
+export const docsClientLoader = browserCollections.docs.createClientLoader<DocsContentProps>({
   id: "docs",
-  component({ default: MDX, toc }, page) {
+  component({ default: MDX, toc }, { page, tree }) {
     return (
-      <DocsPage toc={toc}>
-        <DocsTitle>{page.title}</DocsTitle>
-        <DocsDescription>{page.description}</DocsDescription>
-        <DocsBody>
-          <MDX components={getMdxComponents(page.path)} />
-        </DocsBody>
+      <DocsPage
+        title={page.title}
+        description={page.description}
+        url={page.url}
+        path={page.path}
+        tree={tree}
+        toc={toc}
+      >
+        <MDX components={getMdxComponents(page.path)} />
       </DocsPage>
     );
   },
 });
 
-const GITHUB_URL = "https://github.com/lumiscia/docs";
-
 function getMdxComponents(path: string) {
-  const Link = defaultMdxComponents.a;
-
   return {
-    ...defaultMdxComponents,
+    ...mdxComponents,
     a: (props: ComponentProps<"a">) => <Link {...props} href={resolveDocsHref(path, props.href)} />,
   };
 }
@@ -59,29 +64,14 @@ function resolveDocsHref(path: string, href: ComponentProps<"a">["href"]) {
   return `${pathname}${url.search}${url.hash}`;
 }
 
-function SidebarTitle() {
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <span className="grid size-7 shrink-0 place-items-center rounded-md border bg-fd-background shadow-xs">
-        <img src="/logo.svg" alt="" className="size-5" />
-      </span>
-      <span className="font-semibold tracking-normal text-fd-foreground">Lumiscia</span>
-    </span>
-  );
-}
-
 export function DocsContent({ data }: { data: DocsPageData }) {
   const Content = docsClientLoader.getComponent(data.path);
-  const layout = useFumadocsLoader({ pageTree: data.pageTree });
+  const { pageTree } = useFumadocsLoader({ pageTree: data.pageTree });
 
   return (
-    <DocsLayout
-      githubUrl={GITHUB_URL}
-      nav={{ title: <SidebarTitle />, url: "/" }}
-      tree={layout.pageTree}
-    >
+    <DocsLayout tree={pageTree}>
       <Suspense>
-        <Content {...data} />
+        <Content page={data} tree={pageTree} />
       </Suspense>
     </DocsLayout>
   );

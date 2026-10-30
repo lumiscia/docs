@@ -25,7 +25,7 @@ export const Route = createFileRoute("/$")({
     links: [
       {
         rel: "canonical",
-        href: `https://docs.lumiscia.com${loaderData ? getCanonicalPath(loaderData) : "/"}`,
+        href: `https://docs.lumiscia.com${loaderData ? loaderData.url : "/"}`,
       },
     ],
   }),
@@ -60,8 +60,4 @@ function DocsRoute() {
   const data = Route.useLoaderData();
 
   return <DocsContent data={data} />;
-}
-
-function getCanonicalPath(data: DocsPageData) {
-  return data.path === "index.mdx" ? "/" : `/${data.path.replace(/\.(mdx|md)$/, "")}`;
 }

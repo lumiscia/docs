@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 
 import { Code } from "@/src/components/mdx/code-block";
 import { Heading, Paragraph, Table, TableCell, TableHeaderCell } from "@/src/components/mdx/prose";
-import { acceptsExpression, getNodeSchema } from "@/src/lib/node-schema";
+import { getExpressionSupport, getNodeSchema } from "@/src/lib/node-schema";
 import type { NodeParam, NodePort } from "@/src/lib/node-schema";
 import { colors } from "@/src/styles/tokens.stylex";
 
@@ -134,10 +134,16 @@ function describeConstraints(param: NodeParam) {
   else if (max !== undefined) details.push(`max ${max}`);
   if (step !== undefined) details.push(`step ${step}`);
   if (format) details.push(`${format} format`);
-  details.push(acceptsExpression(param) ? "expression" : "literal only");
+  details.push(expressionLabels[getExpressionSupport(param)]);
 
   return details.join(" · ");
 }
+
+const expressionLabels = {
+  value: "expression",
+  entries: "expression values",
+  none: "literal only",
+};
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;

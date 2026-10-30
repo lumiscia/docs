@@ -3,6 +3,8 @@ title: Alpha Premultiply
 description: Converts raster alpha between premultiplied and unpremultiplied representations.
 ---
 
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
 `alpha_premultiply` multiplies color by alpha (`premultiply`) or divides it back out (`unpremultiply`). Use it when a custom shader or a downstream node expects the other alpha representation. `mode` takes a literal, not an expression.
 
 <NodeReference type="alpha_premultiply" />

@@ -91,7 +91,9 @@ function SearchPanel({ onNavigate }: { onNavigate: () => void }) {
           onKeyDown={onKeyDown}
           {...stylex.props(styles.input)}
         />
-        <kbd {...stylex.props(styles.kbd, styles.esc)}>esc</kbd>
+        <Dialog.Close aria-label="close search" {...stylex.props(styles.kbd, styles.esc)}>
+          esc
+        </Dialog.Close>
       </div>
       <div {...stylex.props(styles.results)}>
         {results.length > 0 ? (
@@ -195,7 +197,12 @@ const styles = stylex.create({
     color: colors.inkFaint,
     boxShadow: `inset 0 0 0 1px ${colors.line}`,
   },
-  esc: { display: "inline-flex" },
+  esc: {
+    display: "inline-flex",
+    flexShrink: 0,
+    cursor: "pointer",
+    color: { default: colors.inkFaint, ":hover": colors.inkMuted },
+  },
   backdrop: {
     position: "fixed",
     inset: 0,

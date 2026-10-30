@@ -40,12 +40,12 @@ export default defineConfig({
         failOnError: true,
         filter: (page) => {
           const path = page.path.split(/[?#]/)[0]!;
-          if (!isCrawlablePath(path)) return false;
-          if (path === page.path) return true;
+          if (path === page.path && isCrawlablePath(path)) return true;
 
-          // Fragment and query links reuse their page's render and stay out of the sitemap.
+          // Discovered links join the sitemap before filtering, so skipped ones must opt out.
+          // Fragment and query links reuse their page's render.
           page.sitemap = { exclude: true };
-          return !prerenderPaths.has(path);
+          return isCrawlablePath(path) && !prerenderPaths.has(path);
         },
       },
       pages: Array.from(prerenderPaths, (path) => ({

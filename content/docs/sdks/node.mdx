@@ -59,7 +59,7 @@ const plate = await lumen.createUrlMedia({
 });
 ```
 
-Both return the media record. A render can only use media whose `status` is `"validated"`, and only until its `expiresAt` time. URL ingest returns validated media. An upload is validated when the upload request finishes, unless the validator is unavailable, in which case `status` stays `"uploaded"`.
+Both return the media record. A render can only use media whose `status` is `"validated"`, and only until its `expiresAt` time. Uploads and URL ingest both run validation before they return, but if the validator is unavailable or a probe fails with a retriable error, `status` stays `"uploaded"`. Check `status` before you render.
 
 For large files, pass `multipart: true` to upload in 8 MiB parts, or `multipart: { partSizeBytes }` to choose the part size. `body` accepts a `Buffer`, `Blob`, or web `ReadableStream`. In Node.js, send streams with `multipart: true`, since the single-request upload doesn't set the `duplex` option Node's `fetch` requires for stream bodies.
 

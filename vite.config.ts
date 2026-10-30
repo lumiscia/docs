@@ -8,7 +8,8 @@ import { defineConfig } from "vite-plus";
 
 const docsDir = join(import.meta.dirname, "content/docs");
 const docsPages = getDocsPages(docsDir);
-const prerenderPaths = new Set(["/", ...docsPages]);
+const searchIndexPath = "/api/search.json";
+const prerenderPaths = new Set(["/", ...docsPages, searchIndexPath]);
 
 export default defineConfig({
   fmt: {
@@ -41,6 +42,7 @@ export default defineConfig({
       pages: Array.from(prerenderPaths, (path) => ({
         path,
         prerender: { enabled: true },
+        sitemap: { exclude: path === searchIndexPath },
       })),
       sitemap: {
         enabled: true,

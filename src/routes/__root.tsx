@@ -5,6 +5,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts, ScriptOnce } from "@tans
 import type { ReactNode } from "react";
 
 import { themeScript } from "@/src/lib/theme";
+import { isActiveUrl, notFoundPath, usePathname } from "@/src/lib/pathname";
 import { colors, fonts } from "@/src/styles/tokens.stylex";
 
 import appCss from "../styles.css?url";
@@ -45,8 +46,15 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: ReactNode }) {
+  const isNotFound = isActiveUrl(notFoundPath, usePathname());
+
   return (
-    <html lang="en" suppressHydrationWarning {...stylex.props(styles.html)}>
+    <html
+      lang="en"
+      data-not-found={isNotFound || undefined}
+      suppressHydrationWarning
+      {...stylex.props(styles.html)}
+    >
       <head>
         <ScriptOnce>{themeScript}</ScriptOnce>
         <HeadContent />

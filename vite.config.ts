@@ -9,7 +9,9 @@ import { defineConfig } from "vite-plus";
 const docsDir = join(import.meta.dirname, "content/docs");
 const docsPages = getDocsPages(docsDir);
 const searchIndexPath = "/api/search.json";
-const prerenderPaths = new Set(["/", ...docsPages, searchIndexPath]);
+// Written to 404.html, which Cloudflare serves for unknown paths.
+const notFoundPath = "/404";
+const prerenderPaths = new Set(["/", ...docsPages, searchIndexPath, notFoundPath]);
 
 export default defineConfig({
   fmt: {
@@ -50,8 +52,8 @@ export default defineConfig({
       },
       pages: Array.from(prerenderPaths, (path) => ({
         path,
-        prerender: { enabled: true },
-        sitemap: { exclude: path === searchIndexPath },
+        prerender: { enabled: true, autoSubfolderIndex: path !== notFoundPath },
+        sitemap: { exclude: path === searchIndexPath || path === notFoundPath },
       })),
       sitemap: {
         enabled: true,

@@ -31,5 +31,8 @@ jobs:
       - name: Check formatting, lint and types
         run: vp check
 
+      - name: Check node reference pages
+        run: vp exec node scripts/check-nodes.ts
+
       - name: Build docs
         run: vp build

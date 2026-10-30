@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev --port 3001",
+    "dev": "vp exec vp dev --port 3001",
     "build": "vp build",
     "preview": "vp preview --port 3001",
     "typegen": "vp exec wrangler types",

@@ -1,9 +1,9 @@
 ---
 title: Media Sources
-description: Upload images, video, and audio for Lumen compositions.
+description: Upload images, video, and audio for compositions.
 ---
 
-Media nodes do not store file bytes directly in the graph. A render request includes a `media` manifest that maps stable aliases to Lumen media ids, and composition nodes reference those aliases.
+Media nodes do not store file bytes directly in the graph. A render request includes a `media` manifest that maps stable aliases to media ids, and composition nodes reference those aliases.
 
 ## Upload First
 
@@ -15,8 +15,8 @@ Media must be registered before rendering. The Node and Cloudflare SDKs expose t
 
 Direct upload maps to this API flow:
 
-1. `POST /api/v1/media` with `fileName`, `contentType`, and `sizeBytes`
-2. `PUT /api/v1/media/:id/content` with the file body
+1. `POST https://api.lumiscia.com/v1/media` with `fileName`, `contentType`, and `sizeBytes`
+2. `PUT` the file body to the returned `uploadUrl` (`/v1/media/:id/content`)
 3. Add the returned `media.id` to the render request with `mediaReference(media)`
 4. Use the manifest alias in `media_in`
 
@@ -106,7 +106,7 @@ Audio uploads use the same media manifest. Reference audio by alias anywhere the
 
 ## Source ID Tips
 
-- Use validated Lumen media ids only inside the top-level `media` manifest.
+- Use validated media ids only inside the top-level `media` manifest.
 - Use readable aliases like `hero`, `intro`, or `voiceover` inside the composition.
 - Keep aliases stable within a composition revision.
 - Use `mediaReference()` to normalize returned media ids into the `lumen:...` manifest form.

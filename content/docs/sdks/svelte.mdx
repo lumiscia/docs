@@ -1,16 +1,16 @@
 ---
 title: Svelte
-description: Preview Lumen compositions in Svelte.
+description: Preview compositions in Svelte with the Lumen WebAssembly renderer.
 ---
 
-Use `@lumiscia/lumen-svelte` with `@lumiscia/lumen-shared` and `lumen-bindings`.
+Use `@lumiscia/lumen-svelte` with `@lumiscia/lumen-shared` and `@lumiscia/lumen-bindings`.
 
 Build the composition itself with the [Composition Builder](../guides/composition-builder), then pass serialized JSON into the Svelte preview canvas.
 
 ## Install
 
 ```bash
-npm install @lumiscia/lumen-svelte @lumiscia/lumen-shared lumen-bindings
+npm install @lumiscia/lumen-svelte @lumiscia/lumen-shared @lumiscia/lumen-bindings
 ```
 
 Vite projects should enable WASM and top-level await support:
@@ -38,7 +38,7 @@ export default defineConfig({
 <script lang="ts">
   import { Composition } from "@lumiscia/lumen-shared";
   import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-svelte";
-  import * as lumenBindings from "lumen-bindings/bundler";
+  import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
 
   const composition = new Composition({
     renderSettings: { width: 1280, height: 720 },
@@ -52,6 +52,7 @@ export default defineConfig({
   composition.addOutput(background);
 
   const preview = createLumenPreview();
+  const lumenBindings = createLumenBindings();
   const compositionJson = JSON.stringify(composition.toJSON());
 </script>
 
@@ -73,4 +74,4 @@ export default defineConfig({
 
 ## Bindings
 
-Use `lumen-bindings/bundler` in Vite apps. The `bindings` prop keeps the Svelte package independent from one specific wasm-bindgen target.
+Use `@lumiscia/lumen-bindings/bundler` in Vite apps. The `bindings` prop keeps the Svelte package independent from one specific wasm-bindgen target.

@@ -19,12 +19,12 @@ npm install @lumiscia/lumen-sdk
 import { Lumen } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
-  apiKey: process.env.LUMEN_API_KEY!,
-  baseUrl: "https://api.lumiscia.com",
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
 });
 ```
 
-`baseUrl` should be the Lumen origin. The SDK appends `/api/v1`.
+Set `baseUrl` to `https://api.lumiscia.com/v1`. The SDK appends paths such as `/renders` to it. Always pass it. The SDK's built-in default points at the dashboard's session-authenticated proxy, which does not accept API keys.
 
 ## Upload Media
 
@@ -67,8 +67,8 @@ For large uploads, pass `multipart: true` to `uploadMedia`.
 import { Composition, Lumen, mediaReference } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
-  apiKey: process.env.LUMEN_API_KEY!,
-  baseUrl: "https://api.lumiscia.com",
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
 });
 
 const plate = await lumen.createUrlMedia({
@@ -131,7 +131,7 @@ const subscription = await lumen.subscribeToRender(id, {
 ## Recommendations
 
 - Use the [Composition Builder](../guides/composition-builder) guide for graph construction patterns.
-- Keep `LUMEN_API_KEY` server-side.
+- Keep `LUMISCIA_API_KEY` server-side.
 - Upload or ingest media before render creation.
 - Use `mediaReference(media)` instead of manually adding `lumen:`.
 - Store render ids in your own job records so you can reconnect, fetch status, or download artifacts later.

@@ -13,16 +13,17 @@ Browser preview and production rendering use the same composition graph. A good 
 
 ## Preview
 
-Preview should prioritize fast feedback. Your UI can work with local files while upload is in progress, then assign stable aliases such as `hero`, `intro`, or `music`. Before submission, map those aliases to uploaded or ingested Lumen media ids in the render request.
+Preview should prioritize fast feedback. Your UI can work with local files while upload is in progress, then assign stable aliases such as `hero`, `intro`, or `music`. Before submission, map those aliases to uploaded or ingested media ids in the render request.
 
 React and Svelte previews use the same composition JSON:
 
 ```tsx
 import { Composition } from "@lumiscia/lumen-shared";
 import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-react";
-import * as lumenBindings from "lumen-bindings/bundler";
+import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
 
 const preview = createLumenPreview();
+const lumenBindings = createLumenBindings();
 const composition = new Composition({
   timeline: { fps: 30, durationSeconds: 4 },
   renderSettings: { width: 1280, height: 720 },
@@ -40,8 +41,8 @@ Production renders should use validated uploaded media through the top-level `me
 import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
-  apiKey: process.env.LUMEN_API_KEY!,
-  baseUrl: "https://api.lumiscia.com",
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
 });
 
 const media = await lumen.createUrlMedia({
@@ -79,7 +80,7 @@ const { id, error } = await lumen.render(composition, {
 
 - The preview graph and submitted graph use the same media aliases before render submission.
 - Every submitted media alias exists in the top-level `media` manifest.
-- Every manifest value is a returned Lumen media id, usually through `mediaReference()`.
+- Every manifest value is a returned media id, usually through `mediaReference()`.
 - The output size and duration are correct.
 - The graph has one `media_output`.
 - Fonts and media used in preview are also available during render.

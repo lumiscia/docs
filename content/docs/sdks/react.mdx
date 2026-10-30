@@ -1,16 +1,16 @@
 ---
 title: React
-description: Preview Lumen compositions in React.
+description: Preview compositions in React with the Lumen WebAssembly renderer.
 ---
 
-Use `@lumiscia/lumen-react` with `@lumiscia/lumen-shared` and `lumen-bindings`.
+Use `@lumiscia/lumen-react` with `@lumiscia/lumen-shared` and `@lumiscia/lumen-bindings`.
 
 Build the composition itself with the [Composition Builder](../guides/composition-builder), then pass serialized JSON into the React preview canvas.
 
 ## Install
 
 ```bash
-npm install @lumiscia/lumen-react @lumiscia/lumen-shared lumen-bindings
+npm install @lumiscia/lumen-react @lumiscia/lumen-shared @lumiscia/lumen-bindings
 ```
 
 Vite projects should enable WASM and top-level await support:
@@ -37,7 +37,7 @@ export default defineConfig({
 ```tsx
 import { Composition } from "@lumiscia/lumen-shared";
 import { LumenCanvas, createLumenPreview, useLumenPreview } from "@lumiscia/lumen-react";
-import * as lumenBindings from "lumen-bindings/bundler";
+import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
 
 const composition = new Composition({
   renderSettings: { width: 1280, height: 720 },
@@ -51,6 +51,7 @@ const background = composition.addSolidColor({
 composition.addOutput(background);
 
 const preview = createLumenPreview();
+const lumenBindings = createLumenBindings();
 const compositionJson = JSON.stringify(composition.toJSON());
 
 export function Preview() {
@@ -77,4 +78,4 @@ export function Preview() {
 
 ## Bindings
 
-Use `lumen-bindings/bundler` for Vite and other bundlers that understand wasm-bindgen bundler output. The `bindings` prop lets React preview use whichever wasm-bindgen target your app provides.
+Use `@lumiscia/lumen-bindings/bundler` for Vite and other bundlers that understand wasm-bindgen bundler output. The `bindings` prop lets React preview use whichever wasm-bindgen target your app provides.

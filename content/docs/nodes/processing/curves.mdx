@@ -1,24 +1,20 @@
 ---
-title: curves
-description: Apply a 1D RGB curve table to a raster.
+title: Curves
+description: Applies a 1D RGB curve table to a raster.
 ---
 
-## Ports
+`curves` remaps red, green and blue through a curve table. `curve_source` uses the same `rgb1d:` triplet format as `color_grade`, and `identity` leaves colors unchanged.
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `source` | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+<NodeReference type="curves" />
 
-## Properties
+## Example
 
-| Property       | Type   | Default      | Notes                                    |
-| -------------- | ------ | ------------ | ---------------------------------------- |
-| `curve_source` | string | `"identity"` | Inline curve definition or `identity`.   |
-| `strength`     | float  | `1`          | Blends between the source and the curve. |
-
-Curve example:
-
-```text
-rgb1d: 0,0,0; 128,96,80; 255,255,255
+```json
+{
+  "id": 1,
+  "type": "curves",
+  "params": {
+    "curve_source": "rgb1d: 0,0,0; 128,96,80; 255,255,255"
+  }
+}
 ```

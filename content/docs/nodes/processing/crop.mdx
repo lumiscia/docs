@@ -1,15 +1,23 @@
 ---
-title: crop
-description: Crop a raster in source pixel coordinates.
+title: Crop
+description: Keeps a raster region in place and clears everything outside it.
 ---
 
-## Properties
+`crop` keeps a rectangle of the source in place and clears everything outside it to transparent. Use `resize` instead when you want to scale a region to new bounds.
 
-| Property | Type | Default | Notes                  |
-| -------- | ---- | ------- | ---------------------- |
-| `x`      | int  | `0`     | Left coordinate.       |
-| `y`      | int  | `0`     | Top coordinate.        |
-| `width`  | int  | `1`     | Crop width in pixels.  |
-| `height` | int  | `1`     | Crop height in pixels. |
+<NodeReference type="crop" />
 
-Crop writes into a fixed output rectangle. Values below `1` collapse to the smallest valid output size.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "crop",
+  "params": {
+    "x": 160,
+    "y": 90,
+    "width": 960,
+    "height": 540
+  }
+}
+```

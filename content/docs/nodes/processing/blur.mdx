@@ -1,19 +1,20 @@
 ---
-title: blur
-description: Apply a simple box blur to a raster.
+title: Blur
+description: Applies a separable Gaussian blur to a raster.
 ---
 
-## Ports
+`blur` softens a raster with a Gaussian blur. Animate `radius` with an expression to pull focus in or out.
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `source` | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+<NodeReference type="blur" />
 
-## Properties
+## Example
 
-| Property | Type  | Default | Notes                                  |
-| -------- | ----- | ------- | -------------------------------------- |
-| `radius` | float | `4`     | Values near `0` keep the source sharp. |
-
-Blur can expand the visible raster bounds so soft edges are not clipped.
+```json
+{
+  "id": 1,
+  "type": "blur",
+  "params": {
+    "radius": "=tween(0, 12, 0, 30, 'out_cubic')"
+  }
+}
+```

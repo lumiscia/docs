@@ -1,19 +1,21 @@
 ---
-title: transform
-description: Translate, scale, and rotate a raster.
+title: Transform
+description: Transforms a raster into the composition canvas bounds.
 ---
 
-## Properties
+`transform` moves, scales and rotates a raster within the composition canvas. Its params are usually animated with expressions.
 
-| Property      | Type  | Default |
-| ------------- | ----- | ------- |
-| `translate_x` | float | `0`     |
-| `translate_y` | float | `0`     |
-| `scale_x`     | float | `1`     |
-| `scale_y`     | float | `1`     |
-| `rotate`      | float | `0`     |
-| `pivot_x`     | float | `0`     |
-| `pivot_y`     | float | `0`     |
-| `sampling`    | int   | `1`     |
+<NodeReference type="transform" />
 
-Transform properties are commonly animated with expressions.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "transform",
+  "params": {
+    "translate_x": "=tween(-200, 0, 0, 20, 'out_cubic')",
+    "rotate": "=sin(time * 2) * 5"
+  }
+}
+```

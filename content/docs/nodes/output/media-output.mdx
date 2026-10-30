@@ -1,22 +1,22 @@
 ---
-title: media_output
-description: Final raster sink for a composition.
+title: Media Output
+description: Copies the compiled raster into the final composition output.
 ---
 
-`media_output` defines the frame that Lumen encodes or previews.
+`media_output` marks the raster that becomes the rendered video. A composition has exactly one, with the last node of the graph connected to its `source` input.
 
-## Ports
+<NodeReference type="media_output" />
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `source` | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+## Example
 
-## Properties
+Connect the last node's `output` to the `source` input of `media_output`:
 
-`media_output` has no properties.
-
-## Notes
-
-- A composition must have exactly one `media_output`.
-- Connect the last raster node in the graph to `source`.
+```json
+{
+  "nodes": [
+    { "id": 1, "type": "background", "params": { "paint": [16, 24, 32, 255] } },
+    { "id": 2, "type": "media_output" }
+  ],
+  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+}
+```

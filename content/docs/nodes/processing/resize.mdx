@@ -1,15 +1,22 @@
 ---
-title: resize
-description: Resize a raster frame.
+title: Resize
+description: Resamples a raster into a rectangle placed on the composition canvas.
 ---
 
-## Properties
+`resize` scales the source into a `width` by `height` rectangle placed at `x`, `y` on the canvas. `mode` picks whether the source stretches to the rectangle, fits inside it or fills it.
 
-| Property   | Type | Default | Notes                                       |
-| ---------- | ---- | ------- | ------------------------------------------- |
-| `width`    | int  | `1`     | Target width in pixels.                     |
-| `height`   | int  | `1`     | Target height in pixels.                    |
-| `mode`     | int  | `0`     | `0` stretch, `1` fit, `2` fill.             |
-| `sampling` | int  | `1`     | `0` nearest-neighbor, `1` linear filtering. |
+<NodeReference type="resize" />
 
-Use explicit dimensions when preparing a layer for consistent compositing.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "resize",
+  "params": {
+    "width": 640,
+    "height": 360,
+    "mode": "fit"
+  }
+}
+```

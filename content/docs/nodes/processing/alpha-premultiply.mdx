@@ -1,19 +1,20 @@
 ---
-title: alpha_premultiply
-description: Convert between straight and premultiplied alpha.
+title: Alpha Premultiply
+description: Converts raster alpha between premultiplied and unpremultiplied representations.
 ---
 
-## Ports
+`alpha_premultiply` multiplies color by alpha (`premultiply`) or divides it back out (`unpremultiply`). Use it when a custom shader or a downstream node expects the other alpha representation. `mode` takes a literal, not an expression.
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `source` | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+<NodeReference type="alpha_premultiply" />
 
-## Properties
+## Example
 
-| Property | Type   | Default         | Notes                                         |
-| -------- | ------ | --------------- | --------------------------------------------- |
-| `mode`   | string | `"premultiply"` | Use `premultiply` or `unpremultiply` aliases. |
-
-Use this when media interchange expects a specific alpha representation.
+```json
+{
+  "id": 1,
+  "type": "alpha_premultiply",
+  "params": {
+    "mode": "unpremultiply"
+  }
+}
+```

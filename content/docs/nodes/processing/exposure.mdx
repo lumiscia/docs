@@ -1,14 +1,21 @@
 ---
-title: exposure
-description: Adjust exposure, contrast, and RGB offset.
+title: Exposure
+description: Adjusts raster exposure, contrast, and offset.
 ---
 
-## Properties
+`exposure` shifts brightness in stops, scales contrast and adds a color offset. Alpha passes through unchanged.
 
-| Property   | Type  | Default | Notes                             |
-| ---------- | ----- | ------- | --------------------------------- |
-| `exposure` | float | `0`     | Exposure in stops.                |
-| `contrast` | float | `1`     | Contrast around midpoint `0.5`.   |
-| `offset`   | float | `0`     | Added before contrast is applied. |
+<NodeReference type="exposure" />
 
-Alpha is preserved.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "exposure",
+  "params": {
+    "exposure": 0.5,
+    "contrast": 1.1
+  }
+}
+```

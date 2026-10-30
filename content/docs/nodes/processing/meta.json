@@ -12,10 +12,11 @@
     "hue-saturation",
     "levels",
     "memo",
+    "opacity",
     "resize",
     "shadow",
-    "wgsl-shader",
     "time-remap",
-    "transform"
+    "transform",
+    "wgsl-shader"
   ]
 }

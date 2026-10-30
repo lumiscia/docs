@@ -1,26 +1,12 @@
 ---
 title: Compositing
-description: Nodes that combine raster layers, masks, and frame choices.
+description: Nodes that combine several rasters into one.
 ---
 
-Compositing nodes combine raster streams into a final image. Use them for layer stacks, masks, blends, and timeline cuts.
+Compositing nodes combine several rasters into one. Use them to stack layers, mask them, cut between inputs, and play composition templates on the timeline.
 
-## Nodes
-
-- [boolean](boolean): mask a raster with another raster or vector shape.
-- [merge](merge): composite one raster over another.
-- [raster_multimerge](raster-multimerge): composite an ordered list of raster layers.
-- [switch](switch): choose one raster input based on the current frame.
-
-## Blend Modes
-
-`merge` and `raster_multimerge` support:
-
-| Value | Mode     |
-| ----- | -------- |
-| `0`   | Normal   |
-| `1`   | Multiply |
-| `2`   | Screen   |
-| `3`   | Overlay  |
-| `4`   | Darken   |
-| `5`   | Lighten  |
+- [Boolean](boolean) (`boolean`): combines two raster alpha masks with boolean operations.
+- [Clip](clip) (`clip`): plays a composition template, or its source, over a window of time.
+- [Merge](merge) (`merge`): composites an overlay raster over a base raster.
+- [Raster Multi Merge](raster-multimerge) (`raster_multimerge`): composites a variadic stack of raster layers in order.
+- [Switch](switch) (`switch`): selects one raster input according to a controlled layer index.

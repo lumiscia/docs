@@ -1,14 +1,20 @@
 ---
-title: hue_saturation
-description: Adjust hue, saturation, and lightness.
+title: Hue Saturation
+description: Adjusts raster hue, saturation, and lightness.
 ---
 
-## Properties
+`hue_saturation` rotates hue, scales saturation and offsets lightness. Set `saturation` to `0` for grayscale.
 
-| Property      | Type  | Default | Notes                  |
-| ------------- | ----- | ------- | ---------------------- |
-| `hue_degrees` | float | `0`     | Hue offset in degrees. |
-| `saturation`  | float | `1`     | Multiplies saturation. |
-| `lightness`   | float | `0`     | Adds to HSL lightness. |
+<NodeReference type="hue_saturation" />
 
-Use `saturation: 0` for grayscale.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "hue_saturation",
+  "params": {
+    "saturation": 0
+  }
+}
+```

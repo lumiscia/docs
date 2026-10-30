@@ -1,17 +1,20 @@
 ---
-title: channel_shuffle
-description: Remap output channels from source channels or constants.
+title: Channel Shuffle
+description: Remaps source raster color channels.
 ---
 
-## Properties
+`channel_shuffle` fills each output channel from any source channel or from a constant. Set `alpha` to `one` to make a raster fully opaque, or set `red`, `green` and `blue` to `alpha` to view its matte.
 
-| Property | Type   | Default   |
-| -------- | ------ | --------- |
-| `red`    | string | `"red"`   |
-| `green`  | string | `"green"` |
-| `blue`   | string | `"blue"`  |
-| `alpha`  | string | `"alpha"` |
+<NodeReference type="channel_shuffle" />
 
-Selectors include `red`, `green`, `blue`, `alpha`, `zero`, `one`, or numeric constants.
+## Example
 
-Example: set `alpha` to `one` to force an opaque result.
+```json
+{
+  "id": 1,
+  "type": "channel_shuffle",
+  "params": {
+    "alpha": "one"
+  }
+}
+```

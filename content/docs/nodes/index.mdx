@@ -1,0 +1,25 @@
+---
+title: Nodes
+description: Reference for every node type in a composition.
+---
+
+Nodes are the operations in a composition graph. Each node object has a numeric `id`, a `type`, and an optional `params` object. Connections link one node's output port to another node's input port.
+
+```json
+{ "id": 1, "type": "blur", "params": { "radius": 8 } }
+```
+
+Every param is optional and falls back to the default listed on its node's page. Params marked `expression` also accept an [expression](../expressions), a string starting with `=` that is evaluated on every frame. Params marked `literal only` take a fixed value.
+
+## Rules
+
+- A composition has exactly one `media_output`.
+- Required input ports must be connected.
+
+## Categories
+
+- [Source](source): nodes that create rasters from media, paint and text.
+- [Processing](processing): nodes that adjust, move and retime a raster.
+- [Compositing](compositing): nodes that combine several rasters into one.
+- [Vector](vector): nodes that draw shapes and paths.
+- [Output](output): the node that marks the rendered result.

@@ -1,18 +1,21 @@
 ---
-title: color_grade
-description: Apply an inline RGB lookup table.
+title: Color Grade
+description: Applies a LUT-driven color transform to a raster.
 ---
 
-## Properties
+`color_grade` maps colors through a lookup table and blends the result in by `strength`. Set `lut_source` to `rgb1d:` followed by at least two `r,g,b` triplets separated by `;`, in 0 to 255 or 0 to 1, or to `identity` for no change. `interpolation` is `0` for nearest sampling and `1` for linear.
 
-| Property        | Type   | Default      | Notes                              |
-| --------------- | ------ | ------------ | ---------------------------------- |
-| `lut_source`    | string | `"identity"` | Inline RGB triplets or `identity`. |
-| `strength`      | float  | `1`          | Blends original to graded result.  |
-| `interpolation` | int    | `1`          | `0` nearest, otherwise linear.     |
+<NodeReference type="color_grade" />
 
-LUT example:
+## Example
 
-```text
-rgb1d: 0,0,0; 255,128,0; 255,255,255
+```json
+{
+  "id": 1,
+  "type": "color_grade",
+  "params": {
+    "lut_source": "rgb1d: 0,0,0; 255,128,0; 255,255,255",
+    "strength": 0.6
+  }
+}
 ```

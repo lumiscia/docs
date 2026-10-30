@@ -1,24 +1,25 @@
 ---
-title: path
-description: Create rasterized path geometry.
+title: Path
+description: Produces a rasterized vector path source.
 ---
 
-## Ports
+`path` draws SVG-style path data to a raster, with an optional fill and stroke. Animate `trim_start` or `trim_end` to draw a stroke on over time.
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `output` | output    | raster | yes      |
+<NodeReference type="path" />
 
-## Properties
+## Example
 
-| Property         | Type   | Default                               |
-| ---------------- | ------ | ------------------------------------- |
-| `data`           | string | `"M 0 0 L 100 0 L 100 100 L 0 100 Z"` |
-| `position`       | vec2   | `[0, 0]`                              |
-| `fill_enabled`   | bool   | `true`                                |
-| `fill_color`     | color  | `[255,255,255,255]`                   |
-| `stroke_enabled` | bool   | `false`                               |
-| `stroke_color`   | color  | `[0,0,0,255]`                         |
-| `stroke_width`   | float  | `1`                                   |
-
-`data` accepts SVG-style path text. Numeric coordinate pairs are flattened into the rasterized path.
+```json
+{
+  "id": 1,
+  "type": "path",
+  "params": {
+    "data": "M 0 0 C 80 -60 160 60 240 0",
+    "position": [520, 360],
+    "fill_enabled": false,
+    "stroke_enabled": true,
+    "stroke_width": 6,
+    "trim_end": "=progress(0, 30)"
+  }
+}
+```

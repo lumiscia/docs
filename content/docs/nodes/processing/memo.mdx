@@ -1,22 +1,20 @@
 ---
-title: memo
-description: Cache a raster branch within a frame.
+title: Memo
+description: Renders its source again only when `key` changes.
 ---
 
-`memo` passes its input through while giving the renderer a reusable branch boundary.
+`memo` shows its last rendered frame again while `key` keeps the same value, and skips rendering its source. Set `key` to an expression such as `=floor(frame / 2)` to render a costly branch on every second frame only.
 
-## Ports
+<NodeReference type="memo" />
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `source` | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+## Example
 
-## Properties
-
-| Property            | Type   | Default | Notes                                                          |
-| ------------------- | ------ | ------- | -------------------------------------------------------------- |
-| `cache_id`          | string | `""`    | Stable cache key for the branch boundary.                      |
-| `allow_expressions` | bool   | `false` | Allow expression-driven cache keys when your graph needs them. |
-
-Use it when a costly branch feeds multiple downstream nodes.
+```json
+{
+  "id": 1,
+  "type": "memo",
+  "params": {
+    "key": "=floor(frame / 2)"
+  }
+}
+```

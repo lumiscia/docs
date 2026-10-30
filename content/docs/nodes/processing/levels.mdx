@@ -1,16 +1,22 @@
 ---
-title: levels
-description: Remap RGB input and output ranges with gamma.
+title: Levels
+description: Remaps raster black, white, gamma, and output range.
 ---
 
-## Properties
+`levels` maps the input range between `black_point` and `white_point` to the range between `output_black` and `output_white`, with `gamma` for the midtones. Use it to fix washed-out or crushed footage.
 
-| Property       | Type  | Default |
-| -------------- | ----- | ------- |
-| `black_point`  | float | `0`     |
-| `white_point`  | float | `1`     |
-| `gamma`        | float | `1`     |
-| `output_black` | float | `0`     |
-| `output_white` | float | `1`     |
+<NodeReference type="levels" />
 
-Use levels for black/white point correction and gamma adjustment.
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "levels",
+  "params": {
+    "black_point": 0.05,
+    "white_point": 0.95,
+    "gamma": 1.1
+  }
+}
+```

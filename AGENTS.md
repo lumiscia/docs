@@ -41,6 +41,26 @@ Documentation site for Lumiscia, the hosted GPU rendering API, and Lumen, its op
 - Do not revert unrelated changes.
 - CI, not pre-commit hooks, is the source of truth.
 
+## Writing
+
+House style for docs prose. When in doubt, cut.
+
+- Lead with the point. One idea per paragraph. Second person, present tense, active voice.
+- No throat-clearing or meta-framing: "Let's dive in", "In this guide we will", "It's worth noting", "Here's the thing".
+- Plain words: "use", not leverage or utilize; "to", not "in order to". Avoid robust, seamless, powerful, comprehensive, delve, streamline, and effortless.
+- No promotional inflation ("blazing fast", "game-changing", "state-of-the-art"). State concrete numbers instead.
+- State claims directly. Avoid "It's not X, it's Y" and "not only... but also" scaffolding; real corrections like "use X, not Y" are fine.
+- Avoid trailing "-ing" clauses (", highlighting...", ", ensuring..."). Use "is" instead of "serves as" or "stands as".
+- No em dashes in prose; use a comma, period, or parentheses. No colon reveals ("The key: ...").
+- Bold sparingly, not every key term. Sentence case headings.
+- No filler sections ("Overview", "Conclusion", "Looking ahead") or recap paragraphs.
+- Use lists only when items are parallel or order matters. Don't pad a list to three items.
+- Call a thing by the same name every time. Use the glossary terms below.
+- Product prose says Lumiscia. Say Lumen only for the open-source engine, the `@lumiscia/lumen-*` packages, and the SDK's `Lumen` class.
+- In examples, read the key from `LUMISCIA_API_KEY` and set `baseUrl` to `https://api.lumiscia.com/v1`.
+- Examples must run. Verify APIs, options, routes, prices, and limits against the source repositories; never invent them.
+- Keep hedges that carry meaning (security, limits, beta caveats). Cut the ones that don't.
+
 ## Glossary
 
 - **Lumiscia**: the hosted rendering API and platform at `api.lumiscia.com`, with workspaces, API keys, media storage and GPU render workers.
@@ -52,3 +72,6 @@ Documentation site for Lumiscia, the hosted GPU rendering API, and Lumen, its op
 - **Manifest alias**: a key in a render request's top-level `media` manifest. The manifest maps each alias to a Lumen media id (`lumen:<media_id>`), and composition nodes reference media by alias.
 - **Workspace**: the account that owns renders, API keys, media and balance.
 - **Artifact**: the rendered output file produced by a render.
+- **`lumen-server`**: the Lumen crate for running renders yourself, with render service primitives and a local HTTP binary. Lumiscia's GPU workers render with it.
+- **Render time**: the GPU time a worker spends rendering a composition, measured to the millisecond and billed per second. It is not the output video's length.
+- **Monthly credit**: the dollar credit a plan adds each month, spent before the workspace balance.

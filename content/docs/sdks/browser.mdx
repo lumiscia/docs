@@ -1,85 +1,78 @@
 ---
 title: Browser
-description: Build composition JSON in the browser and render through your backend.
+description: Build and preview compositions in the browser, and render them through your backend.
 ---
 
-Browser code should not hold a Lumiscia API key. Use browser code for composition editing and preview, then send composition JSON and media selections to your backend.
+Browser code builds and previews compositions. Your backend uploads media and creates renders, because every Lumiscia API call needs your API key.
 
-For graph construction patterns, start with the [Composition Builder](../guides/composition-builder). This page focuses on browser-safe ownership boundaries.
+<Callout type="error" title="Never ship an API key to the browser">
+  An API key can spend your workspace balance and read its renders and media. Keep it on your
+  server. The media upload URL also requires the key, so the browser can't upload to Lumiscia
+  directly. Send files to your backend and call `uploadMedia` there.
+</Callout>
 
-## Install Shared Types
+| Task                                    | Package                                                                              | Runs in |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ------- |
+| Build composition JSON                  | `@lumiscia/lumen-shared`                                                             | Browser |
+| Preview a composition                   | `@lumiscia/lumen-react` or `@lumiscia/lumen-svelte`, plus `@lumiscia/lumen-bindings` | Browser |
+| Upload media, create and follow renders | `@lumiscia/lumen-sdk`                                                                | Server  |
+
+## Build a composition
+
+`@lumiscia/lumen-shared` only builds JSON. It makes no network calls and needs no key, so it is safe in client code. See the [Composition builder](../guides/composition-builder) guide for the full API.
 
 ```bash
 npm install @lumiscia/lumen-shared
 ```
 
-## Build Composition JSON
-
 ```ts
 import { Composition } from "@lumiscia/lumen-shared";
 
 const composition = new Composition({
-  renderSettings: {
-    width: 1080,
-    height: 1080,
-    background_color: [8, 10, 16, 255],
-  },
-  timeline: {
-    fps: 30,
-    durationSeconds: 3,
-  },
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 3 },
 });
 
-const plate = composition.addSolidColor({
-  width: 1080,
-  height: 1080,
-  color: [8, 10, 16, 255],
+const background = composition.addNode({
+  type: "background",
+  params: { paint: [18, 24, 32, 255] },
 });
-
-const title = composition.addText({
-  content: "Launch day",
-  fontFamily: "Inter",
-  fontSize: 96,
-  fontWeight: 700,
-  color: [255, 255, 255, 255],
-  maxWidth: 900,
+const hero = composition.addNode({
+  type: "media_in",
+  params: { kind: "image", source: "hero" },
 });
+const merge = composition.addNode({ type: "merge", params: { blend_mode: "normal" } });
+const output = composition.addNode({ type: "media_output" });
 
-const merge = composition.addNode({
-  type: "merge",
-  properties: {
-    opacity: 1,
-    blend_mode: 0,
-  },
-});
-
-composition.connect(plate, merge, { toPort: "base" });
-composition.connect(title, merge, { toPort: "overlay" });
-composition.addOutput(merge);
-
-const compositionJson = composition.toJSON();
+composition.connect(background, merge, { toPort: "base" });
+composition.connect(hero, merge, { toPort: "overlay" });
+composition.connect(merge, output, { toPort: "source" });
 ```
 
-## Submit Through Your Backend
+The `media_in` node reads the alias `hero`. In preview, you register a local file under that alias. At render time, the backend maps the same alias to uploaded media.
 
-The backend should upload media first, verify ownership, and submit the render with `@lumiscia/lumen-sdk`.
+## Preview
 
-```ts
-await fetch("/api/renders", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    composition: composition.toJSON(),
-    mediaAliases: {
-      hero: uploadedMediaIdFromYourApp,
-    },
-  }),
-});
+The [React](react) and [Svelte](svelte) packages render the composition into a `<canvas>` with the Lumen engine compiled to WebAssembly. Pass local files to the canvas's `mediaSources` prop, using the alias as the `id`, for example `{ kind: "image", id: "hero", source: file }`.
+
+`source` accepts a `File` or `Blob`, a URL string or `URL`, a `Request`, or raw bytes, so you can preview a file before it is uploaded.
+
+## Render through your backend
+
+Send the composition JSON and the file to your backend:
+
+```ts title="client.ts"
+const form = new FormData();
+form.append("composition", JSON.stringify(composition.toJSON()));
+form.append("hero", file);
+
+const response = await fetch("/api/renders", { method: "POST", body: form });
+const { id } = await response.json();
 ```
 
-On the server:
+On the server, upload the file and create the render. This example uses Node.js; see [Cloudflare Workers](cloudflare) for the Worker entry point.
 
-```ts
+```ts title="server.ts"
 import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
@@ -87,18 +80,21 @@ const lumen = new Lumen({
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const { id, error } = await lumen.render(composition, {
-  media: {
-    hero: mediaReference(uploadedMediaId),
-  },
-});
+export async function createRender(form: FormData) {
+  const composition = JSON.parse(String(form.get("composition")));
+  const file = form.get("hero") as File;
+
+  const hero = await lumen.uploadMedia({
+    body: file,
+    contentType: file.type,
+    fileName: file.name,
+    sizeBytes: file.size,
+  });
+
+  return lumen.render(composition, {
+    media: { hero: mediaReference(hero) },
+  });
+}
 ```
 
-## Preview Packages
-
-Use the framework packages for live browser previews:
-
-- `@lumiscia/lumen-react`
-- `@lumiscia/lumen-svelte`
-
-Both preview packages need wasm-bindgen glue from `@lumiscia/lumen-bindings`, usually `@lumiscia/lumen-bindings/bundler` in Vite apps.
+Before you submit a composition that came from the browser, check it against your own rules (allowed node types, size, duration), since the render is billed to your workspace. The [Preview to render](../guides/preview-to-render) guide covers the full workflow.

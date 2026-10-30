@@ -1,24 +1,28 @@
 ---
-title: Cloudflare
+title: Cloudflare Workers
 description: Use the Lumiscia SDK from Cloudflare Workers.
 ---
 
-Use `@lumiscia/lumen-sdk/cloudflare` in Workers. This entrypoint uses Worker-native `fetch` WebSocket upgrades for render subscriptions.
-
-Build graph JSON with the shared [Composition Builder](../guides/composition-builder), then use the Cloudflare SDK entrypoint for Worker-native API calls and subscriptions.
-
-## Install
+In a Worker, import from `@lumiscia/lumen-sdk/cloudflare`. It exports the same `Lumen` class, `Composition`, and `mediaReference` as the [Node.js entry point](node), but opens render subscriptions with a `fetch()` WebSocket upgrade instead of the `ws` package.
 
 ```bash
 npm install @lumiscia/lumen-sdk
 ```
 
-## Create a Worker Client
+Store the API key as a Worker secret:
 
-```ts
+```bash
+npx wrangler secret put LUMISCIA_API_KEY
+```
+
+## Create a render
+
+This Worker ingests an image from a URL, renders it for 3 seconds, and asks Lumiscia to call a webhook when the render finishes. As on Node.js, set `baseUrl` explicitly, because the SDK's default points at the dashboard proxy, which rejects API keys.
+
+```ts title="src/index.ts"
 import { Composition, Lumen, mediaReference } from "@lumiscia/lumen-sdk/cloudflare";
 
-export interface Env {
+interface Env {
   LUMISCIA_API_KEY: string;
 }
 
@@ -30,57 +34,49 @@ export default {
     });
 
     const plate = await lumen.createUrlMedia({
-      fileName: "plate.png",
-      url: "https://example.com/plate.png",
+      fileName: "plate.jpg",
+      url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1280&h=720&fit=crop",
     });
 
     const composition = new Composition({
-      renderSettings: {
-        width: 1280,
-        height: 720,
-      },
-      timeline: {
-        fps: 30,
-        durationSeconds: 4,
-      },
+      renderSettings: { width: 1280, height: 720 },
+      timeline: { fps: 30, durationSeconds: 3 },
+    });
+    const image = composition.addNode({
+      type: "media_in",
+      params: { kind: "image", source: "plate" },
+    });
+    const output = composition.addNode({ type: "media_output" });
+    composition.connect(image, output, { toPort: "source" });
+
+    const { id, error } = await lumen.render(composition, {
+      media: { plate: mediaReference(plate) },
+      webhookUrl: "https://example.com/webhooks/lumiscia",
     });
 
-    const background = composition.addImage("plate", {
-      rangeStart: 0,
-      rangeEnd: 120,
-      loop: true,
-    });
-
-    composition.addOutput(background);
-
-    const result = await lumen.render(composition, {
-      media: {
-        plate: mediaReference(plate),
-      },
-    });
-
-    return Response.json(result, { status: result.error ? 500 : 202 });
+    if (error) {
+      return Response.json({ error }, { status: 502 });
+    }
+    return Response.json({ id }, { status: 202 });
   },
 };
 ```
 
-## Subscribe in Workers
+`createUrlMedia` throws if ingest fails. Catch it if you want to return your own error response.
 
-Cloudflare Workers can create WebSocket connections by calling `fetch()` with an `Upgrade: websocket` request. The Cloudflare SDK entrypoint wires that behavior for `subscribeToRender`.
+## Follow a render
+
+`subscribeToRender` and `waitForRender` work the same as on [Node.js](node#follow-render-events), including the caveat about event payloads. A WebSocket opened by a Worker closes when the invocation that opened it ends. For renders that outlast a request, set `webhookUrl` and handle the result in a [webhook](../guides/webhooks).
 
 ```ts
-const subscription = await lumen.subscribeToRender(renderId, {
+const subscription = await lumen.subscribeToRender(id, {
   onEvent: (event) => {
-    console.log(event);
+    if (event.type === "render.completed" || event.type === "render.failed") {
+      subscription.close();
+    }
   },
-  onError: (error) => {
-    console.error(error);
-  },
+  onError: (error) => console.error(error),
 });
 ```
 
-## Notes
-
-- Store `LUMISCIA_API_KEY` as a Worker secret.
-- Set `baseUrl` to `https://api.lumiscia.com/v1`. The SDK appends paths such as `/renders` to it.
-- Use the default `@lumiscia/lumen-sdk` import in Node.js, and the `/cloudflare` export in Workers.
+The entry point uses the `fetch` you pass in `LumenOptions`, or `globalThis.fetch`, for both API calls and the WebSocket upgrade.

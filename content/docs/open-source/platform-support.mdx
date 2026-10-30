@@ -1,0 +1,35 @@
+---
+title: Platform support
+description: Which operating systems, GPU backends, and encoders Lumen supports.
+---
+
+Lumen needs a GPU for its main render paths. Linux with Vulkan and macOS with Metal are the supported native targets. This page summarizes the [support matrix](https://github.com/lumiscia/lumen-oss/blob/main/docs/support-matrix.md) in the lumen-oss repository, which has the full details.
+
+This applies to running Lumen yourself. Hosted renders on Lumiscia run on Lumiscia's GPU workers, and browser previews depend on the browser's WebGPU or WebGL support.
+
+| Area                       | Status                 | Notes                                                                                       |
+| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| Linux / Vulkan             | Supported              | Primary native render path. CI runs on Ubuntu with software Vulkan.                         |
+| macOS / Metal              | Supported              | Metal rendering and VideoToolbox encoding. Not covered by CI.                               |
+| Windows                    | Basic development only | TypeScript packages and pure Rust crates build. Native rendering and `lumen-server` do not. |
+| NVIDIA / CUDA              | Experimental fast path | CUDA/NVENC interop on Linux for hardware video paths.                                       |
+| AMD / Intel Vulkan         | Experimental           | Uses the Vulkan renderer without CUDA interop. Not covered by CI.                           |
+| Software Vulkan / lavapipe | CI-covered baseline    | Used for SDK and server integration tests. Validates behavior, not performance.             |
+| CPU encoding               | Supported baseline     | CPU-backed FFmpeg encoding. The fallback when hardware encoding is unavailable.             |
+| Hardware encoding          | Experimental           | CUDA/NVENC on Linux and VideoToolbox on macOS. Depends on OS, driver, FFmpeg, and adapter.  |
+
+## Linux
+
+Linux with Vulkan is the main open development path. Hardware Vulkan on AMD, Intel, and NVIDIA uses the same renderer, but CI only covers software Vulkan. On NVIDIA, CUDA/NVENC interop is the fastest path; treat it as experimental until you have validated your driver, FFmpeg build, and adapter.
+
+## macOS
+
+macOS renders through Metal and encodes with VideoToolbox where available. The repository CI does not run macOS jobs, so support relies on local development and release validation.
+
+## Windows
+
+Windows is a development target for the TypeScript packages and the pure Rust crates (`lumen-engine`, `lumen-engine-gpu`, `lumen-generators`, `lumen-engine-macros`, and `lumen-engine-text`). Native rendering, FFmpeg-backed media, `lumen-server`, the WASM generation scripts, and hardware encoding are not supported. See [Windows development](https://github.com/lumiscia/lumen-oss/blob/main/docs/windows.md) for setup.
+
+## Encoding
+
+CPU-backed FFmpeg encoding is the portable baseline. Hardware encoding is opportunistic. When no compatible hardware encoder interop path exists, CPU encoding is the expected fallback.

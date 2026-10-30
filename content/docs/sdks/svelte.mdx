@@ -1,40 +1,36 @@
 ---
 title: Svelte
-description: Preview compositions in Svelte with the Lumen WebAssembly renderer.
+description: Preview compositions in Svelte with the Lumen WebAssembly engine.
 ---
 
-Use `@lumiscia/lumen-svelte` with `@lumiscia/lumen-shared` and `@lumiscia/lumen-bindings`.
-
-Build the composition itself with the [Composition Builder](../guides/composition-builder), then pass serialized JSON into the Svelte preview canvas.
-
-## Install
+`@lumiscia/lumen-svelte` plays a composition in a `<canvas>` using the Lumen engine compiled to WebAssembly. It needs Svelte 5. Preview runs entirely in the browser and needs no API key. To produce a video file, send the same composition to your backend and [render it there](browser#render-through-your-backend).
 
 ```bash
 npm install @lumiscia/lumen-svelte @lumiscia/lumen-shared @lumiscia/lumen-bindings
-```
-
-Vite projects should enable WASM and top-level await support:
-
-```bash
 npm install -D vite-plugin-wasm vite-plugin-top-level-await
 ```
 
-## Vite Configuration
+`@lumiscia/lumen-bindings` holds the WebAssembly build. Its `/bundler` entry point loads the preview worker with Vite's `?worker&url` import, so these docs assume Vite.
 
-```ts
+## Configure Vite
+
+```ts title="vite.config.ts"
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { defineConfig } from "vite";
 import topLevelAwait from "vite-plugin-top-level-await";
 import wasm from "vite-plugin-wasm";
-import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [svelte(), wasm(), topLevelAwait()],
+  build: { target: "esnext" },
+  plugins: [wasm(), topLevelAwait(), svelte()],
 });
 ```
 
-## Preview Canvas
+## Render a preview
 
-```svelte
+`createLumenPreview()` returns a controller whose fields are Svelte `$state`, so read `preview.isLoaded`, `preview.frame`, and the rest directly in markup. `LumenCanvas` starts a new engine session whenever `preview` or `bindings` changes, and updates the running session when other props change.
+
+```svelte title="Preview.svelte"
 <script lang="ts">
   import { Composition } from "@lumiscia/lumen-shared";
   import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-svelte";
@@ -44,20 +40,34 @@ export default defineConfig({
     renderSettings: { width: 1280, height: 720 },
     timeline: { fps: 30, durationSeconds: 4 },
   });
-  const background = composition.addSolidColor({
-    width: 1280,
-    height: 720,
-    color: [25, 28, 36, 255],
+
+  const background = composition.addNode({
+    type: "background",
+    params: { paint: [25, 28, 36, 255] },
   });
-  composition.addOutput(background);
+  const title = composition.addNode({
+    type: "text",
+    params: {
+      content: "Hello from Lumen",
+      font_size: 76,
+      font_weight: 700,
+      color: [255, 255, 255, 255],
+    },
+  });
+  const merge = composition.addNode({ type: "merge", params: { blend_mode: "normal" } });
+  const output = composition.addNode({ type: "media_output" });
+
+  composition.connect(background, merge, { toPort: "base" });
+  composition.connect(title, merge, { toPort: "overlay" });
+  composition.connect(merge, output, { toPort: "source" });
 
   const preview = createLumenPreview();
-  const lumenBindings = createLumenBindings();
+  const bindings = createLumenBindings();
   const compositionJson = JSON.stringify(composition.toJSON());
 </script>
 
 <main>
-  <LumenCanvas {preview} bindings={lumenBindings} {compositionJson} />
+  <LumenCanvas {preview} {bindings} {compositionJson} />
   <button
     type="button"
     disabled={!preview.isLoaded}
@@ -72,6 +82,41 @@ export default defineConfig({
 </main>
 ```
 
-## Bindings
+The controller exposes `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, and `error` (a string or `null`). Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`.
 
-Use `@lumiscia/lumen-bindings/bundler` in Vite apps. The `bindings` prop keeps the Svelte package independent from one specific wasm-bindgen target.
+## Add media
+
+Register images and videos with `mediaSources`. Each `id` must match the `source` param of a `media_in` node. `@lumiscia/lumen-svelte` doesn't re-export the registration types. To type them, add `@lumiscia/lumen-preview` as a dependency and import them from there.
+
+```svelte
+<script lang="ts">
+  import type { MediaRegistration } from "@lumiscia/lumen-preview";
+
+  let { file }: { file: File } = $props();
+
+  const mediaSources: MediaRegistration[] = $derived([
+    { kind: "image", id: "hero", source: file },
+  ]);
+</script>
+
+<LumenCanvas {preview} {bindings} {compositionJson} {mediaSources} />
+```
+
+`source` accepts a URL string or `URL`, a `Request`, a `File` or `Blob`, or raw bytes. Audio works the same way through `audioSources` (`{ kind: "audio", id, source }`), where `id` matches an audio clip's `sourceId`. See [Media sources](../guides/media-sources).
+
+## `LumenCanvas` props
+
+| Prop              | Type                                                         | Default | Description                                                                            |
+| ----------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------- |
+| `preview`         | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                      |
+| `bindings`        | `LumenPreviewBindingSource`                                  |         | WebAssembly bindings from `createLumenBindings()`. Required.                           |
+| `compositionJson` | `string \| null`                                             | `null`  | Composition as a JSON string.                                                          |
+| `mediaSources`    | `MediaRegistration[]`                                        | `[]`    | Images and videos, keyed by `media_in` source alias.                                   |
+| `audioSources`    | `AudioSourceRegistration[]`                                  | `[]`    | Audio files, keyed by audio clip `sourceId`.                                           |
+| `lookaheadCount`  | `number`                                                     | `8`     | Frames whose media the preview loads ahead of the playhead.                            |
+| `logLevel`        | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                      |
+| `onStats`         | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`. |
+| `class`           | `string`                                                     |         | Class for the `<canvas>`.                                                              |
+| `style`           | `string`                                                     |         | Inline style for the `<canvas>`.                                                       |
+
+The canvas's `width` and `height` attributes follow the composition's render size. Size it on the page with CSS. The canvas stays hidden until the preview knows the composition's size.

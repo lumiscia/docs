@@ -1,40 +1,36 @@
 ---
 title: React
-description: Preview compositions in React with the Lumen WebAssembly renderer.
+description: Preview compositions in React with the Lumen WebAssembly engine.
 ---
 
-Use `@lumiscia/lumen-react` with `@lumiscia/lumen-shared` and `@lumiscia/lumen-bindings`.
-
-Build the composition itself with the [Composition Builder](../guides/composition-builder), then pass serialized JSON into the React preview canvas.
-
-## Install
+`@lumiscia/lumen-react` plays a composition in a `<canvas>` using the Lumen engine compiled to WebAssembly. It needs React 18 or later. Preview runs entirely in the browser and needs no API key. To produce a video file, send the same composition to your backend and [render it there](browser#render-through-your-backend).
 
 ```bash
 npm install @lumiscia/lumen-react @lumiscia/lumen-shared @lumiscia/lumen-bindings
-```
-
-Vite projects should enable WASM and top-level await support:
-
-```bash
 npm install -D vite-plugin-wasm vite-plugin-top-level-await
 ```
 
-## Vite Configuration
+`@lumiscia/lumen-bindings` holds the WebAssembly build. Its `/bundler` entry point loads the preview worker with Vite's `?worker&url` import, so these docs assume Vite.
 
-```ts
+## Configure Vite
+
+```ts title="vite.config.ts"
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 import topLevelAwait from "vite-plugin-top-level-await";
 import wasm from "vite-plugin-wasm";
-import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react(), wasm(), topLevelAwait()],
+  build: { target: "esnext" },
+  plugins: [wasm(), topLevelAwait(), react()],
 });
 ```
 
-## Preview Canvas
+## Render a preview
 
-```tsx
+Create the preview controller and bindings once, outside your components. `LumenCanvas` starts a new engine session whenever `preview` or `bindings` changes, and updates the running session when other props change.
+
+```tsx title="Preview.tsx"
 import { Composition } from "@lumiscia/lumen-shared";
 import { LumenCanvas, createLumenPreview, useLumenPreview } from "@lumiscia/lumen-react";
 import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
@@ -43,15 +39,29 @@ const composition = new Composition({
   renderSettings: { width: 1280, height: 720 },
   timeline: { fps: 30, durationSeconds: 4 },
 });
-const background = composition.addSolidColor({
-  width: 1280,
-  height: 720,
-  color: [25, 28, 36, 255],
+
+const background = composition.addNode({
+  type: "background",
+  params: { paint: [25, 28, 36, 255] },
 });
-composition.addOutput(background);
+const title = composition.addNode({
+  type: "text",
+  params: {
+    content: "Hello from Lumen",
+    font_size: 76,
+    font_weight: 700,
+    color: [255, 255, 255, 255],
+  },
+});
+const merge = composition.addNode({ type: "merge", params: { blend_mode: "normal" } });
+const output = composition.addNode({ type: "media_output" });
+
+composition.connect(background, merge, { toPort: "base" });
+composition.connect(title, merge, { toPort: "overlay" });
+composition.connect(merge, output, { toPort: "source" });
 
 const preview = createLumenPreview();
-const lumenBindings = createLumenBindings();
+const bindings = createLumenBindings();
 const compositionJson = JSON.stringify(composition.toJSON());
 
 export function Preview() {
@@ -59,7 +69,7 @@ export function Preview() {
 
   return (
     <main>
-      <LumenCanvas preview={preview} bindings={lumenBindings} compositionJson={compositionJson} />
+      <LumenCanvas preview={preview} bindings={bindings} compositionJson={compositionJson} />
       <button
         type="button"
         disabled={!state.isLoaded}
@@ -76,6 +86,43 @@ export function Preview() {
 }
 ```
 
-## Bindings
+`useLumenPreview(preview)` returns the current state: `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, and `error` (a string or `null`). Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`.
 
-Use `@lumiscia/lumen-bindings/bundler` for Vite and other bundlers that understand wasm-bindgen bundler output. The `bindings` prop lets React preview use whichever wasm-bindgen target your app provides.
+## Add media
+
+Register images and videos with `mediaSources`. Each `id` must match the `source` param of a `media_in` node. Keep the array stable (module scope, `useMemo`, or state), because a new array makes the canvas sync its media again.
+
+```tsx
+import type { MediaRegistration } from "@lumiscia/lumen-react";
+
+const mediaSources: MediaRegistration[] = [
+  { kind: "image", id: "hero", source: "/hero.png" },
+  { kind: "video", id: "intro", source: "/intro.mp4" },
+];
+
+<LumenCanvas
+  preview={preview}
+  bindings={bindings}
+  compositionJson={compositionJson}
+  mediaSources={mediaSources}
+/>;
+```
+
+`source` accepts a URL string or `URL`, a `Request`, a `File` or `Blob`, or raw bytes. Audio works the same way through `audioSources` (`{ kind: "audio", id, source }`), where `id` matches an audio clip's `sourceId`. See [Media sources](../guides/media-sources).
+
+## `LumenCanvas` props
+
+| Prop              | Type                                                         | Default | Description                                                                            |
+| ----------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------- |
+| `preview`         | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                      |
+| `bindings`        | `LumenPreviewBindingSource`                                  |         | WebAssembly bindings from `createLumenBindings()`. Required.                           |
+| `compositionJson` | `string \| null`                                             | `null`  | Composition as a JSON string.                                                          |
+| `mediaSources`    | `MediaRegistration[]`                                        | `[]`    | Images and videos, keyed by `media_in` source alias.                                   |
+| `audioSources`    | `AudioSourceRegistration[]`                                  | `[]`    | Audio files, keyed by audio clip `sourceId`.                                           |
+| `lookaheadCount`  | `number`                                                     | `8`     | Frames whose media the preview loads ahead of the playhead.                            |
+| `logLevel`        | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                      |
+| `onStats`         | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`. |
+| `className`       | `string`                                                     |         | Class for the `<canvas>`.                                                              |
+| `style`           | `CSSProperties`                                              |         | Inline style for the `<canvas>`.                                                       |
+
+The canvas's `width` and `height` attributes follow the composition's render size. Size it on the page with CSS.

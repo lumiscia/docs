@@ -3,6 +3,8 @@ title: Color Grade
 description: Applies a LUT-driven color transform to a raster.
 ---
 
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
 `color_grade` maps colors through a lookup table and blends the result in by `strength`. Set `lut_source` to `rgb1d:` followed by at least two `r,g,b` triplets separated by `;`, in 0 to 255 or 0 to 1, or to `identity` for no change. `interpolation` is `0` for nearest sampling and `1` for linear.
 
 <NodeReference type="color_grade" />

@@ -3,6 +3,8 @@ title: Memo
 description: Renders its source again only when `key` changes.
 ---
 
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
 `memo` shows its last rendered frame again while `key` keeps the same value, and skips rendering its source. Set `key` to an expression such as `=floor(frame / 2)` to render a costly branch on every second frame only.
 
 <NodeReference type="memo" />

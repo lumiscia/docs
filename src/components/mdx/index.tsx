@@ -3,7 +3,6 @@ import type { MDXComponents } from "mdx/types";
 import { Callout } from "@/src/components/mdx/callout";
 import { Card, Cards } from "@/src/components/mdx/cards";
 import { Code, CodeBlock } from "@/src/components/mdx/code-block";
-import { NodeReference } from "@/src/components/mdx/node-reference";
 import {
   Blockquote,
   Heading,
@@ -48,5 +47,4 @@ export const mdxComponents = {
   Tab,
   Cards,
   Card,
-  NodeReference,
 } satisfies MDXComponents;

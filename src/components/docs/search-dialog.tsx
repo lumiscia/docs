@@ -3,7 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useStaticSearch } from "fumadocs-core/search/client";
 import type { SearchResultRecord } from "fumadocs-core/search/client";
 import { FileText, Hash, Search, TextAlignStart } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 
 import { colors, fonts, media } from "@/src/styles/tokens.stylex";
@@ -27,7 +27,7 @@ export function SearchDialog() {
       <Dialog.Trigger aria-label="search docs" {...stylex.props(styles.trigger)}>
         <Search size={15} />
         <span {...stylex.props(styles.triggerLabel)}>search docs</span>
-        <kbd {...stylex.props(styles.kbd)}>⌘K</kbd>
+        <kbd {...stylex.props(styles.kbd)}>{useShortcutLabel()}</kbd>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Backdrop {...stylex.props(styles.backdrop)} />
@@ -37,6 +37,15 @@ export function SearchDialog() {
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+// Prerendered HTML shows "Ctrl K"; Apple platforms switch to "⌘K" after hydration.
+function useShortcutLabel() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"),
+    () => "Ctrl K",
   );
 }
 
@@ -237,6 +246,7 @@ const styles = stylex.create({
   },
   field: {
     display: "flex",
+    flexShrink: 0,
     alignItems: "center",
     gap: 10,
     height: 52,

@@ -40,6 +40,7 @@ export default defineConfig({
         failOnError: true,
         filter: (page) => {
           const path = page.path.split(/[?#]/)[0]!;
+          if (!isCrawlablePath(path)) return false;
           if (path === page.path) return true;
 
           // Fragment and query links reuse their page's render and stay out of the sitemap.
@@ -60,6 +61,13 @@ export default defineConfig({
     react(),
   ],
 });
+
+// Keeps external URLs and static assets out of the crawl; unknown internal paths stay so they 404.
+function isCrawlablePath(path: string) {
+  if (prerenderPaths.has(path)) return true;
+
+  return path.startsWith("/") && !path.startsWith("//") && posix.extname(path) === "";
+}
 
 function getDocsPages(dir: string) {
   const pages: string[] = [];

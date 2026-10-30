@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getDocsPageData } from "./$";
-import { DocsContent } from "@/src/lib/docs-page";
+import { DocsContent, docsClientLoader } from "@/src/lib/docs-page";
+import type { DocsPageData } from "@/src/lib/docs-page";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
     const data = (await getDocsPageData({
       data: [],
-    })) as import("@/src/lib/docs-page").DocsPageData;
+    })) as DocsPageData;
+
+    await docsClientLoader.preload(data.path);
+
     return data;
   },
   head: ({ loaderData }) => ({

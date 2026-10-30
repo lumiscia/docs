@@ -1,26 +1,23 @@
 ---
 title: Processing
-description: Nodes that adjust or transform raster frames.
+description: Nodes that adjust, move and retime a raster.
 ---
 
-Processing nodes take raster input and return raster output. Use them for image adjustment, geometry, timing, and effects.
+Processing nodes take a raster on `source` and return a raster on `output`. Use them for color, geometry, timing and custom shader effects.
 
-## Nodes
-
-- [alpha_premultiply](alpha-premultiply)
-- [blur](blur)
-- [channel_shuffle](channel-shuffle)
-- [color_grade](color-grade)
-- [crop](crop)
-- [curves](curves)
-- [exposure](exposure)
-- [hue_saturation](hue-saturation)
-- [levels](levels)
-- [memo](memo)
-- [resize](resize)
-- [shadow](shadow)
-- [wgsl_shader](wgsl-shader)
-- [time_remap](time-remap)
-- [transform](transform)
-
-Unless noted otherwise, processing nodes use `source` as the raster input and `output` as the raster output.
+- [Alpha Premultiply](alpha-premultiply) (`alpha_premultiply`): converts raster alpha between premultiplied and unpremultiplied representations.
+- [Blur](blur) (`blur`): applies a separable Gaussian blur to a raster.
+- [Channel Shuffle](channel-shuffle) (`channel_shuffle`): remaps source raster color channels.
+- [Color Grade](color-grade) (`color_grade`): applies a LUT-driven color transform to a raster.
+- [Crop](crop) (`crop`): keeps a raster region in place and clears everything outside it.
+- [Curves](curves) (`curves`): applies a 1D RGB curve table to a raster.
+- [Exposure](exposure) (`exposure`): adjusts raster exposure, contrast, and offset.
+- [Hue Saturation](hue-saturation) (`hue_saturation`): adjusts raster hue, saturation, and lightness.
+- [Levels](levels) (`levels`): remaps raster black, white, gamma, and output range.
+- [Memo](memo) (`memo`): renders its source again only when `key` changes.
+- [Opacity](opacity) (`opacity`): uniformly adjusts raster opacity.
+- [Resize](resize) (`resize`): resamples a raster into a rectangle placed on the composition canvas.
+- [Shadow](shadow) (`shadow`): composites a blurred alpha shadow behind a raster.
+- [Time Remap](time-remap) (`time_remap`): evaluates a raster input at another frame.
+- [Transform](transform) (`transform`): transforms a raster into the composition canvas bounds.
+- [WGSL Shader](wgsl-shader) (`wgsl_shader`): runs a custom WGSL compute shader over one or more rasters.

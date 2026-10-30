@@ -1,0 +1,20 @@
+---
+title: Opacity
+description: Uniformly adjusts raster opacity.
+---
+
+`opacity` multiplies a raster's alpha by one value. Animate it with an expression to fade a layer in or out.
+
+<NodeReference type="opacity" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "opacity",
+  "params": {
+    "opacity": "=progress(0, 15)"
+  }
+}
+```

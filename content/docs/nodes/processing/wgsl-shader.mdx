@@ -1,25 +1,32 @@
 ---
-title: wgsl_shader
-description: Apply a custom WGSL shader to raster inputs.
+title: WGSL Shader
+description: Runs a custom WGSL compute shader over one or more rasters.
 ---
 
-## Properties
+`wgsl_shader` runs your own WGSL compute shader over the rasters connected to `source`. Use it for effects the built-in nodes don't cover.
 
-| Property   | Type   | Default         | Notes                              |
-| ---------- | ------ | --------------- | ---------------------------------- |
-| `shader`   | string | identity shader | WGSL compute shader source.        |
-| `bindings` | string | `""`            | One parameter assignment per line. |
+<NodeReference type="wgsl_shader" />
 
-Use shader nodes for specialized pixel effects that are not covered by built-in processors. Connect the raster input through `source`.
+## Example
 
-For configurable parameters, declare a WGSL uniform struct at `@group(0) @binding(1)` and bind its fields by name:
+The engine appends a prelude that binds the first input as `input0`, the output texture as `output`, and frame globals as `lumen`. Declare your own uniform struct at `@group(0) @binding(1)`. The entry point is `cs_main`, and inputs and output are premultiplied alpha.
+
+This shader inverts colors by `amount`:
 
 ```wgsl
-struct Params { phase: f32, tint: vec3<f32> };
+struct Params { amount: f32 };
 @group(0) @binding(1) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let size = textureDimensions(output);
+  if (id.x >= size.x || id.y >= size.y) {
+    return;
+  }
+  let color = textureLoad(input0, vec2<i32>(id.xy), 0);
+  let inverted = vec3<f32>(color.a) - color.rgb;
+  textureStore(output, vec2<i32>(id.xy), vec4<f32>(mix(color.rgb, inverted, params.amount), color.a));
+}
 ```
 
-```text
-phase = =time * 4.0
-tint = 0.1, 0.0, 0.2
-```
+Set `shader` to that source and `uniforms` to `{ "amount": "=progress(0, 30)" }` to fade the effect in over the first 30 frames.

@@ -1,10 +1,8 @@
 ---
 title: Output
-description: Nodes that define the final graph result.
+description: The node that marks the rendered result.
 ---
 
-Output nodes mark the composition result.
+The output node marks the raster that becomes the rendered video. Every composition has exactly one.
 
-## Nodes
-
-- [media_output](media-output): final raster sink for rendering and preview.
+- [Media Output](media-output) (`media_output`): copies the compiled raster into the final composition output.

@@ -1,21 +1,20 @@
 ---
-title: boolean
-description: Combine two raster alpha masks.
+title: Boolean
+description: Combines two raster alpha masks with boolean operations.
 ---
 
-`boolean` combines two raster alpha masks with a boolean operation.
+`boolean` combines the alpha of inputs `a` and `b` into one mask. Use it to cut shapes out of each other, then feed the result to the `mask` input of `merge`.
 
-## Ports
+<NodeReference type="boolean" />
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `a`      | input     | raster | yes      |
-| `b`      | input     | raster | yes      |
-| `output` | output    | raster | yes      |
+## Example
 
-## Properties
-
-| Property    | Type  | Default | Notes                                                        |
-| ----------- | ----- | ------- | ------------------------------------------------------------ |
-| `operation` | int   | `0`     | `0` union, `1` intersect, `2` subtract, `3` difference.      |
-| `threshold` | float | `0`     | Alpha threshold used when converting inputs to binary masks. |
+```json
+{
+  "id": 1,
+  "type": "boolean",
+  "params": {
+    "operation": "subtract"
+  }
+}
+```

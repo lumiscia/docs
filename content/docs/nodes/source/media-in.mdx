@@ -1,25 +1,22 @@
 ---
-title: media_in
-description: Load a registered image or video source.
+title: Media In
+description: Binds an external image or video frame as a GPU texture.
 ---
 
-`media_in` reads an image or video source by media manifest alias.
+`media_in` reads an image or video from the render request's media manifest. Set `source` to a manifest alias, and set `kind` to `video` for video files so the range, speed and loop params apply.
 
-## Ports
+<NodeReference type="media_in" />
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `output` | output    | raster | yes      |
+## Example
 
-## Properties
-
-| Property      | Type   | Default | Notes                                   |
-| ------------- | ------ | ------- | --------------------------------------- |
-| `kind`        | int    | `0`     | `0` image, `1` video.                   |
-| `source`      | string | `""`    | Alias from the render `media` manifest. |
-| `range_start` | int    | `0`     | Video trim start frame.                 |
-| `range_end`   | int    | `0`     | Video trim end frame. `0` = none.       |
-| `speed`       | float  | `1`     | Playback speed multiplier.              |
-| `loop_mode`   | int    | `0`     | `0` clamp, `1` repeat, `2` ping-pong.   |
-
-Images ignore video playback fields.
+```json
+{
+  "id": 1,
+  "type": "media_in",
+  "params": {
+    "source": "hero",
+    "kind": "video",
+    "loop_mode": "repeat"
+  }
+}
+```

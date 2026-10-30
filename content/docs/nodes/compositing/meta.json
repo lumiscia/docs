@@ -1,5 +1,5 @@
 {
   "title": "Compositing",
   "defaultOpen": false,
-  "pages": ["boolean", "merge", "raster-multimerge", "switch"]
+  "pages": ["boolean", "clip", "merge", "raster-multimerge", "switch"]
 }

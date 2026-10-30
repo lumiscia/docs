@@ -1,5 +1,5 @@
 {
   "title": "Source",
   "defaultOpen": false,
-  "pages": ["media-in", "solid-color", "text"]
+  "pages": ["background", "media-in", "text"]
 }

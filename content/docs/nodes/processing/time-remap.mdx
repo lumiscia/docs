@@ -1,19 +1,22 @@
 ---
-title: time_remap
-description: Sample a raster input at a different frame.
+title: Time Remap
+description: Evaluates a raster input at another frame.
 ---
 
-## Properties
+`time_remap` renders its source at the frame given by `frame` instead of the current one. Use expressions for slow motion, holds and reverse playback.
 
-| Property       | Type  | Default | Notes                                    |
-| -------------- | ----- | ------- | ---------------------------------------- |
-| `frame`        | float | `0`     | Source frame to sample.                  |
-| `loop_enabled` | bool  | `false` | Wrap remapped frames inside a loop span. |
-| `loop_start`   | int   | `0`     | Inclusive loop start frame.              |
-| `loop_end`     | int   | `0`     | Exclusive loop end frame.                |
+<NodeReference type="time_remap" />
 
-Use expressions to create slow motion, loops, holds, and reverse playback.
+## Example
+
+This plays the source at half speed.
 
 ```json
-{ "frame": "=duration_frames - frame - 1" }
+{
+  "id": 1,
+  "type": "time_remap",
+  "params": {
+    "frame": "=frame / 2"
+  }
+}
 ```

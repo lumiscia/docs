@@ -1,12 +1,10 @@
 ---
 title: Source
-description: Nodes that create raster frames.
+description: Nodes that create rasters from media, paint and text.
 ---
 
-Source nodes create raster frames without upstream inputs.
+Source nodes create rasters from media, paint or text. They have no input ports.
 
-## Nodes
-
-- [media_in](media-in): load a registered image or video source.
-- [solid_color](solid-color): create a flat RGBA raster.
-- [text](text): render text directly to pixels.
+- [Background](background) (`background`): generates a background raster texture.
+- [Media In](media-in) (`media_in`): binds an external image or video frame as a GPU texture.
+- [Text](text) (`text`): produces a text source.

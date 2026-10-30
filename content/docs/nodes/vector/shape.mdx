@@ -1,28 +1,25 @@
 ---
-title: shape
-description: Create rectangle, ellipse, or polygon geometry.
+title: Shape
+description: Produces a vector shape layer for GPU rasterization.
 ---
 
-## Ports
+`shape` draws a rectangle, ellipse or polygon to a raster, with an optional fill and stroke. `width` and `height` size rectangles and ellipses; for a polygon, set `geometry_kind` to `polygon` and list its vertices in `polygon_points`.
 
-| Port     | Direction | Kind   | Required |
-| -------- | --------- | ------ | -------- |
-| `output` | output    | raster | yes      |
+<NodeReference type="shape" />
 
-## Properties
+## Example
 
-| Property         | Type   | Default             | Notes                                    |
-| ---------------- | ------ | ------------------- | ---------------------------------------- |
-| `geometry_kind`  | int    | `0`                 | `0` rectangle, `1` ellipse, `2` polygon. |
-| `width`          | int    | `1`                 | Width in pixels.                         |
-| `height`         | int    | `1`                 | Height in pixels.                        |
-| `border_radius`  | float  | `0`                 | Rectangle corner radius.                 |
-| `polygon_points` | string | `""`                | Polygon vertex list.                     |
-| `position`       | vec2   | `[0, 0]`            | Shape position.                          |
-| `fill_enabled`   | bool   | `true`              | Enable fill rendering.                   |
-| `fill_color`     | color  | `[255,255,255,255]` | Fill color.                              |
-| `stroke_enabled` | bool   | `false`             | Enable stroke rendering.                 |
-| `stroke_color`   | color  | `[0,0,0,255]`       | Stroke color.                            |
-| `stroke_width`   | float  | `1`                 | Stroke width in pixels.                  |
-
-Use `polygon_points` when `geometry_kind` is `2`.
+```json
+{
+  "id": 1,
+  "type": "shape",
+  "params": {
+    "geometry_kind": "rectangle",
+    "width": 320,
+    "height": 120,
+    "border_radius": 24,
+    "position": [480, 300],
+    "fill_paint": "#2c45c2"
+  }
+}
+```

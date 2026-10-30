@@ -1,0 +1,20 @@
+---
+title: Background
+description: Generates a background raster texture.
+---
+
+`background` fills a raster with a solid color or a gradient paint. Use it as the bottom layer of a composition. Leave `width` and `height` at `0` to match the composition size.
+
+<NodeReference type="background" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "background",
+  "params": {
+    "paint": [16, 24, 32, 255]
+  }
+}
+```

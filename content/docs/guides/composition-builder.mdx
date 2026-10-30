@@ -1,6 +1,6 @@
 ---
 title: Composition Builder
-description: Build Lumen composition graphs with the TypeScript Composition API.
+description: Build composition graphs with the TypeScript Composition API.
 ---
 
 Use `Composition` from `@lumiscia/lumen-shared` when you want to build graph JSON in TypeScript. The same class is also re-exported by `@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare`.
@@ -40,7 +40,7 @@ const background = composition.addSolidColor({
 });
 
 const title = composition.addText({
-  content: "Lumen",
+  content: "Lumiscia",
   fontFamily: "Inter",
   fontSize: 96,
   fontWeight: 700,
@@ -74,7 +74,7 @@ const hero = composition.addImage("hero", {
 });
 ```
 
-When you render, provide a media manifest that maps each alias to a Lumen media reference:
+When you render, provide a media manifest that maps each alias to a media reference (`lumen:<media_id>`):
 
 ```ts
 import { mediaReference } from "@lumiscia/lumen-sdk";

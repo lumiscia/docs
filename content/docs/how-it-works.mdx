@@ -1,9 +1,9 @@
 ---
 title: How It Works
-description: The public model for Lumen compositions, validation, media loading, and frame rendering.
+description: The public model for compositions, validation, media loading, and frame rendering.
 ---
 
-Lumen renders a directed node graph frame by frame. The graph starts from source nodes, passes through processing and compositing nodes, and ends at one `media_output` node.
+Lumiscia renders compositions with Lumen, its open-source engine. Lumen renders a directed node graph frame by frame. The graph starts from source nodes, passes through processing and compositing nodes, and ends at one `media_output` node.
 
 ## Composition Model
 
@@ -79,7 +79,7 @@ Common expression values include:
 
 ## Media Loading
 
-`media_in` nodes reference uploaded images or videos by alias. In the current API flow, the render request includes a top-level `media` manifest that maps each alias to a validated upload id from `/api/v1/media`.
+`media_in` nodes reference uploaded images or videos by alias. In the current API flow, the render request includes a top-level `media` manifest that maps each alias to a validated upload id from `POST https://api.lumiscia.com/v1/media`.
 
 ```json
 {

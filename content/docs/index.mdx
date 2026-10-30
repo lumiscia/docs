@@ -1,11 +1,11 @@
 ---
 title: Quick Start
-description: Create your first Lumen render from a composition graph.
+description: Create your first Lumiscia render from a composition graph.
 ---
 
-Lumen renders video and motion graphics from JSON composition graphs. A composition describes the timeline, canvas size, manifest media aliases, node graph, and final output. You can build graphs visually in the editor or generate them from code.
+Lumiscia renders video and motion graphics from JSON composition graphs on hosted GPUs, using Lumen, its open-source rendering engine. A composition describes the timeline, canvas size, manifest media aliases, node graph, and final output. You can build graphs visually in the editor or generate them from code.
 
-> **Beta note:** Lumen is evolving quickly. Pricing, render concurrency, queue times, SDK APIs, and availability can change during beta. Read [Beta Notes](beta-notes) before depending on Lumen for production workloads.
+> **Beta note:** Lumiscia is evolving quickly. Pricing, render concurrency, queue times, SDK APIs, and availability can change during beta. Read [Beta Notes](beta-notes) before depending on Lumiscia for production workloads.
 
 ## 1. Create a composition
 
@@ -43,8 +43,8 @@ With the TypeScript SDK:
 import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
-  apiKey: process.env.LUMEN_API_KEY!,
-  baseUrl: "https://api.lumiscia.com",
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
 });
 
 const heroMedia = await lumen.uploadMedia({
@@ -84,7 +84,7 @@ if (error) {
 console.log(id, render?.status);
 ```
 
-`@lumiscia/lumen-sdk` appends `/api/v1` internally. Use `@lumiscia/lumen-sdk/cloudflare` for Cloudflare Workers.
+Set `baseUrl` to `https://api.lumiscia.com/v1`. The SDK appends paths such as `/renders` to it. Use `@lumiscia/lumen-sdk/cloudflare` for Cloudflare Workers.
 
 ## 4. Subscribe for completion
 

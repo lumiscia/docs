@@ -3,7 +3,7 @@ title: Browser
 description: Build composition JSON in the browser and render through your backend.
 ---
 
-Browser code should not hold a Lumen API key. Use browser code for composition editing and preview, then send composition JSON and media selections to your backend.
+Browser code should not hold a Lumiscia API key. Use browser code for composition editing and preview, then send composition JSON and media selections to your backend.
 
 For graph construction patterns, start with the [Composition Builder](../guides/composition-builder). This page focuses on browser-safe ownership boundaries.
 
@@ -83,8 +83,8 @@ On the server:
 import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
-  apiKey: process.env.LUMEN_API_KEY!,
-  baseUrl: "https://api.lumiscia.com",
+  apiKey: process.env.LUMISCIA_API_KEY!,
+  baseUrl: "https://api.lumiscia.com/v1",
 });
 
 const { id, error } = await lumen.render(composition, {
@@ -101,4 +101,4 @@ Use the framework packages for live browser previews:
 - `@lumiscia/lumen-react`
 - `@lumiscia/lumen-svelte`
 
-Both preview packages need wasm-bindgen glue from `lumen-bindings`, usually `lumen-bindings/bundler` in Vite apps.
+Both preview packages need wasm-bindgen glue from `@lumiscia/lumen-bindings`, usually `@lumiscia/lumen-bindings/bundler` in Vite apps.

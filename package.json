@@ -8,7 +8,8 @@
     "preview": "vp preview --port 3001",
     "typegen": "vp exec wrangler types",
     "deploy:dry-run": "vp build && vp exec wrangler deploy --dry-run",
-    "deploy": "vp build && vp exec wrangler deploy"
+    "deploy": "vp build && vp exec wrangler deploy",
+    "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.46",

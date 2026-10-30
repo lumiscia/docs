@@ -79,7 +79,11 @@ function RootDocument({ children }: { children: ReactNode }) {
   );
 }
 
-function StaticDocsLink({ href = "#", prefetch: _prefetch, ...props }: ComponentProps<"a"> & { prefetch?: boolean }) {
+function StaticDocsLink({
+  href = "#",
+  prefetch: _prefetch,
+  ...props
+}: ComponentProps<"a"> & { prefetch?: boolean }) {
   return <a href={href} {...props} />;
 }
 

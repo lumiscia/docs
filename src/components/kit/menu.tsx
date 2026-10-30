@@ -38,6 +38,14 @@ export function MenuLabel({ children }: { children: ReactNode }) {
   return <div {...stylex.props(styles.label)}>{children}</div>;
 }
 
+export function MenuLinkItem({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <BaseMenu.LinkItem href={href} target="_blank" rel="noreferrer" {...stylex.props(styles.item)}>
+      {children}
+    </BaseMenu.LinkItem>
+  );
+}
+
 export function MenuRadioGroup<T extends string>({
   value,
   onValueChange,

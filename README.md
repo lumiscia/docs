@@ -1,6 +1,6 @@
 # Lumiscia Docs
 
-Documentation site for Lumiscia, built with Fumadocs, TanStack Start, React, and Tailwind CSS.
+Documentation site for Lumiscia, built with Fumadocs, TanStack Start, React, StyleX, and Base UI.
 
 ## Quick Start
 
@@ -29,7 +29,7 @@ vp run deploy        # Publish to docs.lumiscia.com
 
 - `content/docs` contains the MDX documentation pages.
 - `content/docs/**/meta.json` controls sidebar labels and ordering.
-- `src` contains the TanStack Start routes, router setup, and global styles.
+- `src` contains the TanStack Start routes, StyleX components and tokens, and the reset stylesheet.
 - `wrangler.jsonc` configures Cloudflare Workers static assets for `docs.lumiscia.com`.
 
 ## Publishing

@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, posix, relative } from "node:path";
+import stylex from "@stylexjs/unplugin";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import mdx from "fumadocs-mdx/vite";
 import { defineConfig } from "vite-plus";
@@ -23,7 +23,13 @@ export default defineConfig({
   },
   plugins: [
     mdx(await import("./source.config.ts")),
-    tailwindcss(),
+    stylex.vite({
+      useCSSLayers: true,
+      // StyleX resolves `.stylex.ts` imports itself, so it needs the tsconfig `@/*` alias too.
+      aliases: { "@/*": [`${import.meta.dirname}/*`] },
+      // Fontsource ships `index.css` files, which would otherwise win StyleX's default target match.
+      cssInjectionTarget: (fileName) => fileName.includes("styles-"),
+    }),
     tanstackStart({
       prerender: {
         enabled: true,

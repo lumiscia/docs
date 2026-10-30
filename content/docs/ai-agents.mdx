@@ -1,0 +1,27 @@
+---
+title: AI agents
+description: Give a coding agent the docs as Markdown, the Lumen skill, and the API and composition schemas.
+---
+
+Every docs page is also published as Markdown, so an agent reads the same content you do without parsing HTML.
+
+## Docs as Markdown
+
+- [`llms.txt`](https://docs.lumiscia.com/llms.txt) lists every page with a one-line description, in the [llms.txt](https://llmstxt.org) format.
+- [`llms-full.txt`](https://docs.lumiscia.com/llms-full.txt) holds every page in one file.
+- Add `.md` to a page's URL to fetch that page alone, for example `https://docs.lumiscia.com/guides/animation.md`. The quick start is at `https://docs.lumiscia.com/index.md`.
+
+Each page has a **copy page** button, and its menu opens the page in Claude or ChatGPT.
+
+## Agent skill
+
+The Lumen skill teaches your agent the composition format and the SDK:
+
+```bash
+npx skills add lumiscia/lumen-oss
+```
+
+## Schemas
+
+- The [OpenAPI spec](https://api.lumiscia.com/v1/openapi.json) describes the Lumiscia REST API.
+- The [composition JSON schema](https://lumiscia.com/schema/composition.json) describes every field and node in a composition. Validate a composition against it before you submit a render.

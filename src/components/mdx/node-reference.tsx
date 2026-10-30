@@ -2,7 +2,12 @@ import * as stylex from "@stylexjs/stylex";
 
 import { Code } from "@/src/components/mdx/code-block";
 import { Heading, Paragraph, Table, TableCell, TableHeaderCell } from "@/src/components/mdx/prose";
-import { getExpressionSupport, getNodeSchema } from "@/src/lib/node-schema";
+import {
+  describeConstraints,
+  describePortConnection,
+  formatValue,
+  getNodeSchema,
+} from "@/src/lib/node-schema";
 import type { NodeParam, NodePort } from "@/src/lib/node-schema";
 import { colors } from "@/src/styles/tokens.stylex";
 
@@ -63,13 +68,6 @@ export function NodeReference({ type }: { type: string }) {
 }
 
 function PortRow({ port, direction }: { port: NodePort; direction: "input" | "output" }) {
-  const connection =
-    direction === "output"
-      ? "-"
-      : [port.optional ? "Optional" : "Required", port.variadic && "variadic"]
-          .filter(Boolean)
-          .join(", ");
-
   return (
     <tr>
       <TableCell>
@@ -79,7 +77,7 @@ function PortRow({ port, direction }: { port: NodePort; direction: "input" | "ou
       <TableCell>
         <Code>{port.kind}</Code>
       </TableCell>
-      <TableCell>{connection}</TableCell>
+      <TableCell>{describePortConnection(port, direction)}</TableCell>
     </tr>
   );
 }
@@ -123,31 +121,6 @@ function InlineMarkdown({ text }: { text: string }) {
     .replaceAll("\n", " ")
     .split("`")
     .map((part, index) => (index % 2 === 1 ? <Code key={index}>{part}</Code> : part));
-}
-
-function describeConstraints(param: NodeParam) {
-  const { min, max, step, format } = param["x-lumen-constraints"] ?? {};
-  const details = [];
-
-  if (min !== undefined && max !== undefined) details.push(`${min} to ${max}`);
-  else if (min !== undefined) details.push(`min ${min}`);
-  else if (max !== undefined) details.push(`max ${max}`);
-  if (step !== undefined) details.push(`step ${step}`);
-  if (format) details.push(`${format} format`);
-  details.push(expressionLabels[getExpressionSupport(param)]);
-
-  return details.join(" · ");
-}
-
-const expressionLabels = {
-  value: "expression",
-  entries: "expression values",
-  none: "literal only",
-};
-
-function formatValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;
-  return JSON.stringify(value);
 }
 
 const styles = stylex.create({

@@ -6,6 +6,7 @@ import type { TableOfContents } from "fumadocs-core/toc";
 import { ArrowLeft, ArrowRight, SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { PageActions } from "@/src/components/docs/page-actions";
 import { Toc } from "@/src/components/docs/toc";
 import { docsRepoUrl } from "@/src/components/site/links";
 import { colors, fonts, layout, media } from "@/src/styles/tokens.stylex";
@@ -30,6 +31,7 @@ export function DocsPage({ title, description, url, path, tree, toc, children }:
           <header {...stylex.props(styles.header)}>
             <h1 {...stylex.props(styles.title)}>{title}</h1>
             {description && <p {...stylex.props(styles.description)}>{description}</p>}
+            <PageActions url={url} />
           </header>
           <div {...stylex.props(styles.body)}>{children}</div>
           <footer {...stylex.props(styles.footer)}>

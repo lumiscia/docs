@@ -55,3 +55,36 @@ export function getExpressionSupport(param: NodeParam): ExpressionSupport {
 
   return entrySchema?.anyOf?.some(acceptsString) ? "entries" : "none";
 }
+
+export function describePortConnection(port: NodePort, direction: "input" | "output") {
+  if (direction === "output") return "-";
+
+  return [port.optional ? "Optional" : "Required", port.variadic && "variadic"]
+    .filter(Boolean)
+    .join(", ");
+}
+
+export function describeConstraints(param: NodeParam) {
+  const { min, max, step, format } = param["x-lumen-constraints"] ?? {};
+  const details = [];
+
+  if (min !== undefined && max !== undefined) details.push(`${min} to ${max}`);
+  else if (min !== undefined) details.push(`min ${min}`);
+  else if (max !== undefined) details.push(`max ${max}`);
+  if (step !== undefined) details.push(`step ${step}`);
+  if (format) details.push(`${format} format`);
+  details.push(expressionLabels[getExpressionSupport(param)]);
+
+  return details.join(" · ");
+}
+
+const expressionLabels = {
+  value: "expression",
+  entries: "expression values",
+  none: "literal only",
+};
+
+export function formatValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;
+  return JSON.stringify(value);
+}

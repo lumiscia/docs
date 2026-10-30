@@ -1,11 +1,18 @@
 import { defineConfig, defineDocs } from "fumadocs-mdx/config";
 
+import { remarkMarkdownLinks } from "./src/lib/remark-markdown-links.ts";
+
 export const docs = defineDocs({
   dir: "content/docs",
+  docs: {
+    // Exported as a component so custom MDX components can render their own Markdown.
+    postprocess: { includeProcessedMarkdown: { output: "function", headingIds: false } },
+  },
 });
 
 export default defineConfig({
   mdxOptions: {
+    remarkPlugins: [[remarkMarkdownLinks, { dir: "content/docs" }]],
     rehypeCodeOptions: {
       // One theme built from the website's `code` tokens; code blocks stay dark in both site themes.
       themes: {

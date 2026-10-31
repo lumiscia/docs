@@ -6,12 +6,23 @@ import react from "@vitejs/plugin-react";
 import mdx from "fumadocs-mdx/vite";
 import { defineConfig } from "vite-plus";
 
+import { markdownUrl } from "./src/lib/docs-href.ts";
+
 const docsDir = join(import.meta.dirname, "content/docs");
 const docsPages = getDocsPages(docsDir);
 const searchIndexPath = "/api/search.json";
 // Written to 404.html, which Cloudflare serves for unknown paths.
 const notFoundPath = "/404";
-const prerenderPaths = new Set(["/", ...docsPages, searchIndexPath, notFoundPath]);
+// Markdown for LLMs: the llms.txt index, every page in one file, and each page at `<url>.md`.
+const markdownPaths = ["/llms.txt", "/llms-full.txt", ...docsPages.map(markdownUrl)];
+const prerenderPaths = new Set([
+  "/",
+  ...docsPages,
+  searchIndexPath,
+  notFoundPath,
+  ...markdownPaths,
+]);
+const sitemapExcluded = new Set([searchIndexPath, notFoundPath, ...markdownPaths]);
 
 export default defineConfig({
   fmt: {
@@ -53,7 +64,7 @@ export default defineConfig({
       pages: Array.from(prerenderPaths, (path) => ({
         path,
         prerender: { enabled: true, autoSubfolderIndex: path !== notFoundPath },
-        sitemap: { exclude: path === searchIndexPath || path === notFoundPath },
+        sitemap: { exclude: sitemapExcluded.has(path) },
       })),
       sitemap: {
         enabled: true,

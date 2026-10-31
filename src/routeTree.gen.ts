@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as R404RouteImport } from './routes/404'
+import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as Char123Char125DotmdRouteImport } from './routes/{$}[.]md'
 import { Route as ApiSearchDotjsonRouteImport } from './routes/api/search[.]json'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +32,21 @@ const R404Route = R404RouteImport.update({
   path: '/404',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LlmsFullDottxtRoute = LlmsFullDottxtRouteImport.update({
+  id: '/llms-full.txt',
+  path: '/llms-full.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char123Char125DotmdRoute = Char123Char125DotmdRouteImport.update({
+  id: '/{$}.md',
+  path: '/{$}.md',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSearchDotjsonRoute = ApiSearchDotjsonRouteImport.update({
   id: '/api/search.json',
   path: '/api/search.json',
@@ -39,12 +57,18 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/404': typeof R404Route
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/404': typeof R404Route
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRoutesById {
@@ -52,20 +76,48 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/404': typeof R404Route
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/api/search.json': typeof ApiSearchDotjsonRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/404' | '/api/search.json'
+  fullPaths:
+    | '/'
+    | '/$'
+    | '/404'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/api/search.json'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/404' | '/api/search.json'
-  id: '__root__' | '/' | '/$' | '/404' | '/api/search.json'
+  to:
+    | '/'
+    | '/$'
+    | '/404'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/api/search.json'
+  id:
+    | '__root__'
+    | '/'
+    | '/$'
+    | '/404'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/api/search.json'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   R404Route: typeof R404Route
+  LlmsFullDottxtRoute: typeof LlmsFullDottxtRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  Char123Char125DotmdRoute: typeof Char123Char125DotmdRoute
   ApiSearchDotjsonRoute: typeof ApiSearchDotjsonRoute
 }
 
@@ -92,6 +144,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof R404RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/llms-full.txt': {
+      id: '/llms-full.txt'
+      path: '/llms-full.txt'
+      fullPath: '/llms-full.txt'
+      preLoaderRoute: typeof LlmsFullDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/{$}.md': {
+      id: '/{$}.md'
+      path: '/{$}.md'
+      fullPath: '/{$}.md'
+      preLoaderRoute: typeof Char123Char125DotmdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/search.json': {
       id: '/api/search.json'
       path: '/api/search.json'
@@ -106,6 +179,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   R404Route: R404Route,
+  LlmsFullDottxtRoute: LlmsFullDottxtRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  Char123Char125DotmdRoute: Char123Char125DotmdRoute,
   ApiSearchDotjsonRoute: ApiSearchDotjsonRoute,
 }
 export const routeTree = rootRouteImport

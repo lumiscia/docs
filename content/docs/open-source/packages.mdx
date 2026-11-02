@@ -41,12 +41,12 @@ Start with `lumen-server`. The other crates track renderer internals and change 
 
 The repository also has four crates that are not published:
 
-| Crate              | What it does                                                                |
-| ------------------ | --------------------------------------------------------------------------- |
-| `lumen-local`      | Local render and debugging CLI.                                             |
-| `lumen-bench`      | Benchmarks for composition rendering, JSON parsing, media decode, and text. |
-| `lumen-generators` | Generates the JSON schema and node metadata from the Rust node definitions. |
-| `lumen-wasm`       | Browser renderer bindings, compiled into `@lumiscia/lumen-bindings`.        |
+| Crate              | What it does                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `lumen-local`      | Local render and debugging CLI. Reads the same [media formats](self-hosting#supported-formats) as `lumen-server`. |
+| `lumen-bench`      | Benchmarks for composition rendering, JSON parsing, media decode, and text.                                       |
+| `lumen-generators` | Generates the JSON schema and node metadata from the Rust node definitions.                                       |
+| `lumen-wasm`       | Browser renderer bindings, compiled into `@lumiscia/lumen-bindings`.                                              |
 
 The generated schema is [`definitions/composition.schema.json`](https://github.com/lumiscia/lumen-oss/blob/main/definitions/composition.schema.json).
 

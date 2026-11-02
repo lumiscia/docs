@@ -16,6 +16,7 @@ The binary renders on one machine and keeps recent artifacts in memory. Durable 
 - Linux with Vulkan, or macOS with Metal. `lumen-server` does not build or run on Windows. See [Platform support](platform-support).
 - Rust stable with Cargo. The crates use the 2024 edition.
 - FFmpeg development libraries and `pkg-config`.
+- The `ffmpeg` command on your `PATH`, for compositions with audio. Renders without audio don't need it.
 - For CUDA/NVENC interop on NVIDIA, the CUDA toolkit with `nvcc` on your `PATH`.
 
 ## Run the HTTP server
@@ -25,16 +26,16 @@ The binary renders on one machine and keeps recent artifacts in memory. Durable 
 
 ### Install system dependencies
 
-On Debian or Ubuntu, install the packages CI uses:
+On Debian or Ubuntu, install these packages:
 
 ```bash
 sudo apt-get install -y --no-install-recommends \
-  libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev \
+  ffmpeg libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev \
   libavutil-dev libswresample-dev libswscale-dev \
   libvulkan1 mesa-vulkan-drivers pkg-config vulkan-tools
 ```
 
-On macOS, install FFmpeg with its development headers and `pkg-config`.
+On macOS, install FFmpeg with its development headers and command-line tool, plus `pkg-config`.
 
 </Step>
 <Step>
@@ -281,18 +282,18 @@ media 'hero' (localhost): error sending request: client error (Connect): dns err
 
 The `kind` param on a `media_in` node decides how a file is read.
 
-`kind: "image"` decodes the file in memory, and references inside it are never followed. It reads PNG, JPEG, WebP, GIF, BMP, ICO, and TIFF. GIF gives the first frame. RGB TIFF works, and YUV TIFF fails. Use this kind for still images. JPEG files named `.jpg` or `.jpeg` usually fail with `kind: "video"`.
+`kind: "image"` decodes the file in memory, and references inside it are never followed. It reads PNG, JPEG, WebP, GIF, BMP, ICO, and TIFF. GIF gives the first frame. RGB TIFF works, and YUV TIFF fails. Use this kind for still images, because it doesn't depend on your FFmpeg build.
 
-Videos and audio clips go through FFmpeg, which only reads local files in formats that keep their data inside the file:
+Videos and audio clips go through FFmpeg, which only reads local files in formats that keep their data inside the file. Audio clips run the `ffmpeg` command, so without it on your `PATH` they fail with `failed spawning ffmpeg audio decoder`.
 
-| Type         | Formats                                                                                                  |
-| ------------ | -------------------------------------------------------------------------------------------------------- |
-| Video        | MP4, MOV, Matroska (MKV), WebM, MPEG-TS, MPEG-PS, AVI, FLV, ASF (WMV), Ogg, MXF, IVF, raw H.264 and HEVC |
-| Animated     | GIF, APNG                                                                                                |
-| Still images | PNG, JPEG, WebP, BMP, TIFF (prefer `kind: "image"`)                                                      |
-| Audio        | MP3, AAC, WAV, W64, FLAC, AIFF, CAF, AC-3, E-AC-3, DTS, AMR, WavPack, and M4A, MKA, and Ogg audio        |
+| Type         | Formats                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| Video        | MP4, MOV, Matroska (MKV), WebM, MPEG-TS, MPEG-PS, AVI, FLV, ASF (WMV), Ogg, MXF, IVF              |
+| Animated     | GIF, APNG                                                                                         |
+| Still images | PNG, JPEG, WebP, BMP, TIFF (prefer `kind: "image"`)                                               |
+| Audio        | MP3, AAC, WAV, W64, FLAC, AIFF, CAF, AC-3, E-AC-3, DTS, AMR, WavPack, and M4A, MKA, and Ogg audio |
 
-Your FFmpeg build also needs a decoder for the codec inside the file.
+Your FFmpeg build also needs a decoder for the codec inside the file. Raw H.264 and HEVC streams carry no duration, so they fail to open. Put them in a container first.
 
 FFmpeg refuses every other format, including HLS, DASH, concat lists, image sequences, IMF, MLV, VobSub, RTSP, SAP, and SDP. These can name other files or hosts, so a staged playlist could otherwise read outside the render's directory. MP4 and MOV external data references are ignored too. `lumen-server` reports a refused file as `media source not found: <alias>`.
 

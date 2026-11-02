@@ -20,6 +20,8 @@ const { id, error } = await lumen.render(composition, {
 
 Without the SDK, add `webhookUrl` next to `media` and `composition` in the body of `POST /v1/renders`. The URL must use `https` and can't point at `localhost` or contain credentials.
 
+Webhooks are a Lumiscia feature. [`lumen-server`](../open-source/self-hosting) doesn't deliver them and returns `400` with the code `webhooks_unsupported` when a request sets `webhookUrl`.
+
 ## Events
 
 A render sends one webhook, for one of two events:

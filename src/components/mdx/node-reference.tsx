@@ -95,7 +95,7 @@ function ParamRow({ name, param }: { name: string; param: NodeParam }) {
         <span {...stylex.props(styles.detail)}>{describeConstraints(param)}</span>
       </TableCell>
       <TableCell>
-        <Code>{formatValue(param.default)}</Code>
+        {param.default === undefined ? "Unset" : <Code>{formatValue(param.default)}</Code>}
       </TableCell>
       <TableCell>
         <InlineMarkdown text={param.description} />

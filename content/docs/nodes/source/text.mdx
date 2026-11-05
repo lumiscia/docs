@@ -151,6 +151,6 @@ A text node draws at most 2048 glyphs, counting a stroked glyph twice and each d
 
 ## Fonts
 
-`font_family` must name a font the renderer has loaded. Lumen bundles Roboto, the default, and draws a family that isn't loaded in Roboto. Characters a font lacks, such as CJK, Hebrew or emoji, fall back only to other loaded fonts, so load a font that covers them. A self-hosted `lumen-server` finds a family by the name inside its font files, in `LUMEN_FONT_DIR`, then `<media-root>/assets/fonts`, then the system fonts. See [Self-hosting](../../open-source/self-hosting).
+`font_family` must name a font the renderer has loaded. Lumen bundles Roboto, the default, and draws a family that isn't loaded in Roboto. Characters a font lacks, such as CJK, Hebrew or emoji, fall back only to other loaded fonts, so load a font that covers them. [Self-hosting](../../open-source/self-hosting#fonts) lists where `lumen-server` looks for fonts.
 
 Fonts registered in the browser preview aren't part of a render request. See [Preview to render](../../guides/preview-to-render).

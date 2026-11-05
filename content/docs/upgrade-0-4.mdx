@@ -20,6 +20,9 @@ Every `@lumiscia/lumen-*` package moved to 0.4.0 together, and the engine now re
 - `color_grade` `interpolation` takes `"nearest"` or `"linear"` instead of `0` or `1`, and enum params no longer fall back to their first option on an unknown value.
 - A `transform` pivot needs `custom_pivot: true`, and a custom `wgsl_shader` must declare `@workgroup_size(8, 8, 1)`.
 - `background` `width` and `height` no longer take expressions.
+- Malformed `path` data and a gradient `shadow` `color` are errors. They used to draw nothing or the gradient's first stop.
+- A `text` node that draws more than 2048 glyphs fails the render instead of dropping the rest.
+- Characters a font lacks, such as CJK or emoji, fall back only to loaded fonts, not the machine's installed fonts. Load a font that covers them. See [Text](nodes/source/text#fonts).
 
 The `lumenSchemaVersion` stays `"0.1.0"`.
 

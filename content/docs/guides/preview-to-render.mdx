@@ -12,34 +12,32 @@ The browser preview and Lumiscia's GPU workers run the same Lumen engine on the 
 Register each file under the alias its `media_in` node uses. The preview plays the composition with no uploads and no API key.
 
 ```tsx title="Editor.tsx"
-import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-react";
-import type { MediaRegistration } from "@lumiscia/lumen-react";
+import { Player, createLumenPreview } from "@lumiscia/lumen-react";
 import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
+import type { LumenComposition } from "@lumiscia/lumen-shared";
 
 const preview = createLumenPreview();
 const bindings = createLumenBindings();
 
-export function Editor({ compositionJson, file }: { compositionJson: string; file: File }) {
-  const mediaSources: MediaRegistration[] = [{ kind: "image", id: "hero", source: file }];
-
+export function Editor({ composition, file }: { composition: LumenComposition; file: File }) {
   return (
-    <LumenCanvas
+    <Player
       preview={preview}
       bindings={bindings}
-      compositionJson={compositionJson}
-      mediaSources={mediaSources}
+      composition={composition}
+      media={{ hero: file }}
     />
   );
 }
 ```
 
-[React](../sdks/react) and [Svelte](../sdks/svelte) cover setup, playback controls and audio.
+[React](../sdks/react) and [Svelte](../sdks/svelte) cover setup, playback controls, audio and fonts.
 
 </Step>
 <Step>
 ### Upload the files
 
-Upload each file to Lumiscia while the user edits, and keep the returned media id next to its alias. Uploads need your API key, so run them on your backend. See [Media sources](media-sources) for upload and URL ingest.
+Upload each file to Lumiscia while the user edits, and keep the returned media id next to its alias. Uploads need your API key, so run them on your backend with `lumen.uploadMedia({ body: file })`. See [Media sources](media-sources) for upload and URL ingest.
 
 </Step>
 <Step>
@@ -63,13 +61,13 @@ export async function renderEdit(composition: LumenComposition, heroMediaId: str
 }
 ```
 
-In a Cloudflare Worker, import from `@lumiscia/lumen-sdk/cloudflare` instead.
+`render()` returns the queued `Render` and throws a `LumenError` if the API rejects the composition. In a Cloudflare Worker, import from `@lumiscia/lumen-sdk` as well, and read the key from the Worker's environment.
 
 </Step>
 <Step>
 ### Wait for the result
 
-`render()` returns the render's `id`. Wait with `waitForRender(id)`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. Then download the artifact with `getRenderArtifact(id)`. See the [Node SDK](../sdks/node).
+Wait with `waitForRender(id, { onProgress })`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. `waitForRender` resolves with the finished `Render` and throws a `LumenError` if the render fails. Download the artifact with `lumen.download(render)`, which returns a `Response`. See the [Node SDK](../sdks/node).
 
 </Step>
 </Steps>
@@ -79,4 +77,4 @@ In a Cloudflare Worker, import from `@lumiscia/lumen-sdk/cloudflare` instead.
 - Every alias registered in the preview has an entry in the render's `media` manifest.
 - Every manifest entry points at media whose `status` is `validated`, and that hasn't expired.
 - The composition has the size, frame rate and duration you want, within your plan's limits.
-- Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you load into the browser preview isn't part of the render request, so text in another family can look different in the render.
+- Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you register with the preview's `fonts` prop isn't part of the render request, so text in another family can look different in the render.

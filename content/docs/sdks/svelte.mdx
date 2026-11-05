@@ -7,33 +7,18 @@ description: Preview compositions in Svelte with the Lumen WebAssembly engine.
 
 ```bash
 npm install @lumiscia/lumen-svelte @lumiscia/lumen-shared @lumiscia/lumen-bindings
-npm install -D vite-plugin-wasm vite-plugin-top-level-await
 ```
 
-`@lumiscia/lumen-bindings` holds the WebAssembly build. Its `/bundler` entry point loads the preview worker with Vite's `?worker&url` import, so these docs assume Vite.
-
-## Configure Vite
-
-```ts title="vite.config.ts"
-import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { defineConfig } from "vite";
-import topLevelAwait from "vite-plugin-top-level-await";
-import wasm from "vite-plugin-wasm";
-
-export default defineConfig({
-  build: { target: "esnext" },
-  plugins: [wasm(), topLevelAwait(), svelte()],
-});
-```
+`@lumiscia/lumen-bindings` holds the WebAssembly build and the worker the preview renders in. Its `/bundler` entry point works in Vite with no plugins or config. For other setups, see [Bindings](browser#bindings).
 
 ## Render a preview
 
-`createLumenPreview()` returns a controller whose fields are Svelte `$state`, so read `preview.isLoaded`, `preview.frame`, and the rest directly in markup. `LumenCanvas` starts a new engine session whenever `preview` or `bindings` changes, and updates the running session when other props change.
+`createLumenPreview()` returns a controller whose `state` field is a reactive snapshot, so read `preview.state.isLoaded`, `preview.state.frame`, and the rest directly in markup. `Player` starts a new engine session whenever `preview` or `bindings` changes, and updates the running session when other props change. It reloads only when the composition, media or fonts change.
 
 ```svelte title="Preview.svelte"
 <script lang="ts">
   import { Composition } from "@lumiscia/lumen-shared";
-  import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-svelte";
+  import { Player, createLumenPreview } from "@lumiscia/lumen-svelte";
   import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
 
   const composition = new Composition({
@@ -63,60 +48,73 @@ export default defineConfig({
 
   const preview = createLumenPreview();
   const bindings = createLumenBindings();
-  const compositionJson = JSON.stringify(composition.toJSON());
 </script>
 
 <main>
-  <LumenCanvas {preview} {bindings} {compositionJson} />
+  <Player {preview} {bindings} {composition} />
   <button
     type="button"
-    disabled={!preview.isLoaded}
-    onclick={() => (preview.isPlaying ? preview.pause() : preview.play())}
+    disabled={!preview.state.isLoaded}
+    onclick={() => (preview.state.isPlaying ? preview.pause() : preview.play())}
   >
-    {!preview.isLoaded ? "Loading" : preview.isPlaying ? "Pause" : "Play"}
+    {!preview.state.isLoaded ? "Loading" : preview.state.isPlaying ? "Pause" : "Play"}
   </button>
-  <span>Frame {preview.frame} / {preview.totalFrames}</span>
-  {#if preview.error}
-    <pre>{preview.error}</pre>
+  <span>Frame {preview.state.frame} / {preview.state.totalFrames}</span>
+  {#if preview.state.error}
+    <pre>{preview.state.error}</pre>
   {/if}
 </main>
 ```
 
-The controller exposes `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, and `error` (a string or `null`). Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`.
+`preview.state` holds `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, `error` (a message or `null`), and `errorCode` (see [Errors](#errors)). Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`. `seek` returns a promise that resolves to `true` once that frame, or a later seek's frame, is on screen, and to `false` if a load or failure got in first.
 
 ## Add media
 
-Register images and videos with `mediaSources`. Each `id` must match the `source` param of a `media_in` node. `@lumiscia/lumen-svelte` doesn't re-export the registration types. To type them, add `@lumiscia/lumen-preview` as a dependency and import them from there.
+Pass images, videos and audio in `media`, a map from alias to source. Each alias matches the `source` param of a `media_in` node, or the `source` of an audio clip (`source_id` in composition JSON).
 
 ```svelte
 <script lang="ts">
-  import type { MediaRegistration } from "@lumiscia/lumen-preview";
-
   let { file }: { file: File } = $props();
-
-  const mediaSources: MediaRegistration[] = $derived([
-    { kind: "image", id: "hero", source: file },
-  ]);
 </script>
 
-<LumenCanvas {preview} {bindings} {compositionJson} {mediaSources} />
+<Player {preview} {bindings} {composition} media={{ hero: file, music: "/music.mp3" }} />
 ```
 
-`source` accepts a URL string or `URL`, a `Request`, a `File` or `Blob`, or raw bytes. Audio works the same way through `audioSources` (`{ kind: "audio", id, source }`), where `id` matches an audio clip's `sourceId`. See [Media sources](../guides/media-sources).
+A source can be a URL string or `URL`, a `File` or `Blob`, or raw bytes. The preview takes each source's kind from the composition or from the blob's type. When neither says, as for a `media_in` whose `source` is an expression, pass `{ kind: "video", source }`. See [Media sources](../guides/media-sources).
 
-## `LumenCanvas` props
+## Add fonts
 
-| Prop              | Type                                                         | Default | Description                                                                            |
-| ----------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------- |
-| `preview`         | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                      |
-| `bindings`        | `LumenPreviewBindingSource`                                  |         | WebAssembly bindings from `createLumenBindings()`. Required.                           |
-| `compositionJson` | `string \| null`                                             | `null`  | Composition as a JSON string.                                                          |
-| `mediaSources`    | `MediaRegistration[]`                                        | `[]`    | Images and videos, keyed by `media_in` source alias.                                   |
-| `audioSources`    | `AudioSourceRegistration[]`                                  | `[]`    | Audio files, keyed by audio clip `sourceId`.                                           |
-| `lookaheadCount`  | `number`                                                     | `8`     | Frames whose media the preview loads ahead of the playhead.                            |
-| `logLevel`        | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                      |
-| `onStats`         | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`. |
-| `class`           | `string`                                                     |         | Class for the `<canvas>`.                                                              |
-| `style`           | `string`                                                     |         | Inline style for the `<canvas>`.                                                       |
+Register fonts in `fonts`, a map from font family to source. A text node whose `font_family` names a registered family uses it. Other text falls back to Roboto, the font Lumen bundles.
 
-The canvas's `width` and `height` attributes follow the composition's render size. Size it on the page with CSS. The canvas stays hidden until the preview knows the composition's size.
+```svelte
+<Player {preview} {bindings} {composition} fonts={{ Inter: "/fonts/Inter-Bold.ttf" }} />
+```
+
+## `Player` props
+
+| Prop             | Type                                                         | Default | Description                                                                            |
+| ---------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------- |
+| `preview`        | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                      |
+| `bindings`       | `LumenWorkerBindings`                                        |         | WebAssembly bindings from `createLumenBindings()`. Required.                           |
+| `composition`    | `LumenPreviewComposition \| null`                            |         | Composition JSON as an object, or anything with `toJSON()`, such as a `Composition`.   |
+| `media`          | `LumenPreviewMedia`                                          | `{}`    | Images, videos and audio, keyed by alias.                                              |
+| `fonts`          | `LumenPreviewFonts`                                          | `{}`    | Fonts, keyed by font family.                                                           |
+| `lookaheadCount` | `number`                                                     | `8`     | Frames whose media the preview loads ahead of the playhead.                            |
+| `logLevel`       | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                      |
+| `onStats`        | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`. |
+| `class`          | `string`                                                     |         | Class for the player's `<div>`.                                                        |
+| `style`          | `string`                                                     |         | Inline style for the player's `<div>`.                                                 |
+
+`Player` renders a `<div>` with the canvas inside. The canvas renders at the composition's size, fills the `<div>` and keeps its aspect ratio, so size the `<div>` with CSS.
+
+## Errors
+
+When something fails, `preview.state.error` holds the message and `preview.state.errorCode` says what failed. The full error is also logged to the console. A media failure's message names its alias.
+
+| `errorCode`          | Meaning                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webgpu_unavailable` | The browser or page has no WebGPU or `OffscreenCanvas`. WebGPU also needs HTTPS or localhost.                                                                                 |
+| `worker_failed`      | The worker or its wasm couldn't start, or the worker crashed. Check that both are served and that the page's CSP allows them (`worker-src`, `script-src 'wasm-unsafe-eval'`). |
+| `load_failed`        | The composition, or a media source or font it needs, failed to load. The preview tries again when an input changes.                                                           |
+| `render_failed`      | A frame failed to render. Playback pauses.                                                                                                                                    |
+| `audio_failed`       | An audio source couldn't be decoded. The video keeps playing.                                                                                                                 |

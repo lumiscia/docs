@@ -100,7 +100,7 @@ curl http://127.0.0.1:8080/health
       { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
       { "id": 2, "type": "media_output" }
     ],
-    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
   }
 }
 ```
@@ -171,7 +171,7 @@ In the hosted API, manifest values are uploaded media references like `lumen:<me
       { "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } },
       { "id": 2, "type": "media_output" }
     ],
-    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
   },
   "media": {
     "hero": "https://example.com/hero.png"

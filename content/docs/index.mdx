@@ -30,7 +30,7 @@ export LUMISCIA_API_KEY="your-api-key"
 npm install @lumiscia/lumen-sdk
 ```
 
-The examples on this page run on Node.js. For Cloudflare Workers, import from `@lumiscia/lumen-sdk/cloudflare` instead (see the [Cloudflare SDK](sdks/cloudflare)).
+The SDK runs on Node.js 22 or later and in [Cloudflare Workers](sdks/cloudflare), with the same import. The examples on this page run on Node.js.
 
 </Step>
 <Step>
@@ -50,7 +50,7 @@ const composition: LumenComposition = {
     { id: 1, type: "background", params: { paint: [18, 24, 32, 255] } },
     { id: 2, type: "media_output" },
   ],
-  connections: [{ from_node: 1, from_port: "output", to_node: 2, to_port: "source" }],
+  connections: [{ from_node: 1, to_node: 2, to_port: "source" }],
 };
 ```
 
@@ -69,16 +69,12 @@ const lumen = new Lumen({
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const { id, error } = await lumen.render(composition);
-
-if (error || !id) {
-  throw new Error(error?.message ?? "Render was not created");
-}
+const { id } = await lumen.render(composition);
 
 console.log("Render queued:", id);
 ```
 
-`render()` returns API errors in `error` instead of throwing. A validation error names the field or node that failed. Always set `baseUrl`, because the SDK's default points at the dashboard proxy.
+`render()` throws a `LumenError` if the API rejects the request. A validation error names the field or node that failed.
 
 </Step>
 <Step>
@@ -88,13 +84,13 @@ console.log("Render queued:", id);
 Wait for the render to finish, then save the MP4:
 
 ```ts title="render.mts"
-await lumen.waitForRender(id);
+const done = await lumen.waitForRender(id);
 
-const artifact = await lumen.getRenderArtifact(id);
+const artifact = await lumen.download(done);
 await writeFile("render.mp4", Buffer.from(await artifact.arrayBuffer()));
 ```
 
-`waitForRender()` listens on the render's event socket and rejects if the render fails. Run the script with Node.js 22.18 or later, which runs TypeScript files directly:
+`waitForRender()` follows the render's progress and throws if the render fails. Run the script with Node.js 22.18 or later, which runs TypeScript files directly:
 
 ```bash
 node render.mts
@@ -109,22 +105,18 @@ To use an image or video, upload it, give it an alias in the render's `media` ma
 
 ```ts
 import { readFile } from "node:fs/promises";
-import { mediaReference } from "@lumiscia/lumen-sdk";
 
-const bytes = await readFile("hero.png");
 const hero = await lumen.uploadMedia({
-  body: bytes,
-  contentType: "image/png",
+  body: await readFile("hero.png"),
   fileName: "hero.png",
-  sizeBytes: bytes.byteLength,
 });
 
-const { id, error } = await lumen.render(composition, {
-  media: { hero: mediaReference(hero) },
+const { id } = await lumen.render(composition, {
+  media: { hero },
 });
 ```
 
-`mediaReference()` turns the upload into a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, never the media id, and connect its `output` port like any other source:
+The SDK sends the upload as a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, never the media id, and connect its `output` port like any other source:
 
 ```json
 { "id": 3, "type": "media_in", "params": { "kind": "image", "source": "hero" } }

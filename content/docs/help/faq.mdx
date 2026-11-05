@@ -25,7 +25,7 @@ Upload a file or register a URL with the media endpoints first. Then map an alia
 
 Use any of these:
 
-- Subscribe to the render's WebSocket. The SDK's `waitForRender` does this for you.
+- Call the SDK's `waitForRender`, which reads the render's progress and listens on its WebSocket between reads.
 - Poll `GET https://api.lumiscia.com/v1/renders/:id` until `status` is `succeeded` or `failed`.
 - Pass a `webhookUrl` when you create the render. Lumiscia posts `render.succeeded` or `render.failed` to it. See [Webhooks](../guides/webhooks).
 

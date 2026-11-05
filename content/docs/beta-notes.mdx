@@ -43,12 +43,12 @@ The SDK changes faster during beta than it will afterward. Pin an exact version 
 ```json title="package.json"
 {
   "dependencies": {
-    "@lumiscia/lumen-sdk": "0.3.0"
+    "@lumiscia/lumen-sdk": "0.4.0"
   }
 }
 ```
 
-Use the documented SDK methods for renders, media references, subscriptions, and artifacts. Don't depend on undocumented response fields.
+Use the documented SDK methods for renders, media, progress, and artifacts. Don't depend on undocumented response fields.
 
 ## Building for beta
 
@@ -56,7 +56,7 @@ Use the documented SDK methods for renders, media references, subscriptions, and
 - Show validation errors to the user. The `error.message` names the field or limit at fault.
 - Store render ids and input hashes so you can trace a render later.
 - Expect retries to be deduplicated. An identical request within 5 minutes returns the existing render with `cached: true`.
-- Use [webhooks](guides/webhooks) or render events instead of tight polling loops.
+- Use [webhooks](guides/webhooks) or `waitForRender` instead of tight polling loops.
 - Run a short sample render before a large batch.
 
 ## Reporting issues

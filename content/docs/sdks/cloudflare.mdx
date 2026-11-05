@@ -3,7 +3,7 @@ title: Cloudflare Workers
 description: Use the Lumiscia SDK from Cloudflare Workers.
 ---
 
-In a Worker, import from `@lumiscia/lumen-sdk/cloudflare`. It exports the same `Lumen` class, `Composition`, and `mediaReference` as the [Node.js entry point](node), but opens render subscriptions with a `fetch()` WebSocket upgrade instead of the `ws` package.
+In a Worker, import from `@lumiscia/lumen-sdk`, the same package and import as on [Node.js](node). The SDK uses only web APIs (`fetch`, Web Crypto, and a `fetch()` WebSocket upgrade), so it needs no Node.js compatibility flag.
 
 ```bash
 npm install @lumiscia/lumen-sdk
@@ -17,10 +17,10 @@ npx wrangler secret put LUMISCIA_API_KEY
 
 ## Create a render
 
-This Worker ingests an image from a URL, renders it for 3 seconds, and asks Lumiscia to call a webhook when the render finishes. As on Node.js, set `baseUrl` explicitly, because the SDK's default points at the dashboard proxy, which rejects API keys.
+This Worker ingests an image from a URL, renders it for 3 seconds, and asks Lumiscia to call a webhook when the render finishes.
 
 ```ts title="src/index.ts"
-import { Composition, Lumen, mediaReference } from "@lumiscia/lumen-sdk/cloudflare";
+import { Composition, Lumen } from "@lumiscia/lumen-sdk";
 
 interface Env {
   LUMISCIA_API_KEY: string;
@@ -46,37 +46,22 @@ export default {
       type: "media_in",
       params: { kind: "image", source: "plate" },
     });
-    const output = composition.addNode({ type: "media_output" });
-    composition.connect(image, output, { toPort: "source" });
+    composition.addNode({ type: "media_output", inputs: { source: image } });
 
-    const { id, error } = await lumen.render(composition, {
-      media: { plate: mediaReference(plate) },
+    const { id } = await lumen.render(composition, {
+      media: { plate },
       webhookUrl: "https://example.com/webhooks/lumiscia",
     });
 
-    if (error) {
-      return Response.json({ error }, { status: 502 });
-    }
     return Response.json({ id }, { status: 202 });
   },
 };
 ```
 
-`createUrlMedia` throws if ingest fails. Catch it if you want to return your own error response.
+`createUrlMedia` and `render` throw a `LumenError` if they fail. Catch it if you want to return your own error response.
 
 ## Follow a render
 
-`subscribeToRender` and `waitForRender` work the same as on [Node.js](node#follow-render-events), including the caveat about event payloads. A WebSocket opened by a Worker closes when the invocation that opened it ends. For renders that outlast a request, set `webhookUrl` and handle the result in a [webhook](../guides/webhooks).
+`waitForRender` works the same as on [Node.js](node#wait-for-a-render). In a Worker it opens the render's WebSocket with a `fetch()` upgrade, which closes when the invocation that opened it ends. For renders that outlast a request, set `webhookUrl` and handle the result in a [webhook](../guides/webhooks). `verifyWebhook` uses Web Crypto, so it checks signatures in a Worker too.
 
-```ts
-const subscription = await lumen.subscribeToRender(id, {
-  onEvent: (event) => {
-    if (event.type === "render.completed" || event.type === "render.failed") {
-      subscription.close();
-    }
-  },
-  onError: (error) => console.error(error),
-});
-```
-
-The entry point uses the `fetch` you pass in `LumenOptions`, or `globalThis.fetch`, for both API calls and the WebSocket upgrade.
+The SDK uses the `fetch` you pass in `LumenOptions`, or `globalThis.fetch`, for both API calls and the WebSocket upgrade.

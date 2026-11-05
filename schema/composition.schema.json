@@ -2,11 +2,21 @@
   "$defs": {
     "audioClip": {
       "additionalProperties": true,
+      "not": {
+        "anyOf": [
+          {
+            "required": ["start_frame"]
+          },
+          {
+            "required": ["duration_frames"]
+          },
+          {
+            "required": ["source_start_seconds"]
+          }
+        ],
+        "description": "Retired timing keys, which the engine rejects."
+      },
       "properties": {
-        "duration_frames": {
-          "minimum": 1,
-          "type": "integer"
-        },
         "duration_ms": {
           "minimum": 1,
           "type": "integer"
@@ -24,14 +34,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "source_start_seconds": {
-          "minimum": 0,
-          "type": "number"
-        },
-        "start_frame": {
-          "minimum": 0,
-          "type": "integer"
-        },
         "start_ms": {
           "minimum": 0,
           "type": "integer"
@@ -45,8 +47,9 @@
           "type": "number"
         }
       },
-      "required": ["id", "source_id", "track_id"],
-      "type": "object"
+      "required": ["id", "source_id", "track_id", "start_ms", "duration_ms"],
+      "type": "object",
+      "x-lumen-type": "AudioClip"
     },
     "audioTrack": {
       "additionalProperties": true,
@@ -70,7 +73,8 @@
         }
       },
       "required": ["id"],
-      "type": "object"
+      "type": "object",
+      "x-lumen-type": "AudioTrack"
     },
     "clipPropValue": {
       "anyOf": [
@@ -87,7 +91,16 @@
           "$ref": "#/$defs/color"
         }
       ],
-      "description": "A value for a template prop: a literal of the prop's type or an expression."
+      "description": "A value for a template prop: a literal of the prop's type, or an expression in the clip's time.",
+      "x-lumen-type": "ClipPropValue"
+    },
+    "clipProps": {
+      "additionalProperties": {
+        "$ref": "#/$defs/clipPropValue"
+      },
+      "description": "Prop values a `clip` passes to its template, by prop name.",
+      "type": "object",
+      "x-lumen-type": "ClipProps"
     },
     "color": {
       "oneOf": [
@@ -162,7 +175,8 @@
           "required": ["type"],
           "type": "object"
         }
-      ]
+      ],
+      "x-lumen-type": "CompositionPropDeclaration"
     },
     "compositionTemplate": {
       "additionalProperties": false,
@@ -188,55 +202,28 @@
           "type": "object"
         },
         "render_settings": {
-          "additionalProperties": true,
-          "properties": {
-            "background_color": {
-              "$ref": "#/$defs/color"
-            },
-            "height": {
-              "maximum": 4294967295,
-              "minimum": 1,
-              "type": "integer"
-            },
-            "width": {
-              "maximum": 4294967295,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          "required": ["width", "height"],
-          "type": "object"
+          "$ref": "#/$defs/renderSettings"
         },
         "timeline": {
-          "additionalProperties": true,
-          "properties": {
-            "duration_frames": {
-              "maximum": 4294967295,
-              "minimum": 1,
-              "type": "integer"
-            },
-            "fps": {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          },
-          "required": ["duration_frames"],
-          "type": "object"
+          "$ref": "#/$defs/timeline"
         }
       },
       "required": ["nodes", "connections"],
-      "type": "object"
+      "type": "object",
+      "x-lumen-type": "CompositionTemplate"
     },
     "connection": {
       "additionalProperties": false,
       "properties": {
         "from_node": {
+          "minimum": 0,
           "type": "integer"
         },
         "from_port": {
           "type": "string"
         },
         "to_node": {
+          "minimum": 0,
           "type": "integer"
         },
         "to_port": {
@@ -244,108 +231,284 @@
         }
       },
       "required": ["from_node", "to_node", "to_port"],
-      "type": "object"
+      "type": "object",
+      "x-lumen-type": "Connection"
     },
     "expression": {
       "description": "An expression evaluated per frame in place of a literal value.",
       "pattern": "^=([^=]|$)",
       "type": "string"
     },
+    "fontFeatures": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "$ref": "#/$defs/expression"
+          }
+        ]
+      },
+      "description": "OpenType features by four-character tag. 0 turns a feature off, 1 turns it on and larger values select an alternate.",
+      "propertyNames": {
+        "maxLength": 4,
+        "minLength": 4,
+        "pattern": "^[\\x20-\\x7E]+$"
+      },
+      "type": "object",
+      "x-lumen-type": "FontFeatures"
+    },
+    "gradientInterpolation": {
+      "enum": ["srgb", "linear_srgb", "linear"],
+      "type": "string",
+      "x-lumen-type": "GradientInterpolation"
+    },
+    "gradientPaint": {
+      "additionalProperties": false,
+      "properties": {
+        "angle": {
+          "default": 0.0,
+          "description": "Start angle of a conic gradient in degrees.",
+          "title": "Angle",
+          "type": "number",
+          "x-lumen-constraints": {
+            "step": 1.0
+          },
+          "x-lumen-kind": "float"
+        },
+        "center": {
+          "$ref": "#/$defs/vec2",
+          "default": [0.5, 0.5],
+          "description": "Center of a radial or conic gradient.",
+          "title": "Center",
+          "x-lumen-kind": "vec2"
+        },
+        "end": {
+          "$ref": "#/$defs/vec2",
+          "default": [1.0, 0.0],
+          "description": "End point of a linear gradient.",
+          "title": "End",
+          "x-lumen-kind": "vec2"
+        },
+        "interpolation": {
+          "$ref": "#/$defs/gradientInterpolation",
+          "default": "srgb",
+          "description": "Color space the stops blend in.",
+          "title": "Interpolation",
+          "x-lumen-enumOptions": [
+            {
+              "label": "sRGB",
+              "name": "srgb",
+              "value": 0
+            },
+            {
+              "label": "Linear sRGB",
+              "name": "linear_srgb",
+              "value": 1
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "radius": {
+          "default": [0.5, 0.5],
+          "description": "Horizontal and vertical radius of a radial gradient. A number sets both.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/vec2"
+            }
+          ],
+          "title": "Radius"
+        },
+        "spread": {
+          "$ref": "#/$defs/gradientSpread",
+          "default": "pad",
+          "description": "How the gradient continues past its first and last stops.",
+          "title": "Spread",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Pad",
+              "name": "pad",
+              "value": 0
+            },
+            {
+              "label": "Repeat",
+              "name": "repeat",
+              "value": 1
+            },
+            {
+              "label": "Reflect",
+              "name": "reflect",
+              "value": 2
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "start": {
+          "$ref": "#/$defs/vec2",
+          "default": [0.0, 0.0],
+          "description": "Start point of a linear gradient.",
+          "title": "Start",
+          "x-lumen-kind": "vec2"
+        },
+        "stops": {
+          "description": "Colors along the gradient. Required, with one to eight stops.",
+          "items": {
+            "$ref": "#/$defs/gradientStop"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Stops",
+          "type": "array"
+        },
+        "type": {
+          "$ref": "#/$defs/paintKind",
+          "description": "Gradient shape. Required.",
+          "title": "Type",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Linear Gradient",
+              "name": "linear_gradient",
+              "value": 0
+            },
+            {
+              "label": "Radial Gradient",
+              "name": "radial_gradient",
+              "value": 1
+            },
+            {
+              "label": "Conic Gradient",
+              "name": "conic_gradient",
+              "value": 2
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "units": {
+          "$ref": "#/$defs/gradientUnits",
+          "default": "object_bounding_box",
+          "description": "Whether points and radii are fractions of the shape's bounding box or pixels.",
+          "title": "Units",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Object Bounding Box",
+              "name": "object_bounding_box",
+              "value": 0
+            },
+            {
+              "label": "User Space",
+              "name": "user_space",
+              "value": 1
+            }
+          ],
+          "x-lumen-kind": "enum"
+        }
+      },
+      "required": ["type", "stops"],
+      "type": "object",
+      "x-lumen-type": "GradientPaint"
+    },
+    "gradientSpread": {
+      "enum": ["pad", "repeat", "reflect"],
+      "type": "string",
+      "x-lumen-type": "GradientSpread"
+    },
+    "gradientStop": {
+      "description": "A color at a point along a gradient: `{ offset, color }` or `[offset, color]`.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/color",
+              "description": "Color at the offset.",
+              "title": "Color",
+              "x-lumen-kind": "color"
+            },
+            "offset": {
+              "description": "Position along the gradient from 0 to 1. Values outside that range are clamped.",
+              "title": "Offset",
+              "type": "number",
+              "x-lumen-constraints": {
+                "step": 0.01
+              },
+              "x-lumen-kind": "float"
+            }
+          },
+          "required": ["offset", "color"],
+          "type": "object"
+        },
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/color"
+            }
+          ],
+          "type": "array"
+        }
+      ],
+      "x-lumen-type": "GradientStop"
+    },
+    "gradientUnits": {
+      "enum": ["object_bounding_box", "user_space", "userSpaceOnUse"],
+      "type": "string",
+      "x-lumen-type": "GradientUnits"
+    },
     "paint": {
+      "description": "A solid color or a gradient.",
       "oneOf": [
         {
           "$ref": "#/$defs/color"
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "angle": {
-              "type": "number"
-            },
-            "center": {
-              "$ref": "#/$defs/vec2"
-            },
-            "end": {
-              "$ref": "#/$defs/vec2"
-            },
-            "interpolation": {
-              "default": "srgb",
-              "enum": ["srgb", "linear_srgb", "linear"],
-              "type": "string"
-            },
-            "radius": {
-              "oneOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "$ref": "#/$defs/vec2"
-                }
-              ]
-            },
-            "spread": {
-              "default": "pad",
-              "enum": ["pad", "repeat", "reflect"],
-              "type": "string"
-            },
-            "start": {
-              "$ref": "#/$defs/vec2"
-            },
-            "stops": {
-              "items": {
-                "oneOf": [
-                  {
-                    "additionalProperties": false,
-                    "properties": {
-                      "color": {
-                        "$ref": "#/$defs/color"
-                      },
-                      "offset": {
-                        "type": "number"
-                      }
-                    },
-                    "required": ["offset", "color"],
-                    "type": "object"
-                  },
-                  {
-                    "maxItems": 2,
-                    "minItems": 2,
-                    "prefixItems": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "$ref": "#/$defs/color"
-                      }
-                    ],
-                    "type": "array"
-                  }
-                ]
-              },
-              "minItems": 1,
-              "type": "array"
-            },
-            "type": {
-              "enum": [
-                "linear",
-                "linear_gradient",
-                "radial",
-                "radial_gradient",
-                "conic",
-                "conic_gradient"
-              ],
-              "type": "string"
-            },
-            "units": {
-              "default": "object_bounding_box",
-              "enum": ["object_bounding_box", "user_space", "userSpaceOnUse"],
-              "type": "string"
-            }
-          },
-          "required": ["type", "stops"],
-          "type": "object"
+          "$ref": "#/$defs/gradientPaint"
         }
-      ]
+      ],
+      "x-lumen-type": "Paint"
+    },
+    "paintKind": {
+      "enum": ["linear_gradient", "radial_gradient", "conic_gradient", "linear", "radial", "conic"],
+      "type": "string",
+      "x-lumen-type": "PaintKind"
+    },
+    "renderSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "maximum": 4294967295,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "width": {
+          "maximum": 4294967295,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": ["width", "height"],
+      "type": "object",
+      "x-lumen-type": "RenderSettings"
+    },
+    "shaderUniformComponent": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/expression"
+        }
+      ],
+      "x-lumen-type": "ShaderUniformComponent"
     },
     "shaderUniformValue": {
       "anyOf": [
@@ -354,14 +517,7 @@
         },
         {
           "items": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "$ref": "#/$defs/expression"
-              }
-            ]
+            "$ref": "#/$defs/shaderUniformComponent"
           },
           "maxItems": 4,
           "minItems": 2,
@@ -375,7 +531,572 @@
           "type": "string"
         }
       ],
-      "description": "A shader uniform field value: a number, a 2-4 component vector, an expression, or a hex colour for vec3<f32> and vec4<f32> fields."
+      "description": "A shader uniform field value: a number, a 2-4 component vector, an expression, or a hex colour for vec3<f32> and vec4<f32> fields.",
+      "x-lumen-type": "ShaderUniformValue"
+    },
+    "shaderUniforms": {
+      "additionalProperties": {
+        "$ref": "#/$defs/shaderUniformValue"
+      },
+      "description": "Shader uniform values by field name, checked against the shader's uniform struct when the node compiles.",
+      "type": "object",
+      "x-lumen-type": "ShaderUniforms"
+    },
+    "textContent": {
+      "description": "Text to render: a string, or spans that each override the node's text style.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/textSpan"
+          },
+          "type": "array"
+        }
+      ],
+      "x-lumen-type": "TextContent"
+    },
+    "textFontStyle": {
+      "enum": ["normal", "italic", "oblique"],
+      "type": "string",
+      "x-lumen-type": "TextFontStyle"
+    },
+    "textHighlight": {
+      "additionalProperties": false,
+      "properties": {
+        "extent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/vec2"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": [0.0, 1.0],
+          "description": "Start and end of the box along the text, as fractions of its width. An expression\ngives both as one `vec2`, not one per element.",
+          "title": "Extent",
+          "x-lumen-constraints": {
+            "step": 0.01
+          },
+          "x-lumen-kind": "vec2"
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/vec2"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": [0.0, 0.0],
+          "description": "Horizontal and vertical padding around the text in pixels. An expression gives both as\none `vec2`, not one per element.",
+          "title": "Padding",
+          "x-lumen-constraints": {
+            "step": 1.0
+          },
+          "x-lumen-kind": "vec2"
+        },
+        "paint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/paint"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": [0, 0, 0, 255],
+          "description": "Box color.",
+          "title": "Paint",
+          "x-lumen-constraints": {
+            "role": "color"
+          },
+          "x-lumen-kind": "paint"
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": 0.0,
+          "description": "Corner radius in pixels.",
+          "title": "Radius",
+          "x-lumen-constraints": {
+            "min": 0.0,
+            "step": 1.0
+          },
+          "x-lumen-kind": "float"
+        }
+      },
+      "type": "object",
+      "x-lumen-type": "TextHighlight"
+    },
+    "textLine": {
+      "additionalProperties": false,
+      "properties": {
+        "extent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/vec2"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": [0.0, 1.0],
+          "description": "Start and end of the line along the text, as fractions of its width. An expression\ngives both as one `vec2`, not one per element.",
+          "title": "Extent",
+          "x-lumen-constraints": {
+            "step": 0.01
+          },
+          "x-lumen-kind": "vec2"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Line position in pixels below the baseline; negative values are above it. Absent uses\nthe font's underline or strikethrough position.",
+          "title": "Offset",
+          "x-lumen-constraints": {
+            "step": 0.5
+          },
+          "x-lumen-kind": "float"
+        },
+        "paint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/paint"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Line color. Absent uses the text color.",
+          "title": "Paint",
+          "x-lumen-constraints": {
+            "role": "color"
+          },
+          "x-lumen-kind": "paint"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textLineStyle"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": "solid",
+          "description": "Line style.",
+          "title": "Style",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Solid",
+              "name": "solid",
+              "value": 0
+            },
+            {
+              "label": "Double",
+              "name": "double",
+              "value": 1
+            },
+            {
+              "label": "Dotted",
+              "name": "dotted",
+              "value": 2
+            },
+            {
+              "label": "Dashed",
+              "name": "dashed",
+              "value": 3
+            },
+            {
+              "label": "Wavy",
+              "name": "wavy",
+              "value": 4
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "thickness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Line thickness in pixels. Absent uses the font's.",
+          "title": "Thickness",
+          "x-lumen-constraints": {
+            "min": 0.0,
+            "step": 0.5
+          },
+          "x-lumen-kind": "float"
+        }
+      },
+      "type": "object",
+      "x-lumen-type": "TextLine"
+    },
+    "textLineStyle": {
+      "enum": ["solid", "double", "dotted", "dashed", "wavy"],
+      "type": "string",
+      "x-lumen-type": "TextLineStyle"
+    },
+    "textSpan": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_shift": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Pixels the span's glyphs and its own decorations sit above the baseline; negative\nvalues sit below it. The line keeps its height, so shifted text can overlap the\nlines around it.",
+          "title": "Baseline Shift",
+          "x-lumen-constraints": {
+            "step": 0.5
+          },
+          "x-lumen-kind": "float"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/paint"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Text color.",
+          "title": "Color",
+          "x-lumen-constraints": {
+            "role": "color"
+          },
+          "x-lumen-kind": "paint"
+        },
+        "font_family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Font family name.",
+          "title": "Font Family",
+          "x-lumen-constraints": {
+            "format": "font_family"
+          },
+          "x-lumen-kind": "string"
+        },
+        "font_features": {
+          "$ref": "#/$defs/fontFeatures",
+          "description": "OpenType features, merged over the node's: a feature set here wins and the others are\nkept. Within a word, the first span's features apply to all of it.",
+          "title": "Font Features",
+          "x-lumen-kind": "font_features"
+        },
+        "font_size": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Font size in pixels. Where spans of one family, weight and style meet, a ligature or\nother cluster across the boundary takes the size of the span it starts in.",
+          "title": "Font Size",
+          "x-lumen-constraints": {
+            "min": 1.0,
+            "step": 1.0
+          },
+          "x-lumen-kind": "float"
+        },
+        "font_style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textFontStyle"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Font style.",
+          "title": "Font Style",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Normal",
+              "name": "normal",
+              "value": 0
+            },
+            {
+              "label": "Italic",
+              "name": "italic",
+              "value": 1
+            },
+            {
+              "label": "Oblique",
+              "name": "oblique",
+              "value": 2
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "font_weight": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Font weight. Variable fonts render any value in their weight range.",
+          "title": "Font Weight",
+          "x-lumen-constraints": {
+            "max": 1000.0,
+            "min": 1.0
+          },
+          "x-lumen-kind": "int"
+        },
+        "highlight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textHighlight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Box behind the text. `null` turns off the node's highlight. Its fields take literals or\nexpressions, but the whole highlight cannot be an expression.",
+          "title": "Highlight",
+          "x-lumen-kind": "text_highlight"
+        },
+        "letter_spacing": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Extra space after every glyph in pixels. Negative values tighten the text.",
+          "title": "Letter Spacing",
+          "x-lumen-constraints": {
+            "step": 0.1
+          },
+          "x-lumen-kind": "float"
+        },
+        "strikethrough": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textLine"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Line through the text. `null` turns off the node's strikethrough. Its fields take\nliterals or expressions, but the whole line cannot be an expression.",
+          "title": "Strikethrough",
+          "x-lumen-kind": "text_line"
+        },
+        "stroke": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textStroke"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Outline along the glyphs. `null` turns off the node's stroke. Its fields take literals or\nexpressions, but the whole stroke cannot be an expression.",
+          "title": "Stroke",
+          "x-lumen-kind": "text_stroke"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Text of the span. Required.",
+          "title": "Text",
+          "x-lumen-constraints": {
+            "multiline": true
+          },
+          "x-lumen-kind": "string"
+        },
+        "text_transform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textTransform"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Case applied to the span's text.",
+          "title": "Text Transform",
+          "x-lumen-enumOptions": [
+            {
+              "label": "None",
+              "name": "none",
+              "value": 0
+            },
+            {
+              "label": "Uppercase",
+              "name": "uppercase",
+              "value": 1
+            },
+            {
+              "label": "Lowercase",
+              "name": "lowercase",
+              "value": 2
+            },
+            {
+              "label": "Capitalize",
+              "name": "capitalize",
+              "value": 3
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "underline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textLine"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Line under the text. `null` turns off the node's underline. Its fields take literals or\nexpressions, but the whole line cannot be an expression.",
+          "title": "Underline",
+          "x-lumen-kind": "text_line"
+        }
+      },
+      "required": ["text"],
+      "type": "object",
+      "x-lumen-type": "TextSpan"
+    },
+    "textStroke": {
+      "additionalProperties": false,
+      "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/textStrokeAlign"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": "outside",
+          "description": "Where the outline lies: behind the glyphs and outside their edge, or over them and\ncentred on it.",
+          "title": "Align",
+          "x-lumen-enumOptions": [
+            {
+              "label": "Outside",
+              "name": "outside",
+              "value": 0
+            },
+            {
+              "label": "Center",
+              "name": "center",
+              "value": 1
+            }
+          ],
+          "x-lumen-kind": "enum"
+        },
+        "paint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/paint"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": [0, 0, 0, 255],
+          "description": "Outline color.",
+          "title": "Paint",
+          "x-lumen-constraints": {
+            "role": "color"
+          },
+          "x-lumen-kind": "paint"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "default": 2.0,
+          "description": "Outline width in pixels.",
+          "title": "Width",
+          "x-lumen-constraints": {
+            "min": 0.0,
+            "step": 0.5
+          },
+          "x-lumen-kind": "float"
+        }
+      },
+      "type": "object",
+      "x-lumen-type": "TextStroke"
+    },
+    "textStrokeAlign": {
+      "enum": ["outside", "center"],
+      "type": "string",
+      "x-lumen-type": "TextStrokeAlign"
+    },
+    "textTransform": {
+      "enum": ["none", "uppercase", "lowercase", "capitalize"],
+      "type": "string",
+      "x-lumen-type": "TextTransform"
+    },
+    "timeline": {
+      "additionalProperties": false,
+      "description": "Length and frame rate. `fps` defaults to 30 at the root, and a template's timeline takes the root's `fps`.",
+      "properties": {
+        "duration_frames": {
+          "maximum": 4294967295,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "fps": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": ["duration_frames"],
+      "type": "object",
+      "x-lumen-type": "Timeline"
     },
     "vec2": {
       "items": false,
@@ -395,6 +1116,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "$schema": {
+      "description": "URL of the composition schema, for editors.",
+      "type": "string"
+    },
     "audio": {
       "additionalProperties": true,
       "properties": {
@@ -435,6 +1160,21 @@
       "propertyNames": {
         "pattern": "^\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*\\s*(,\\s*[A-Za-z_][A-Za-z0-9_]*\\s*)*)?\\)\\s*$"
       },
+      "type": "object",
+      "x-lumen-keyType": "`${string}(${string})`"
+    },
+    "lumenSchemaVersion": {
+      "const": "0.1.0",
+      "description": "Version of the composition format. Absent means the current version."
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "description": "Display name of the composition.",
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "nodes": {
@@ -442,76 +1182,21 @@
         "oneOf": [
           {
             "additionalProperties": false,
-            "description": "Converts raster alpha between premultiplied and unpremultiplied representations.",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "mode": {
-                    "default": "premultiply",
-                    "description": "Alpha conversion mode.",
-                    "not": {
-                      "pattern": "^=([^=]|$)"
-                    },
-                    "title": "Mode",
-                    "type": "string",
-                    "x-lumen-constraints": {
-                      "format": "alpha_premultiply_mode"
-                    },
-                    "x-lumen-kind": "string"
-                  }
-                },
-                "type": "object"
-              },
-              "type": {
-                "const": "alpha_premultiply"
-              }
-            },
-            "required": ["id", "type"],
-            "title": "Alpha Premultiply",
-            "type": "object",
-            "x-lumen-category": "processing",
-            "x-lumen-inputs": [
-              {
-                "kind": "raster_frame",
-                "name": "source",
-                "optional": false,
-                "variadic": false
-              }
-            ],
-            "x-lumen-outputs": [
-              {
-                "kind": "raster_frame",
-                "name": "output"
-              }
-            ]
-          },
-          {
-            "additionalProperties": false,
             "description": "Generates a background raster texture.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
                 "additionalProperties": false,
                 "properties": {
                   "height": {
-                    "anyOf": [
-                      {
-                        "minimum": 0.0,
-                        "type": "integer"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
                     "default": 0,
                     "description": "Output height in pixels. Use 0 to match the composition height.",
+                    "minimum": 0.0,
                     "title": "Height",
+                    "type": "integer",
                     "x-lumen-constraints": {
                       "min": 0.0,
                       "step": 1.0
@@ -547,18 +1232,11 @@
                     "x-lumen-kind": "bool"
                   },
                   "width": {
-                    "anyOf": [
-                      {
-                        "minimum": 0.0,
-                        "type": "integer"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
                     "default": 0,
                     "description": "Output width in pixels. Use 0 to match the composition width.",
+                    "minimum": 0.0,
                     "title": "Width",
+                    "type": "integer",
                     "x-lumen-constraints": {
                       "min": 0.0,
                       "step": 1.0
@@ -589,6 +1267,7 @@
             "description": "Applies a separable Gaussian blur to a raster.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -597,7 +1276,6 @@
                   "radius": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -605,7 +1283,7 @@
                       }
                     ],
                     "default": 4.0,
-                    "description": "Blur radius in pixels. Fractional radii blend smoothly.",
+                    "description": "Blur radius in pixels. Fractional radii blend smoothly. Radii above about 588 look the same.",
                     "title": "Radius",
                     "x-lumen-constraints": {
                       "min": 0.0,
@@ -644,6 +1322,7 @@
             "description": "Combines two raster alpha masks with boolean operations.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -653,7 +1332,8 @@
                     "anyOf": [
                       {
                         "enum": ["union", "intersect", "subtract", "xor"],
-                        "type": "string"
+                        "type": "string",
+                        "x-lumen-type": "BooleanOperation"
                       },
                       {
                         "$ref": "#/$defs/expression"
@@ -689,8 +1369,6 @@
                   "threshold": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -741,205 +1419,10 @@
           },
           {
             "additionalProperties": false,
-            "description": "Remaps source raster color channels.",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "alpha": {
-                    "default": "alpha",
-                    "description": "Source channel mapped into the alpha output channel.",
-                    "enum": ["red", "green", "blue", "alpha", "zero", "one"],
-                    "title": "Alpha",
-                    "type": "string",
-                    "x-lumen-enumOptions": [
-                      {
-                        "label": "Red",
-                        "name": "red",
-                        "value": 0
-                      },
-                      {
-                        "label": "Green",
-                        "name": "green",
-                        "value": 1
-                      },
-                      {
-                        "label": "Blue",
-                        "name": "blue",
-                        "value": 2
-                      },
-                      {
-                        "label": "Alpha",
-                        "name": "alpha",
-                        "value": 3
-                      },
-                      {
-                        "label": "Zero",
-                        "name": "zero",
-                        "value": 4
-                      },
-                      {
-                        "label": "One",
-                        "name": "one",
-                        "value": 5
-                      }
-                    ],
-                    "x-lumen-kind": "enum"
-                  },
-                  "blue": {
-                    "default": "blue",
-                    "description": "Source channel mapped into the blue output channel.",
-                    "enum": ["red", "green", "blue", "alpha", "zero", "one"],
-                    "title": "Blue",
-                    "type": "string",
-                    "x-lumen-enumOptions": [
-                      {
-                        "label": "Red",
-                        "name": "red",
-                        "value": 0
-                      },
-                      {
-                        "label": "Green",
-                        "name": "green",
-                        "value": 1
-                      },
-                      {
-                        "label": "Blue",
-                        "name": "blue",
-                        "value": 2
-                      },
-                      {
-                        "label": "Alpha",
-                        "name": "alpha",
-                        "value": 3
-                      },
-                      {
-                        "label": "Zero",
-                        "name": "zero",
-                        "value": 4
-                      },
-                      {
-                        "label": "One",
-                        "name": "one",
-                        "value": 5
-                      }
-                    ],
-                    "x-lumen-kind": "enum"
-                  },
-                  "green": {
-                    "default": "green",
-                    "description": "Source channel mapped into the green output channel.",
-                    "enum": ["red", "green", "blue", "alpha", "zero", "one"],
-                    "title": "Green",
-                    "type": "string",
-                    "x-lumen-enumOptions": [
-                      {
-                        "label": "Red",
-                        "name": "red",
-                        "value": 0
-                      },
-                      {
-                        "label": "Green",
-                        "name": "green",
-                        "value": 1
-                      },
-                      {
-                        "label": "Blue",
-                        "name": "blue",
-                        "value": 2
-                      },
-                      {
-                        "label": "Alpha",
-                        "name": "alpha",
-                        "value": 3
-                      },
-                      {
-                        "label": "Zero",
-                        "name": "zero",
-                        "value": 4
-                      },
-                      {
-                        "label": "One",
-                        "name": "one",
-                        "value": 5
-                      }
-                    ],
-                    "x-lumen-kind": "enum"
-                  },
-                  "red": {
-                    "default": "red",
-                    "description": "Source channel mapped into the red output channel.",
-                    "enum": ["red", "green", "blue", "alpha", "zero", "one"],
-                    "title": "Red",
-                    "type": "string",
-                    "x-lumen-enumOptions": [
-                      {
-                        "label": "Red",
-                        "name": "red",
-                        "value": 0
-                      },
-                      {
-                        "label": "Green",
-                        "name": "green",
-                        "value": 1
-                      },
-                      {
-                        "label": "Blue",
-                        "name": "blue",
-                        "value": 2
-                      },
-                      {
-                        "label": "Alpha",
-                        "name": "alpha",
-                        "value": 3
-                      },
-                      {
-                        "label": "Zero",
-                        "name": "zero",
-                        "value": 4
-                      },
-                      {
-                        "label": "One",
-                        "name": "one",
-                        "value": 5
-                      }
-                    ],
-                    "x-lumen-kind": "enum"
-                  }
-                },
-                "type": "object"
-              },
-              "type": {
-                "const": "channel_shuffle"
-              }
-            },
-            "required": ["id", "type"],
-            "title": "Channel Shuffle",
-            "type": "object",
-            "x-lumen-category": "processing",
-            "x-lumen-inputs": [
-              {
-                "kind": "raster_frame",
-                "name": "source",
-                "optional": false,
-                "variadic": false
-              }
-            ],
-            "x-lumen-outputs": [
-              {
-                "kind": "raster_frame",
-                "name": "output"
-              }
-            ]
-          },
-          {
-            "additionalProperties": false,
             "description": "Plays a composition template, or its source, over a window of time.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -997,7 +1480,8 @@
                         "value": 2
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "ClipEnd"
                   },
                   "offset": {
                     "anyOf": [
@@ -1017,13 +1501,10 @@
                     "x-lumen-kind": "float"
                   },
                   "props": {
-                    "additionalProperties": {
-                      "$ref": "#/$defs/clipPropValue"
-                    },
+                    "$ref": "#/$defs/clipProps",
                     "default": {},
                     "description": "Values for the template's props by name; expressions run in this composition's time.",
                     "title": "Props",
-                    "type": "object",
                     "x-lumen-kind": "clip_props"
                   },
                   "speed": {
@@ -1091,6 +1572,7 @@
             "description": "Applies a LUT-driven color transform to a raster.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1099,19 +1581,30 @@
                   "interpolation": {
                     "anyOf": [
                       {
-                        "type": "integer"
+                        "enum": ["nearest", "linear"],
+                        "type": "string",
+                        "x-lumen-type": "RasterSampling"
                       },
                       {
                         "$ref": "#/$defs/expression"
                       }
                     ],
-                    "default": 1,
+                    "default": "linear",
                     "description": "Sampling filter used when reading LUT data.",
                     "title": "Interpolation",
-                    "x-lumen-constraints": {
-                      "format": "sampling_mode"
-                    },
-                    "x-lumen-kind": "int"
+                    "x-lumen-enumOptions": [
+                      {
+                        "label": "Nearest",
+                        "name": "nearest",
+                        "value": 0
+                      },
+                      {
+                        "label": "Linear",
+                        "name": "linear",
+                        "value": 1
+                      }
+                    ],
+                    "x-lumen-kind": "enum"
                   },
                   "lut_source": {
                     "anyOf": [
@@ -1135,8 +1628,6 @@
                   "strength": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1184,6 +1675,7 @@
             "description": "Keeps a raster region in place and clears everything outside it.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1192,7 +1684,6 @@
                   "height": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -1211,7 +1702,6 @@
                   "width": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -1289,85 +1779,10 @@
           },
           {
             "additionalProperties": false,
-            "description": "Applies a 1D RGB curve table to a raster.",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "curve_source": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
-                    "default": "identity",
-                    "description": "Curve table data source or named curve preset.",
-                    "title": "Curve",
-                    "x-lumen-constraints": {
-                      "multiline": true,
-                      "recommendedRows": 4,
-                      "role": "curve_source"
-                    },
-                    "x-lumen-kind": "string"
-                  },
-                  "strength": {
-                    "anyOf": [
-                      {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
-                        "type": "number"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
-                    "default": 1.0,
-                    "description": "Blend amount for the curve adjustment.",
-                    "title": "Strength",
-                    "x-lumen-constraints": {
-                      "max": 1.0,
-                      "min": 0.0,
-                      "step": 0.01
-                    },
-                    "x-lumen-kind": "float"
-                  }
-                },
-                "type": "object"
-              },
-              "type": {
-                "const": "curves"
-              }
-            },
-            "required": ["id", "type"],
-            "title": "Curves",
-            "type": "object",
-            "x-lumen-category": "processing",
-            "x-lumen-inputs": [
-              {
-                "kind": "raster_frame",
-                "name": "source",
-                "optional": false,
-                "variadic": false
-              }
-            ],
-            "x-lumen-outputs": [
-              {
-                "kind": "raster_frame",
-                "name": "output"
-              }
-            ]
-          },
-          {
-            "additionalProperties": false,
             "description": "Adjusts raster exposure, contrast, and offset.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1376,7 +1791,6 @@
                   "contrast": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1457,6 +1871,7 @@
             "description": "Adjusts raster hue, saturation, and lightness.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1544,6 +1959,7 @@
             "description": "Remaps raster black, white, gamma, and output range.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1552,8 +1968,6 @@
                   "black_point": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1573,7 +1987,6 @@
                   "gamma": {
                     "anyOf": [
                       {
-                        "minimum": 0.01,
                         "type": "number"
                       },
                       {
@@ -1592,8 +2005,6 @@
                   "output_black": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1613,8 +2024,6 @@
                   "output_white": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1634,8 +2043,6 @@
                   "white_point": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1683,6 +2090,7 @@
             "description": "Binds an external image or video frame as a GPU texture.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1692,7 +2100,8 @@
                     "anyOf": [
                       {
                         "enum": ["image", "video"],
-                        "type": "string"
+                        "type": "string",
+                        "x-lumen-type": "MediaInSourceKind"
                       },
                       {
                         "$ref": "#/$defs/expression"
@@ -1719,7 +2128,8 @@
                     "anyOf": [
                       {
                         "enum": ["clamp", "repeat", "ping_pong"],
-                        "type": "string"
+                        "type": "string",
+                        "x-lumen-type": "LoopMode"
                       },
                       {
                         "$ref": "#/$defs/expression"
@@ -1750,15 +2160,13 @@
                   "range_end": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
                         "$ref": "#/$defs/expression"
                       }
                     ],
-                    "default": 0,
-                    "description": "Last source frame to include.",
+                    "description": "First source frame past the range; the source's end when unset.",
                     "title": "Range End",
                     "x-lumen-constraints": {
                       "min": 0.0,
@@ -1769,7 +2177,6 @@
                   "range_start": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -1840,9 +2247,10 @@
           },
           {
             "additionalProperties": false,
-            "description": "Copies the compiled raster into the final composition output.",
+            "description": "Copies its source into the final composition output.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -1875,70 +2283,29 @@
           },
           {
             "additionalProperties": false,
-            "description": "Renders its source again only when `key` changes.",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "params": {
-                "additionalProperties": false,
-                "properties": {
-                  "key": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
-                    "default": 0.0,
-                    "description": "Expression whose value decides when the source renders again: while it evaluates to the\nsame value as on the frame last rendered, the memo shows that frame's output and its\nsource is not rendered. A literal key adds nothing to the caching every node without\nframe-dependent params already gets.",
-                    "title": "Key",
-                    "x-lumen-kind": "float"
-                  }
-                },
-                "type": "object"
-              },
-              "type": {
-                "const": "memo"
-              }
-            },
-            "required": ["id", "type"],
-            "title": "Memo",
-            "type": "object",
-            "x-lumen-category": "processing",
-            "x-lumen-inputs": [
-              {
-                "kind": "raster_frame",
-                "name": "source",
-                "optional": false,
-                "variadic": false
-              }
-            ],
-            "x-lumen-outputs": [
-              {
-                "kind": "raster_frame",
-                "name": "output"
-              }
-            ]
-          },
-          {
-            "additionalProperties": false,
             "description": "Composites an overlay raster over a base raster.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
                 "additionalProperties": false,
                 "properties": {
                   "blend_mode": {
+                    "anyOf": [
+                      {
+                        "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
+                        "type": "string",
+                        "x-lumen-type": "BlendMode"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
                     "default": "normal",
                     "description": "Blend mode used when combining the overlay with the base raster.",
-                    "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
                     "title": "Blend Mode",
-                    "type": "string",
                     "x-lumen-enumOptions": [
                       {
                         "label": "Normal",
@@ -1976,7 +2343,6 @@
                   "feather": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -1984,7 +2350,7 @@
                       }
                     ],
                     "default": 0.0,
-                    "description": "Softens the mask edge with a Gaussian blur of this radius in pixels, applied before `invert`.",
+                    "description": "Softens the mask edge with a Gaussian blur of this radius in pixels, applied before `invert`. Radii above about 588 look the same.",
                     "title": "Feather",
                     "x-lumen-constraints": {
                       "min": 0.0,
@@ -2024,13 +2390,12 @@
                         "value": 1
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "MaskMode"
                   },
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2090,6 +2455,7 @@
             "description": "Uniformly adjusts raster opacity.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2098,8 +2464,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2147,6 +2511,7 @@
             "description": "Produces a rasterized vector path source.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2230,8 +2595,6 @@
                   "motion_blur": {
                     "anyOf": [
                       {
-                        "maximum": 360.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2251,8 +2614,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2345,7 +2706,6 @@
                   "stroke_width": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2364,8 +2724,6 @@
                   "trim_end": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2385,8 +2743,6 @@
                   "trim_start": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2427,6 +2783,7 @@
             "description": "Composites a variadic stack of raster layers in order.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2436,7 +2793,8 @@
                     "anyOf": [
                       {
                         "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
-                        "type": "string"
+                        "type": "string",
+                        "x-lumen-type": "BlendMode"
                       },
                       {
                         "$ref": "#/$defs/expression"
@@ -2482,8 +2840,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2491,7 +2847,7 @@
                       }
                     ],
                     "default": 1.0,
-                    "description": "Opacity applied to each layer as it is composited.",
+                    "description": "Opacity of each layer above the first, which is the base and is used as is.",
                     "title": "Opacity",
                     "x-lumen-constraints": {
                       "max": 1.0,
@@ -2531,6 +2887,7 @@
             "description": "Resamples a raster into a rectangle placed on the composition canvas.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2539,7 +2896,6 @@
                   "height": {
                     "anyOf": [
                       {
-                        "minimum": 1.0,
                         "type": "integer"
                       },
                       {
@@ -2578,14 +2934,23 @@
                         "value": 2
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "ResizeMode"
                   },
                   "sampling": {
+                    "anyOf": [
+                      {
+                        "enum": ["nearest", "linear"],
+                        "type": "string",
+                        "x-lumen-type": "RasterSampling"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
                     "default": "linear",
                     "description": "Sampling filter used when resizing.",
-                    "enum": ["nearest", "linear"],
                     "title": "Sampling",
-                    "type": "string",
                     "x-lumen-enumOptions": [
                       {
                         "label": "Nearest",
@@ -2603,7 +2968,6 @@
                   "width": {
                     "anyOf": [
                       {
-                        "minimum": 1.0,
                         "type": "integer"
                       },
                       {
@@ -2684,6 +3048,7 @@
             "description": "Composites a blurred alpha shadow behind a raster.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2699,7 +3064,7 @@
                       }
                     ],
                     "default": [0, 0, 0, 255],
-                    "description": "Shadow color.",
+                    "description": "Shadow color. Must be a solid color; a gradient is an error.",
                     "title": "Color",
                     "x-lumen-constraints": {
                       "role": "color"
@@ -2743,8 +3108,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2764,7 +3127,6 @@
                   "radius": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2772,7 +3134,7 @@
                       }
                     ],
                     "default": 8.0,
-                    "description": "Shadow blur radius in pixels. Fractional radii blend smoothly.",
+                    "description": "Shadow blur radius in pixels. Fractional radii blend smoothly. Radii above about 588 look the same.",
                     "title": "Blur radius",
                     "x-lumen-constraints": {
                       "min": 0.0,
@@ -2811,6 +3173,7 @@
             "description": "Produces a vector shape layer for GPU rasterization.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -2833,7 +3196,6 @@
                   "border_radius": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2894,7 +3256,7 @@
                   "geometry_kind": {
                     "default": "rectangle",
                     "description": "Geometry primitive to rasterize.",
-                    "enum": ["rectangle", "ellipse", "polygon"],
+                    "enum": ["rectangle", "ellipse"],
                     "title": "Geometry Kind",
                     "type": "string",
                     "x-lumen-enumOptions": [
@@ -2907,39 +3269,32 @@
                         "label": "Ellipse",
                         "name": "ellipse",
                         "value": 1
-                      },
-                      {
-                        "label": "Polygon",
-                        "name": "polygon",
-                        "value": 2
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "ShapeGeometryKind"
                   },
                   "height": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
-                        "type": "integer"
+                        "type": "number"
                       },
                       {
                         "$ref": "#/$defs/expression"
                       }
                     ],
-                    "default": 1,
-                    "description": "Shape height in pixels; 0 draws nothing. Ignored for polygon geometry.",
+                    "default": 1.0,
+                    "description": "Shape height in pixels; 0 draws nothing and anything thinner than a pixel draws a pixel\ntall.",
                     "title": "Height",
                     "x-lumen-constraints": {
                       "min": 0.0,
                       "step": 1.0
                     },
-                    "x-lumen-kind": "int"
+                    "x-lumen-kind": "float"
                   },
                   "motion_blur": {
                     "anyOf": [
                       {
-                        "maximum": 360.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2959,8 +3314,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -2976,25 +3329,6 @@
                       "step": 0.01
                     },
                     "x-lumen-kind": "float"
-                  },
-                  "polygon_points": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "$ref": "#/$defs/expression"
-                      }
-                    ],
-                    "default": "",
-                    "description": "Polygon vertices in pixels relative to `position`, as `x,y; x,y` (3 to 16384 points).",
-                    "title": "Polygon points",
-                    "x-lumen-constraints": {
-                      "format": "point_list",
-                      "multiline": true,
-                      "recommendedRows": 3
-                    },
-                    "x-lumen-kind": "string"
                   },
                   "position": {
                     "anyOf": [
@@ -3072,7 +3406,6 @@
                   "stroke_width": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3091,21 +3424,20 @@
                   "width": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
-                        "type": "integer"
+                        "type": "number"
                       },
                       {
                         "$ref": "#/$defs/expression"
                       }
                     ],
-                    "default": 1,
-                    "description": "Shape width in pixels; 0 draws nothing. Ignored for polygon geometry.",
+                    "default": 1.0,
+                    "description": "Shape width in pixels; 0 draws nothing and anything thinner than a pixel draws a pixel\nwide.",
                     "title": "Width",
                     "x-lumen-constraints": {
                       "min": 0.0,
                       "step": 1.0
                     },
-                    "x-lumen-kind": "int"
+                    "x-lumen-kind": "float"
                   }
                 },
                 "type": "object"
@@ -3131,6 +3463,7 @@
             "description": "Selects one raster input according to a controlled layer index.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -3139,7 +3472,6 @@
                   "selected_layer": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -3186,6 +3518,7 @@
             "description": "Produces a text source.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -3219,7 +3552,8 @@
                         "value": 3
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextAlignmentHorizontal"
                   },
                   "alignment_vertical": {
                     "default": "top",
@@ -3244,7 +3578,8 @@
                         "value": 2
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextAlignmentVertical"
                   },
                   "anchor": {
                     "anyOf": [
@@ -3270,7 +3605,7 @@
                       }
                     ],
                     "default": [255, 255, 255, 255],
-                    "description": "Text color.",
+                    "description": "Text color, and that of spans without their own.",
                     "title": "Color",
                     "x-lumen-constraints": {
                       "role": "color"
@@ -3280,20 +3615,41 @@
                   "content": {
                     "anyOf": [
                       {
-                        "type": "string"
+                        "$ref": "#/$defs/textContent"
                       },
                       {
                         "$ref": "#/$defs/expression"
                       }
                     ],
                     "default": "",
-                    "description": "Text content to render.",
+                    "description": "Text to render: a string, or spans that each override the style these params give. A\nnode draws at most 2048 glyphs, counting a stroked glyph twice and each decoration rect\nonce; whitespace is not drawn, and more is a render error.",
                     "title": "Content",
                     "x-lumen-constraints": {
                       "multiline": true,
                       "recommendedRows": 4
                     },
-                    "x-lumen-kind": "string"
+                    "x-lumen-kind": "text_content"
+                  },
+                  "fit": {
+                    "default": "none",
+                    "description": "Whether the text shrinks to fit `max_width`, `max_lines` and `max_height` without breaking\na word, before any lines are dropped. Every font size, letter spacing, `line_height`,\nbaseline shift, paragraph spacing, decoration size and stroke width scales by the largest\nfactor up to 1 that fits.",
+                    "enum": ["none", "shrink"],
+                    "title": "Fit",
+                    "type": "string",
+                    "x-lumen-enumOptions": [
+                      {
+                        "label": "None",
+                        "name": "none",
+                        "value": 0
+                      },
+                      {
+                        "label": "Shrink",
+                        "name": "shrink",
+                        "value": 1
+                      }
+                    ],
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextFit"
                   },
                   "font_family": {
                     "anyOf": [
@@ -3312,10 +3668,16 @@
                     },
                     "x-lumen-kind": "string"
                   },
+                  "font_features": {
+                    "$ref": "#/$defs/fontFeatures",
+                    "default": {},
+                    "description": "OpenType features by four-character tag, such as `{ \"tnum\": 1, \"liga\": 0 }`. 0 turns a\nfeature off, 1 turns it on and larger values select an alternate. Values take literals\nor expressions, but the whole map cannot be an expression.",
+                    "title": "Font Features",
+                    "x-lumen-kind": "font_features"
+                  },
                   "font_size": {
                     "anyOf": [
                       {
-                        "minimum": 1.0,
                         "type": "number"
                       },
                       {
@@ -3332,11 +3694,19 @@
                     "x-lumen-kind": "float"
                   },
                   "font_style": {
+                    "anyOf": [
+                      {
+                        "enum": ["normal", "italic", "oblique"],
+                        "type": "string",
+                        "x-lumen-type": "TextFontStyle"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
                     "default": "normal",
                     "description": "Font style.",
-                    "enum": ["normal", "italic", "oblique"],
                     "title": "Font Style",
-                    "type": "string",
                     "x-lumen-enumOptions": [
                       {
                         "label": "Normal",
@@ -3359,8 +3729,6 @@
                   "font_weight": {
                     "anyOf": [
                       {
-                        "maximum": 1000.0,
-                        "minimum": 1.0,
                         "type": "integer"
                       },
                       {
@@ -3386,15 +3754,13 @@
                       }
                     ],
                     "default": [0.0, 0.0],
-                    "description": "Offset of each glyph in pixels. The `glyph_*` params are evaluated for every glyph,\nand can read its `glyph`, `word` and `line` index and their counts.",
+                    "description": "Offset of each glyph in pixels. The `glyph_*` params are evaluated for every glyph,\nand can read its `glyph`, `word`, `line` and `span` index and their counts.",
                     "title": "Glyph Offset",
                     "x-lumen-kind": "vec2"
                   },
                   "glyph_opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3442,6 +3808,12 @@
                     "title": "Glyph Scale",
                     "x-lumen-kind": "vec2"
                   },
+                  "highlight": {
+                    "$ref": "#/$defs/textHighlight",
+                    "description": "Box behind each line of the text, and of spans that leave theirs unset. Off when\nabsent.",
+                    "title": "Highlight",
+                    "x-lumen-kind": "text_highlight"
+                  },
                   "letter_spacing": {
                     "anyOf": [
                       {
@@ -3462,7 +3834,6 @@
                   "line_height": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3478,10 +3849,43 @@
                     },
                     "x-lumen-kind": "float"
                   },
+                  "max_height": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
+                    "description": "Most height in pixels of the lines to show. Unlimited when absent.",
+                    "title": "Max Height",
+                    "x-lumen-constraints": {
+                      "min": 0.0,
+                      "step": 1.0
+                    },
+                    "x-lumen-kind": "float"
+                  },
+                  "max_lines": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
+                    "description": "Most lines to show. Unlimited when absent.",
+                    "title": "Max Lines",
+                    "x-lumen-constraints": {
+                      "min": 0.0,
+                      "step": 1.0
+                    },
+                    "x-lumen-kind": "int"
+                  },
                   "max_width": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3497,11 +3901,27 @@
                     },
                     "x-lumen-kind": "float"
                   },
+                  "min_font_size": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
+                    "default": 8.0,
+                    "description": "Smallest `font_size` that `fit` shrinks the text to. Lines that still do not fit are\ndropped by `overflow`.",
+                    "title": "Min Font Size",
+                    "x-lumen-constraints": {
+                      "min": 1.0,
+                      "step": 1.0
+                    },
+                    "x-lumen-kind": "float"
+                  },
                   "motion_blur": {
                     "anyOf": [
                       {
-                        "maximum": 360.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3521,8 +3941,6 @@
                   "opacity": {
                     "anyOf": [
                       {
-                        "maximum": 1.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3539,6 +3957,48 @@
                     },
                     "x-lumen-kind": "float"
                   },
+                  "overflow": {
+                    "default": "clip",
+                    "description": "How the last line shown ends when lines past `max_lines` or `max_height` are dropped: as\nit is, or in an ellipsis. Clusters at that line's end are dropped until the ellipsis fits\n`max_width`. The ellipsis takes the style and paint of the text it follows, and is one\nglyph, numbered after the last one shown.",
+                    "enum": ["clip", "ellipsis"],
+                    "title": "Overflow",
+                    "type": "string",
+                    "x-lumen-enumOptions": [
+                      {
+                        "label": "Clip",
+                        "name": "clip",
+                        "value": 0
+                      },
+                      {
+                        "label": "Ellipsis",
+                        "name": "ellipsis",
+                        "value": 1
+                      }
+                    ],
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextOverflow"
+                  },
+                  "paint_space": {
+                    "default": "span",
+                    "description": "Box a span's own gradient `color` spans: the span's lines, or the whole text. The\nnode's `color` always spans the whole text.",
+                    "enum": ["span", "text"],
+                    "title": "Paint Space",
+                    "type": "string",
+                    "x-lumen-enumOptions": [
+                      {
+                        "label": "Span",
+                        "name": "span",
+                        "value": 0
+                      },
+                      {
+                        "label": "Text",
+                        "name": "text",
+                        "value": 1
+                      }
+                    ],
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextPaintSpace"
+                  },
                   "paint_supersample": {
                     "anyOf": [
                       {
@@ -3552,6 +4012,24 @@
                     "description": "Enables 4×4 supersampling when evaluating paint at each glyph pixel.",
                     "title": "Paint Supersample",
                     "x-lumen-kind": "bool"
+                  },
+                  "paragraph_spacing": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
+                    "default": 0.0,
+                    "description": "Extra space in pixels after each paragraph, but the last. A line break starts a new\nparagraph.",
+                    "title": "Paragraph Spacing",
+                    "x-lumen-constraints": {
+                      "min": 0.0,
+                      "step": 1.0
+                    },
+                    "x-lumen-kind": "float"
                   },
                   "position": {
                     "anyOf": [
@@ -3590,7 +4068,8 @@
                         "value": 2
                       }
                     ],
-                    "x-lumen-kind": "enum"
+                    "x-lumen-kind": "enum",
+                    "x-lumen-type": "TextRenderMode"
                   },
                   "rotation": {
                     "anyOf": [
@@ -3622,6 +4101,62 @@
                     "description": "Scale multiplier per axis, about the anchor. Raster glyphs are resampled, so\nuse MSDF rendering to keep scaled text sharp.",
                     "title": "Scale",
                     "x-lumen-kind": "vec2"
+                  },
+                  "strikethrough": {
+                    "$ref": "#/$defs/textLine",
+                    "description": "Line through the text, and through spans that leave theirs unset. Off when absent.",
+                    "title": "Strikethrough",
+                    "x-lumen-kind": "text_line"
+                  },
+                  "stroke": {
+                    "$ref": "#/$defs/textStroke",
+                    "description": "Outline along the glyphs, and along those of spans that leave theirs unset. Off when\nabsent. It does not change the layout or the measured size. `glyph_opacity` fades a\nglyph's stroke and fill as one.",
+                    "title": "Stroke",
+                    "x-lumen-kind": "text_stroke"
+                  },
+                  "text_transform": {
+                    "anyOf": [
+                      {
+                        "enum": ["none", "uppercase", "lowercase", "capitalize"],
+                        "type": "string",
+                        "x-lumen-type": "TextTransform"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
+                    "default": "none",
+                    "description": "Case applied to the text, and to spans that leave theirs unset.",
+                    "title": "Text Transform",
+                    "x-lumen-enumOptions": [
+                      {
+                        "label": "None",
+                        "name": "none",
+                        "value": 0
+                      },
+                      {
+                        "label": "Uppercase",
+                        "name": "uppercase",
+                        "value": 1
+                      },
+                      {
+                        "label": "Lowercase",
+                        "name": "lowercase",
+                        "value": 2
+                      },
+                      {
+                        "label": "Capitalize",
+                        "name": "capitalize",
+                        "value": 3
+                      }
+                    ],
+                    "x-lumen-kind": "enum"
+                  },
+                  "underline": {
+                    "$ref": "#/$defs/textLine",
+                    "description": "Line under the text, and under spans that leave theirs unset. Off when absent. Its\nfields take literals or expressions, but the whole line cannot be an expression.",
+                    "title": "Underline",
+                    "x-lumen-kind": "text_line"
                   }
                 },
                 "type": "object"
@@ -3647,6 +4182,7 @@
             "description": "Evaluates a raster input at another frame.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -3655,7 +4191,6 @@
                   "frame": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3688,7 +4223,6 @@
                   "loop_end": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -3707,7 +4241,6 @@
                   "loop_start": {
                     "anyOf": [
                       {
-                        "minimum": 0.0,
                         "type": "integer"
                       },
                       {
@@ -3754,6 +4287,7 @@
             "description": "Transforms a raster into the composition canvas bounds.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -3769,15 +4303,13 @@
                       }
                     ],
                     "default": false,
-                    "description": "Uses the pivot as given; when off, a (0, 0) pivot means the source centre.",
+                    "description": "Uses the pivot as given; when off, the pivot is the source centre.",
                     "title": "Custom pivot",
                     "x-lumen-kind": "bool"
                   },
                   "motion_blur": {
                     "anyOf": [
                       {
-                        "maximum": 360.0,
-                        "minimum": 0.0,
                         "type": "number"
                       },
                       {
@@ -3846,11 +4378,19 @@
                     "x-lumen-kind": "float"
                   },
                   "sampling": {
+                    "anyOf": [
+                      {
+                        "enum": ["nearest", "linear"],
+                        "type": "string",
+                        "x-lumen-type": "RasterSampling"
+                      },
+                      {
+                        "$ref": "#/$defs/expression"
+                      }
+                    ],
                     "default": "linear",
                     "description": "Sampling filter used when transforming.",
-                    "enum": ["nearest", "linear"],
                     "title": "Sampling",
-                    "type": "string",
                     "x-lumen-enumOptions": [
                       {
                         "label": "Nearest",
@@ -3964,6 +4504,7 @@
             "description": "Runs a custom WGSL compute shader over one or more rasters.",
             "properties": {
               "id": {
+                "minimum": 0,
                 "type": "integer"
               },
               "params": {
@@ -3989,13 +4530,10 @@
                     "x-lumen-kind": "string"
                   },
                   "uniforms": {
-                    "additionalProperties": {
-                      "$ref": "#/$defs/shaderUniformValue"
-                    },
+                    "$ref": "#/$defs/shaderUniforms",
                     "default": {},
                     "description": "Uniform struct field values by name; unset fields are zero.",
                     "title": "Shader uniforms",
-                    "type": "object",
                     "x-lumen-kind": "shader_uniforms"
                   }
                 },
@@ -4029,41 +4567,10 @@
       "type": "array"
     },
     "render_settings": {
-      "additionalProperties": true,
-      "properties": {
-        "background_color": {
-          "$ref": "#/$defs/color"
-        },
-        "height": {
-          "maximum": 4294967295,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "width": {
-          "maximum": 4294967295,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": ["width", "height"],
-      "type": "object"
+      "$ref": "#/$defs/renderSettings"
     },
     "timeline": {
-      "additionalProperties": true,
-      "properties": {
-        "duration_frames": {
-          "maximum": 4294967295,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "fps": {
-          "default": 30,
-          "exclusiveMinimum": 0,
-          "type": "number"
-        }
-      },
-      "required": ["duration_frames"],
-      "type": "object"
+      "$ref": "#/$defs/timeline"
     }
   },
   "required": ["timeline", "render_settings", "nodes", "connections"],
@@ -4287,27 +4794,6 @@
       {
         "args": [
           {
-            "kind": "any",
-            "name": "from"
-          },
-          {
-            "kind": "any",
-            "name": "to"
-          },
-          {
-            "kind": "number",
-            "name": "t"
-          }
-        ],
-        "doc": "Same as `lerp`. Not to be confused with the `'linear'` easing name.",
-        "maxArgs": 3,
-        "minArgs": 3,
-        "name": "linear",
-        "returns": "any"
-      },
-      {
-        "args": [
-          {
             "kind": "number",
             "name": "from"
           },
@@ -4515,6 +5001,69 @@
         "args": [
           {
             "kind": "number",
+            "name": "x1"
+          },
+          {
+            "kind": "number",
+            "name": "y1"
+          },
+          {
+            "kind": "number",
+            "name": "x2"
+          },
+          {
+            "kind": "number",
+            "name": "y2"
+          },
+          {
+            "kind": "number",
+            "name": "t"
+          }
+        ],
+        "doc": "CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t`.",
+        "maxArgs": 5,
+        "minArgs": 5,
+        "name": "cubic_bezier",
+        "returns": "number"
+      },
+      {
+        "args": [
+          {
+            "kind": "string",
+            "name": "name"
+          }
+        ],
+        "doc": "The value of a composition template's prop, e.g. `prop('title')`. Only inside a template.",
+        "maxArgs": 1,
+        "minArgs": 1,
+        "name": "prop",
+        "returns": "any"
+      },
+      {
+        "args": [
+          {
+            "kind": "number",
+            "name": "t"
+          },
+          {
+            "kind": "number",
+            "name": "stiffness"
+          },
+          {
+            "kind": "number",
+            "name": "damping"
+          }
+        ],
+        "doc": "Spring from 0 to 1, `t` seconds after release, e.g. `spring((frame - 12) / fps)`. Stiffness defaults to 170 and damping to 26.",
+        "maxArgs": 3,
+        "minArgs": 1,
+        "name": "spring",
+        "returns": "number"
+      },
+      {
+        "args": [
+          {
+            "kind": "number",
             "name": "t"
           }
         ],
@@ -4666,69 +5215,6 @@
         "minArgs": 1,
         "name": "in_out_back",
         "returns": "number"
-      },
-      {
-        "args": [
-          {
-            "kind": "number",
-            "name": "x1"
-          },
-          {
-            "kind": "number",
-            "name": "y1"
-          },
-          {
-            "kind": "number",
-            "name": "x2"
-          },
-          {
-            "kind": "number",
-            "name": "y2"
-          },
-          {
-            "kind": "number",
-            "name": "t"
-          }
-        ],
-        "doc": "CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t`.",
-        "maxArgs": 5,
-        "minArgs": 5,
-        "name": "cubic_bezier",
-        "returns": "number"
-      },
-      {
-        "args": [
-          {
-            "kind": "string",
-            "name": "name"
-          }
-        ],
-        "doc": "The value of a composition template's prop, e.g. `prop('title')`. Only inside a template.",
-        "maxArgs": 1,
-        "minArgs": 1,
-        "name": "prop",
-        "returns": "any"
-      },
-      {
-        "args": [
-          {
-            "kind": "number",
-            "name": "t"
-          },
-          {
-            "kind": "number",
-            "name": "stiffness"
-          },
-          {
-            "kind": "number",
-            "name": "damping"
-          }
-        ],
-        "doc": "Spring from 0 to 1, `t` seconds after release, e.g. `spring((frame - 12) / fps)`. Stiffness defaults to 170 and damping to 26.",
-        "maxArgs": 3,
-        "minArgs": 1,
-        "name": "spring",
-        "returns": "number"
       }
     ],
     "easings": [
@@ -4745,6 +5231,18 @@
       "in_back",
       "out_back",
       "in_out_back"
+    ],
+    "forms": [
+      {
+        "doc": "`then` when `condition` is truthy, otherwise `else`. Only the chosen branch is evaluated.",
+        "name": "if",
+        "signature": "if(condition, then, else)"
+      },
+      {
+        "doc": "The value of another node's param. `node(id)` alone names a text node for `text_width` and `text_height`.",
+        "name": "node",
+        "signature": "node(id, 'property')"
+      }
     ],
     "globals": [
       {
@@ -4780,6 +5278,10 @@
         "name": "line"
       },
       {
+        "doc": "Index of the span being drawn, or 0 in plain text. Only in a text node's `glyph_*` params.",
+        "name": "span"
+      },
+      {
         "doc": "Number of glyphs in the text. Only in a text node's `glyph_*` params.",
         "name": "glyph_count"
       },
@@ -4790,7 +5292,69 @@
       {
         "doc": "Number of lines in the text. Only in a text node's `glyph_*` params.",
         "name": "line_count"
+      },
+      {
+        "doc": "Number of spans in the text, or 1 in plain text. Only in a text node's `glyph_*` params.",
+        "name": "span_count"
       }
+    ],
+    "reserved": [
+      "true",
+      "false",
+      "if",
+      "node",
+      "min",
+      "max",
+      "abs",
+      "floor",
+      "ceil",
+      "round",
+      "sin",
+      "cos",
+      "clamp",
+      "lerp",
+      "pow",
+      "mod",
+      "fract",
+      "smoothstep",
+      "step",
+      "text_height",
+      "text_width",
+      "uppercase",
+      "lowercase",
+      "vec2",
+      "rgb",
+      "rgba",
+      "progress",
+      "tween",
+      "cubic_bezier",
+      "prop",
+      "spring",
+      "in_quad",
+      "out_quad",
+      "in_out_quad",
+      "in_cubic",
+      "out_cubic",
+      "in_out_cubic",
+      "in_expo",
+      "out_expo",
+      "in_out_expo",
+      "in_back",
+      "out_back",
+      "in_out_back",
+      "frame",
+      "time",
+      "fps",
+      "width",
+      "height",
+      "glyph",
+      "word",
+      "line",
+      "span",
+      "glyph_count",
+      "word_count",
+      "line_count",
+      "span_count"
     ]
   },
   "x-lumen-schemaVersion": 1

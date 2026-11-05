@@ -5,16 +5,12 @@ description: Nodes that adjust, move and retime a raster.
 
 Processing nodes take a raster on `source` and return a raster on `output`. Use them for color, geometry, timing and custom shader effects.
 
-- [Alpha Premultiply](alpha-premultiply) (`alpha_premultiply`): converts raster alpha between premultiplied and unpremultiplied representations.
 - [Blur](blur) (`blur`): applies a separable Gaussian blur to a raster.
-- [Channel Shuffle](channel-shuffle) (`channel_shuffle`): remaps source raster color channels.
 - [Color Grade](color-grade) (`color_grade`): applies a LUT-driven color transform to a raster.
 - [Crop](crop) (`crop`): keeps a raster region in place and clears everything outside it.
-- [Curves](curves) (`curves`): applies a 1D RGB curve table to a raster.
 - [Exposure](exposure) (`exposure`): adjusts raster exposure, contrast, and offset.
 - [Hue Saturation](hue-saturation) (`hue_saturation`): adjusts raster hue, saturation, and lightness.
 - [Levels](levels) (`levels`): remaps raster black, white, gamma, and output range.
-- [Memo](memo) (`memo`): renders its source again only when `key` changes.
 - [Opacity](opacity) (`opacity`): uniformly adjusts raster opacity.
 - [Resize](resize) (`resize`): resamples a raster into a rectangle placed on the composition canvas.
 - [Shadow](shadow) (`shadow`): composites a blurred alpha shadow behind a raster.

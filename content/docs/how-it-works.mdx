@@ -9,12 +9,12 @@ Lumiscia renders compositions with Lumen, its open-source engine. A composition 
 
 A composition is a JSON object with four required fields:
 
-| Field             | Contents                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `timeline`        | `fps` (default 30) and `duration_frames`.                                                     |
-| `render_settings` | Output `width` and `height` in pixels, and an optional `background_color`.                    |
-| `nodes`           | Graph nodes. Each has an integer `id`, a `type`, and optional `params`.                       |
-| `connections`     | Edges from an output port (`from_node`, `from_port`) to an input port (`to_node`, `to_port`). |
+| Field             | Contents                                                                 |
+| ----------------- | ------------------------------------------------------------------------ |
+| `timeline`        | `fps` (default 30) and `duration_frames`.                                |
+| `render_settings` | Output `width` and `height` in pixels.                                   |
+| `nodes`           | Graph nodes. Each has an integer `id`, a `type`, and optional `params`.  |
+| `connections`     | Edges from a node (`from_node`) to an input port (`to_node`, `to_port`). |
 
 Three optional fields extend it. `compositions` holds named templates that `clip` nodes play, `functions` holds reusable expression functions, and `audio` holds audio tracks and clips. See [Composition format](composition-format) for every field.
 
@@ -33,14 +33,14 @@ The API checks each render request when you submit it. The composition must matc
 
 Your workspace tier can lower the resolution and duration limits. Free workspaces that have never topped up render up to 1080p and 2 minutes. See [Pricing](pricing#queue-priority).
 
-A request that fails these checks gets a `400` response with an `error` message that names the field, node, or limit at fault. The SDK returns it as `error.message`, so you can show it in a builder UI as is.
+A request that fails these checks gets a `400` response with an `error` message that names the field, node, or limit at fault. The SDK throws it as a `LumenError` with that `message`, so you can show it in a builder UI as is.
 
 Lumen then checks the graph itself before it renders a frame:
 
 - The graph has exactly one `media_output` node.
+- Every node id is unique.
 - Every connection points at an existing node and port.
-- Every required input is connected.
-- Each connection joins ports of the same kind.
+- Every required input is connected, and an input that takes one source has at most one connection.
 - The graph has no cycles.
 
 A graph that fails these checks fails the render.
@@ -56,7 +56,7 @@ Lumen renders on demand. For each frame, it starts at `media_output` and walks u
 - Nodes that don't connect to `media_output` never render.
 - A `switch` node renders only its selected layer.
 - A `time_remap` node requests only the source frame it maps to.
-- A static branch reuses its earlier output. A node is static when its params are literal values (no expressions) and all of its inputs are static. Media, shader, and output nodes always render. Use `memo` to control caching for an expensive branch.
+- A static branch reuses its earlier output. A node is static when its params are literal values (no expressions) and all of its inputs are static. Media, shader, `clip`, `time_remap`, and output nodes always render.
 
 Most params accept an expression, which is a string that starts with `=`. Lumen evaluates expressions every frame with these globals:
 
@@ -96,17 +96,17 @@ Nodes reference media through manifest aliases, never by media id. A render requ
       { "id": 1, "type": "media_in", "params": { "kind": "video", "source": "hero" } },
       { "id": 2, "type": "media_output" }
     ],
-    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
   }
 }
 ```
 
 You get a media id by uploading a file to `POST https://api.lumiscia.com/v1/media` or importing a URL with `POST https://api.lumiscia.com/v1/media/url`. Lumiscia probes each file, and a render can use it only once its status is `validated`. Uploads expire after 24 hours. The API rejects a composition that puts an `http://` or `https://` URL in a node, so import remote files first and reference them by alias.
 
-A video `media_in` node can trim the source with `range_start` and `range_end`, change `speed`, and set a `loop_mode`. Lumen works out which source frame each output frame needs before it renders, so workers and previews decode only those frames.
+A video `media_in` node can trim the source with `range_start` and `range_end`, change `speed`, and set a `loop_mode`. `range_end` is the first source frame past the range, and leaving it out plays to the source's end. Lumen works out which source frame each output frame needs before it renders, so workers and previews decode only those frames.
 
 ## Rendering
 
 The API queues each accepted render as `queued`. A GPU worker picks it up (`processing`), renders every frame with `lumen-server`, encodes an MP4, and uploads it as the render's artifact. The render then ends as `succeeded` or `failed`.
 
-You can follow a render over its event socket (`subscribeToRender()` or `waitForRender()` in the SDK), with a [webhook](guides/webhooks), or by polling `GET https://api.lumiscia.com/v1/renders/{id}`. Download the artifact from `GET https://api.lumiscia.com/v1/renders/{id}/artifact` before it expires. Artifacts last 1 day on the free tier and 7 days once your workspace has topped up or subscribed to Pro.
+You can wait for a render with `waitForRender(id, { onProgress })` in the SDK, which reads `GET https://api.lumiscia.com/v1/renders/{id}/progress` and uses the render's event socket only to hear about changes sooner. You can also use a [webhook](guides/webhooks), or poll `GET https://api.lumiscia.com/v1/renders/{id}`. Download the artifact from `GET https://api.lumiscia.com/v1/renders/{id}/artifact` before it expires. Artifacts last 1 day on the free tier and 7 days once your workspace has topped up or subscribed to Pro.

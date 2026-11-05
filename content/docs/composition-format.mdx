@@ -13,7 +13,7 @@ A composition is a JSON document that describes a video as a graph of nodes. You
     { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
     { "id": 2, "type": "media_output" }
   ],
-  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+  "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
 }
 ```
 
@@ -30,9 +30,9 @@ This renders 3 seconds of a dark [`background`](nodes/source/background) at 1280
 | `compositions`    | No       | Named templates that `clip` nodes play. See [Templates](#templates). |
 | `functions`       | No       | Expression functions. See [Expressions](expressions#functions).      |
 | `audio`           | No       | Audio tracks and clips. See [Audio](#audio).                         |
-| `metadata`        | No       | Your own data. Lumen reads `metadata.name`.                          |
+| `metadata`        | No       | An object for your own data. `name`, if set, must be a string.       |
 
-Other top-level fields are allowed, so an editor can store its own state in the document. Nodes are strict, so an unknown node type or param fails validation.
+Other top-level fields are ignored, so an editor can store its own state in the document. Everything else is strict. An unknown key in `timeline`, `render_settings`, a template, a node or a connection fails validation, as does an unknown node type or param. Lumen's errors name the JSON path at fault, such as `timeline.fps`.
 
 ## Timeline
 
@@ -44,17 +44,15 @@ Other top-level fields are allowed, so an editor can store its own state in the 
 
 ## Render settings
 
-`width` and `height` set the output size in pixels. `background_color` is optional.
+`width` and `height` set the output size in pixels. They are the only keys, and `background_color` is an error. To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node.
 
 ```json
 { "render_settings": { "width": 1920, "height": 1080 } }
 ```
 
-A color is an array of 3 or 4 integers from 0 to 255 (`[255, 128, 0]`, `[255, 128, 0, 255]`) or a hex string (`"#ff8000"`, `"#ff800080"`). To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node.
-
 ## Nodes
 
-Each node has an integer `id` that is unique within its graph, a `type`, and optional `params`. Params you leave out take their defaults.
+Each node has an integer `id` that is unique within its graph, a `type`, and optional `params`. A repeated id fails validation. Params you leave out take their defaults.
 
 ```json
 {
@@ -69,17 +67,19 @@ Each node has an integer `id` that is unique within its graph, a `type`, and opt
 
 Param names are snake_case. Enum params take string names, such as `"blend_mode": "screen"`. A string that starts with `=` is an [expression](expressions), evaluated on every frame. To store a literal string that starts with `=`, write `==`: `"==total"` is the text `=total`.
 
+A color is an array of 3 or 4 integers from 0 to 255 (`[255, 128, 0]`, `[255, 128, 0, 255]`) or a hex string (`"#ff8000"`, `"#ff800080"`).
+
 The [node reference](nodes) lists every node type with its params, defaults and ports.
 
 ## Connections
 
-A connection wires one node's output port to another node's input port.
+A connection wires one node's output to another node's input port.
 
 ```json
-{ "from_node": 1, "from_port": "output", "to_node": 3, "to_port": "base" }
+{ "from_node": 1, "to_node": 3, "to_port": "base" }
 ```
 
-`to_port` is required. `from_port` defaults to `output`, the only output port current nodes have. Input port names depend on the node:
+`to_port` is required. Every node has one output, so `from_port` is optional and can only be `output`. Input port names depend on the node:
 
 | Port                      | Nodes                                            |
 | ------------------------- | ------------------------------------------------ |
@@ -88,7 +88,7 @@ A connection wires one node's output port to another node's input port.
 | `a`, `b`                  | `boolean`                                        |
 | `layers`                  | `switch`, `raster_multimerge`                    |
 
-`layers` and the `source` port of `wgsl_shader` accept several connections. Layers stack in the order their connections appear, first at the bottom. Every port carries `raster_frame` data.
+`layers` and the `source` port of `wgsl_shader` accept several connections. Layers stack in the order their connections appear, first at the bottom. Every other input takes one connection, and a second connection to it is an error. Every port carries `raster_frame` data.
 
 A graph must contain exactly one `media_output` node, connected to the stream you want to render.
 
@@ -180,7 +180,9 @@ A template draws at its own size from the top-left corner of the parent's canvas
 }
 ```
 
-Clips take their timing in milliseconds (`start_ms`, `duration_ms`, `source_start_ms`) or frames (`start_frame`, `duration_frames`). Tracks and clips take a `volume`, and tracks also take `muted` and `solo`.
+Clips take their timing in whole milliseconds. `start_ms` and `duration_ms` are required, and `source_start_ms` skips into the source. Frame and second timings (`start_frame`, `duration_frames`, `source_start_seconds`) are errors. Tracks and clips take a `volume` of 0 or more, and tracks also take `muted` and `solo`.
+
+Every clip's `track_id` must name a track in `tracks`, and track and clip ids must be unique.
 
 ## Render limits
 

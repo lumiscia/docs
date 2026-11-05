@@ -5,13 +5,13 @@ description: Runs a custom WGSL compute shader over one or more rasters.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`wgsl_shader` runs your own WGSL compute shader over the rasters connected to `source`. Use it for effects the built-in nodes don't cover.
+`wgsl_shader` runs your own WGSL compute shader over the rasters connected to `source`. Use it for effects the built-in nodes don't cover, such as rearranging channels.
 
 <NodeReference type="wgsl_shader" />
 
 ## Example
 
-The engine appends a prelude that binds the first input as `input0`, the output texture as `output`, and frame globals as `lumen`. Declare your own uniform struct at `@group(0) @binding(1)`. The entry point is `cs_main`, and inputs and output are premultiplied alpha.
+The engine appends a prelude that binds the first input as `input0`, later inputs as `input1`, `input2` and so on in connection order (16 inputs at most), the output texture as `output`, a linear sampler as `input_sampler`, and frame globals as `lumen` (`resolution`, `time` and `frame`). Declare your own uniform struct at `@group(0) @binding(1)`. The entry point is `cs_main`, and it must declare `@workgroup_size(8, 8, 1)`. Every input is premultiplied alpha, and so is the output.
 
 This shader inverts colors by `amount`:
 

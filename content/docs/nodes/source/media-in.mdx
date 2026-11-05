@@ -7,9 +7,15 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `media_in` reads an image or video from the render request's media manifest. Set `source` to a manifest alias, and set `kind` to `video` for video files so the range, speed and loop params apply.
 
+`range_start` and `range_end` pick the source frames to play. `range_end` is the first frame past the range; leave it out to play to the end of the source.
+
+A `media_in` whose source is missing or can't be opened fails when the composition compiles, with the reason in the error. An expression for `kind` or `loop_mode` that gives no valid option is an error.
+
 <NodeReference type="media_in" />
 
 ## Example
+
+This plays the video from source frame 48 to its end, then repeats that range.
 
 ```json
 {
@@ -18,6 +24,7 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
   "params": {
     "source": "hero",
     "kind": "video",
+    "range_start": 48,
     "loop_mode": "repeat"
   }
 }

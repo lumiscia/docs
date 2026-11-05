@@ -16,26 +16,26 @@ Setup for each is in the [Node](../sdks/node), [Cloudflare](../sdks/cloudflare),
 
 ## npm packages
 
-| Package                    | What it does                                                                                                                            |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `@lumiscia/lumen-sdk`      | API client for media uploads, URL ingest, renders, render events, and artifacts. Exports the `Lumen` class, plus a `/cloudflare` entry. |
-| `@lumiscia/lumen-shared`   | Dependency-light composition builder (`Composition`, `AudioTrack`) and expression helpers. Safe to use in the browser.                  |
-| `@lumiscia/lumen-types`    | Generated TypeScript types and node metadata for the composition schema, such as `LumenComposition`.                                    |
-| `@lumiscia/lumen-preview`  | Browser preview runtime and media bridge. The React and Svelte packages build on it.                                                    |
-| `@lumiscia/lumen-react`    | React preview components and hooks, such as `LumenCanvas` and `useLumenPreview`. Requires React 18 or later.                            |
-| `@lumiscia/lumen-svelte`   | Svelte preview components and state helpers, such as `LumenCanvas` and `createLumenPreview`. Requires Svelte 5 or later.                |
-| `@lumiscia/lumen-bindings` | Generated WebAssembly bindings with the compiled module included. Entry points are `/bundler` (the default), `/browser`, and `/node`.   |
+| Package                    | What it does                                                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@lumiscia/lumen-sdk`      | API client for media uploads, URL ingest, renders, render progress, artifacts, and webhook verification. Exports the `Lumen` class and re-exports `@lumiscia/lumen-shared`.                                        |
+| `@lumiscia/lumen-shared`   | Dependency-light composition builder (`Composition`), templates, and expression helpers. Safe to use in the browser.                                                                                               |
+| `@lumiscia/lumen-types`    | Generated TypeScript types and node metadata for the composition schema, such as `LumenComposition`.                                                                                                               |
+| `@lumiscia/lumen-preview`  | Browser preview runtime, with media helpers in `@lumiscia/lumen-preview/media`. The React and Svelte packages build on it.                                                                                         |
+| `@lumiscia/lumen-react`    | React preview components and hooks, such as `Player` and `useLumenPreview`. Requires React 18 or later.                                                                                                            |
+| `@lumiscia/lumen-svelte`   | Svelte preview components and state helpers, such as `Player` and `createLumenPreview`. Requires Svelte 5 or later.                                                                                                |
+| `@lumiscia/lumen-bindings` | Generated WebAssembly bindings with one compiled module included. Entry points are `.` (also `/browser`), which needs no bundler, `/bundler` for Vite, and `/node`, which parses compositions but does not render. |
 
 ## Rust crates
 
-| Crate                 | What it does                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| `lumen-server`        | Render service primitives for custom render platforms, plus the `lumen-server` local HTTP binary. |
-| `lumen-engine`        | Core composition model, node system, media handling, and GPU render orchestration.                |
-| `lumen-engine-gpu`    | Lower-level `wgpu` renderer resources, programs, passes, and Vulkan export helpers.               |
-| `lumen-engine-ffmpeg` | FFmpeg bindings for decode, encode, muxing, and GPU frame interop.                                |
-| `lumen-engine-text`   | Text layout and glyph data helpers.                                                               |
-| `lumen-engine-macros` | Procedural macros for node metadata, used internally by `lumen-engine`. Not a stable public API.  |
+| Crate                 | What it does                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `lumen-server`        | Render library for custom render platforms, plus the `lumen-server` local HTTP binary.           |
+| `lumen-engine`        | Core composition model, node system, media handling, and GPU render orchestration.               |
+| `lumen-engine-gpu`    | Lower-level `wgpu` renderer resources, programs, passes, and Vulkan export helpers.              |
+| `lumen-engine-ffmpeg` | FFmpeg bindings for decode, encode, muxing, and GPU frame interop.                               |
+| `lumen-engine-text`   | Text layout and glyph data helpers.                                                              |
+| `lumen-engine-macros` | Procedural macros for node metadata, used internally by `lumen-engine`. Not a stable public API. |
 
 Start with `lumen-server`. The other crates track renderer internals and change often.
 
@@ -43,7 +43,7 @@ The repository also has four crates that are not published:
 
 | Crate              | What it does                                                                |
 | ------------------ | --------------------------------------------------------------------------- |
-| `lumen-local`      | Local render and debugging CLI.                                             |
+| `lumen-local`      | Local render and debugging CLI. Renders a composition to an MP4 or a PNG.   |
 | `lumen-bench`      | Benchmarks for composition rendering, JSON parsing, media decode, and text. |
 | `lumen-generators` | Generates the JSON schema and node metadata from the Rust node definitions. |
 | `lumen-wasm`       | Browser renderer bindings, compiled into `@lumiscia/lumen-bindings`.        |

@@ -7,16 +7,16 @@ Lumen needs a GPU for its main render paths. The supported native targets are Li
 
 It applies to running Lumen yourself. Hosted renders run on Lumiscia's GPU workers, and browser previews depend on the browser's WebGPU or WebGL support.
 
-| Area                       | Status                 | Notes                                                                                                |
-| -------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| Linux / Vulkan             | Supported              | Primary native render path. CI runs on Ubuntu with software Vulkan (lavapipe).                       |
-| macOS / Metal              | Supported              | Metal rendering and VideoToolbox encoding. Not covered by CI.                                        |
-| Windows                    | Basic development only | TypeScript packages and pure Rust crates build. Native rendering, FFmpeg, and `lumen-server` do not. |
-| NVIDIA / CUDA              | Experimental fast path | CUDA/NVENC interop on Linux for hardware video paths.                                                |
-| AMD / Intel Vulkan         | Experimental           | Uses the Vulkan renderer without CUDA interop. Not covered by CI.                                    |
-| Software Vulkan / lavapipe | CI-covered baseline    | Runs the SDK and server integration tests. Validates behavior, not performance.                      |
-| CPU encoding               | Supported baseline     | CPU-backed FFmpeg encoding. The fallback when hardware encoding is unavailable.                      |
-| Hardware encoding          | Experimental           | CUDA/NVENC on Linux, VideoToolbox on macOS. Depends on OS, driver, FFmpeg, and adapter.              |
+| Area                       | Status                 | Notes                                                                                                                   |
+| -------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Linux / Vulkan             | Supported              | Primary native render path. CI runs on Ubuntu with software Vulkan (lavapipe).                                          |
+| macOS / Metal              | Supported              | Metal rendering and VideoToolbox encoding. CI compiles it but runs nothing.                                             |
+| Windows                    | Basic development only | TypeScript packages and pure Rust crates build. Native rendering, FFmpeg, and `lumen-server` do not.                    |
+| NVIDIA / CUDA              | Experimental fast path | CUDA/NVENC encode interop on Linux.                                                                                     |
+| AMD / Intel Vulkan         | Experimental           | Uses the Vulkan renderer without CUDA interop. Not covered by CI.                                                       |
+| Software Vulkan / lavapipe | CI-covered baseline    | Runs the SDK and server integration tests. Validates behavior, not performance.                                         |
+| CPU encoding               | Supported baseline     | `libx264`. The Linux default falls back to it when `h264_vulkan` won't open.                                            |
+| Hardware encoding          | Experimental           | `h264_vulkan` on Linux and VideoToolbox on macOS by default, NVENC by name. Depends on OS, driver, FFmpeg, and adapter. |
 
 ## Linux
 
@@ -26,7 +26,7 @@ The Debian and Ubuntu packages CI installs are listed under [Self-hosting](self-
 
 ## macOS
 
-macOS renders through Metal and encodes with VideoToolbox where available. CI does not run macOS jobs, so macOS support relies on local development and release validation.
+macOS renders through Metal and encodes with VideoToolbox where available. CI only compiles the `metal` build of `lumen-server` and `lumen-local`, so runtime behavior relies on local development and release validation.
 
 ## Windows
 
@@ -36,8 +36,23 @@ Native rendering, FFmpeg-backed media, `lumen-server`, the WASM and type generat
 
 ## Encoding
 
-CPU-backed FFmpeg encoding is the portable baseline. Hardware encoding is opportunistic. When no compatible hardware encoder interop path exists, CPU encoding is the expected fallback.
+`lumen-server` and `lumen-local` take the encoder from `LUMEN_VIDEO_ENCODER` (or `--encoder` in `lumen-local`), then the platform default:
+
+| Platform | Default             | If it won't open                                       |
+| -------- | ------------------- | ------------------------------------------------------ |
+| Linux    | `h264_vulkan`       | One warning with the reason, then `libx264` on the CPU |
+| macOS    | `h264_videotoolbox` | The render fails                                       |
+
+Encoder names are FFmpeg's own, such as `libx264`, `hevc_nvenc`, `av1_nvenc`, `libsvtav1`, or `av1_vulkan`, and are checked against your FFmpeg build before rendering starts. Short names such as `h264`, `hevc`, `h265`, and `av1` are refused, and so are `*_vaapi` encoders. Only the automatic default falls back. An encoder you name either opens or fails the render. `av1_vulkan` needs FFmpeg 8.0 or newer.
+
+`h264_vulkan` renders and encodes on one Vulkan device, so frames never leave the GPU. NVENC keeps frames on the GPU in builds with the `cuda` feature, and uploads them from the CPU otherwise.
+
+## Hardware decode
+
+Video decodes on the CPU by default. Set `LUMEN_HARDWARE_DECODE=1` to decode on the renderer's Vulkan device on Linux, in builds with the `vulkan` feature. It covers H.264, HEVC, and AV1 at 8-bit 4:2:0, and needs FFmpeg 8.0 or newer.
+
+Anything else decodes on the CPU, with one warning per source. That includes older FFmpeg, VP9, 10-bit video, hardware without the codec, and sources that are rotated or have an alpha channel. A source whose hardware decoder fails before any of its frames are drawn also moves to the CPU. After that, a failure stops the render, because moving to the CPU would change the source's pixels partway through.
 
 ## CI coverage
 
-CI does not cover macOS or Metal, native Windows rendering, physical NVIDIA, AMD, or Intel GPUs, or hardware encoder paths.
+CI compiles the macOS Metal build but runs nothing on macOS. It does not cover native Windows rendering, physical NVIDIA, AMD, or Intel GPUs, or hardware encoder paths.

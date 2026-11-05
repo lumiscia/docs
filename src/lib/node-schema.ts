@@ -6,14 +6,15 @@ type ValueSchema = {
   enum?: string[];
   pattern?: string;
   anyOf?: ValueSchema[];
+  properties?: Record<string, ValueSchema>;
+  additionalProperties?: ValueSchema | boolean;
 };
 
 export type NodePort = { name: string; kind: string; optional?: boolean; variadic?: boolean };
 
 export type NodeParam = ValueSchema & {
   description: string;
-  default: unknown;
-  additionalProperties?: ValueSchema;
+  default?: unknown;
   "x-lumen-kind": string;
   "x-lumen-constraints"?: { min?: number; max?: number; step?: number; format?: string };
   "x-lumen-enumOptions"?: { name: string }[];
@@ -41,19 +42,33 @@ export function getNodeSchema(type: string) {
 
 const expressionRef = "#/$defs/expression";
 
-export type ExpressionSupport = "value" | "entries" | "none";
+export type ExpressionSupport = "value" | "entries" | "fields" | "none";
 
-// "entries" means the param is an object whose values accept expressions.
+const defs = $defs as Record<string, ValueSchema>;
+
+function resolve(schema: ValueSchema | boolean | undefined) {
+  if (typeof schema !== "object") return undefined;
+  if (!schema.$ref || schema.$ref === expressionRef) return schema;
+  return defs[schema.$ref.replace("#/$defs/", "")];
+}
+
+const acceptsExpression = (schema: ValueSchema) =>
+  schema.anyOf?.some((option) => option.$ref === expressionRef) ?? false;
+
+// "entries" means the param is an object whose values accept expressions,
+// "fields" an object with named fields that accept expressions.
 export function getExpressionSupport(param: NodeParam): ExpressionSupport {
-  if (param.anyOf?.some((option) => option.$ref === expressionRef)) return "value";
+  const schema = resolve(param);
+  if (!schema) return "none";
+  if (acceptsExpression(schema)) return "value";
 
-  const entry = param.additionalProperties;
-  const entryName = entry?.$ref?.replace("#/$defs/", "");
-  const entrySchema = entryName ? ($defs as Record<string, ValueSchema>)[entryName] : entry;
+  const entry = resolve(schema.additionalProperties);
   const acceptsString = (option: ValueSchema) =>
     option.$ref === expressionRef || (option.type === "string" && !option.pattern && !option.enum);
+  if (entry?.anyOf?.some(acceptsString)) return "entries";
 
-  return entrySchema?.anyOf?.some(acceptsString) ? "entries" : "none";
+  if (Object.values(schema.properties ?? {}).some(acceptsExpression)) return "fields";
+  return "none";
 }
 
 export function describePortConnection(port: NodePort, direction: "input" | "output") {
@@ -81,6 +96,7 @@ export function describeConstraints(param: NodeParam) {
 const expressionLabels = {
   value: "expression",
   entries: "expression values",
+  fields: "expression fields",
   none: "literal only",
 };
 

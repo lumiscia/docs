@@ -5,7 +5,7 @@ description: Produces a vector shape layer for GPU rasterization.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`shape` draws a rectangle, ellipse or polygon to a raster, with an optional fill and stroke. `width` and `height` size rectangles and ellipses; for a polygon, set `geometry_kind` to `polygon` and list its vertices in `polygon_points`.
+`shape` draws a rectangle or an ellipse to a raster, with an optional fill and stroke. `width` and `height` take fractional pixels, so an animated or measured size doesn't snap to whole pixels. To draw a polygon, use a [`path`](path) with closed path data, such as `M 0 0 L 120 0 L 60 100 Z`.
 
 <NodeReference type="shape" />
 

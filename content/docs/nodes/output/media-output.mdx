@@ -11,7 +11,7 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 ## Example
 
-Connect the last node's `output` to the `source` input of `media_output`:
+Connect the last node to the `source` input of `media_output`:
 
 ```json
 {
@@ -19,6 +19,6 @@ Connect the last node's `output` to the `source` input of `media_output`:
     { "id": 1, "type": "background", "params": { "paint": [16, 24, 32, 255] } },
     { "id": 2, "type": "media_output" }
   ],
-  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+  "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
 }
 ```

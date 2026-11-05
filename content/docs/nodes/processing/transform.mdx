@@ -7,6 +7,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `transform` moves, scales and rotates a raster within the composition canvas. Its params are usually animated with expressions.
 
+Scale and rotation pivot on the source's center. To pivot elsewhere, set `custom_pivot` to `true` along with `pivot_x` and `pivot_y`. A pivot set without `custom_pivot: true` is an error.
+
 <NodeReference type="transform" />
 
 ## Example

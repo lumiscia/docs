@@ -73,7 +73,7 @@ To animate a color, tween or `lerp` between two colors. This background shifts f
 
 ## Per-glyph text
 
-A `text` node evaluates `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` once per glyph. In those params, `glyph`, `word` and `line` give the index of the glyph being drawn, so you can stagger each one:
+A `text` node evaluates `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` once per glyph. In those params, `glyph`, `word`, `line` and `span` give the index of the glyph being drawn, so you can stagger each one:
 
 ```json
 {
@@ -88,7 +88,7 @@ A `text` node evaluates `glyph_offset`, `glyph_scale`, `glyph_rotation` and `gly
 }
 ```
 
-Each glyph starts 2 frames after the one before it. Use `word` or `line` in place of `glyph` to stagger words or lines.
+Each glyph starts 2 frames after the one before it. Use `word`, `line` or `span` in place of `glyph` to stagger words, lines or spans.
 
 ## Reusable motion
 

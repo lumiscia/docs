@@ -53,9 +53,21 @@ The `media_in` node reads the alias `hero`. In preview, you register a local fil
 
 ## Preview
 
-The [React](react) and [Svelte](svelte) packages render the composition into a `<canvas>` with the Lumen engine compiled to WebAssembly. Pass local files to the canvas's `mediaSources` prop, using the alias as the `id`, for example `{ kind: "image", id: "hero", source: file }`.
+The [React](react) and [Svelte](svelte) packages play the composition in a worker, with the Lumen engine compiled to WebAssembly. Pass local files to the player's `media` prop, keyed by alias, for example `{ hero: file }`.
 
-`source` accepts a `File` or `Blob`, a URL string or `URL`, a `Request`, or raw bytes, so you can preview a file before it is uploaded.
+A source can be a `File` or `Blob`, a URL string or `URL`, or raw bytes, so you can preview a file before it is uploaded.
+
+The preview needs a browser with WebGPU and `OffscreenCanvas`. WebGPU also needs HTTPS or localhost.
+
+### Bindings
+
+`@lumiscia/lumen-bindings` holds the WebAssembly build and the preview worker. Pass `createLumenBindings()` to the player as `bindings`, imported from the entry point that fits your setup:
+
+| Entry point                        | Use                                                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `@lumiscia/lumen-bindings/bundler` | Vite. Needs no plugins or config.                                                                                            |
+| `@lumiscia/lumen-bindings`         | Browsers without a bundler. To serve the wasm or the worker from your own URLs, pass `previewWasmUrl` or `previewWorkerUrl`. |
+| `@lumiscia/lumen-bindings/node`    | Node.js. Parses compositions but can't render, because rendering needs a browser's WebGPU.                                   |
 
 ## Render through your backend
 
@@ -70,10 +82,10 @@ const response = await fetch("/api/renders", { method: "POST", body: form });
 const { id } = await response.json();
 ```
 
-On the server, upload the file and create the render. This example uses Node.js; see [Cloudflare Workers](cloudflare) for the Worker entry point.
+On the server, upload the file and create the render. This example uses Node.js. On [Cloudflare Workers](cloudflare), import from the same package and read the key from the Worker's environment.
 
 ```ts title="server.ts"
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+import { Lumen } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
@@ -84,16 +96,9 @@ export async function createRender(form: FormData) {
   const composition = JSON.parse(String(form.get("composition")));
   const file = form.get("hero") as File;
 
-  const hero = await lumen.uploadMedia({
-    body: file,
-    contentType: file.type,
-    fileName: file.name,
-    sizeBytes: file.size,
-  });
+  const hero = await lumen.uploadMedia({ body: file });
 
-  return lumen.render(composition, {
-    media: { hero: mediaReference(hero) },
-  });
+  return lumen.render(composition, { media: { hero } });
 }
 ```
 

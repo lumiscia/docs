@@ -94,7 +94,7 @@ The response's `render` object includes `status` (`queued`, `processing`, `succe
 - Edit at a lower resolution and render the final version at full size.
 - Use the lowest frame rate your content needs.
 - Trim video sources with `range_start` and `range_end` on `media_in`.
-- Wrap an expensive branch in `memo` so it renders again only when its `key` changes.
+- Keep params literal where they don't change. A [static branch](how-it-works#frame-evaluation) renders once and is reused on later frames.
 
 ## FAQ
 

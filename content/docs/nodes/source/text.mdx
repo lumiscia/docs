@@ -5,7 +5,7 @@ description: Produces a text source.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`text` lays out a string in a font and draws it to a raster. The `glyph_*` params are evaluated once per glyph and can read `glyph`, `word` and `line`, so you can stagger an animation across letters.
+`text` lays out text in a font and draws it to a raster. `content` is a string, or an array of spans that each style part of the text. The `glyph_*` params are evaluated once per glyph and can read `glyph`, `word`, `line` and `span`, so you can stagger an animation across letters.
 
 <NodeReference type="text" />
 
@@ -24,3 +24,133 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
   }
 }
 ```
+
+## Spans
+
+Set `content` to an array of spans to style parts of the text. Each span needs `text`, and can set `font_family`, `font_size`, `font_weight`, `font_style`, `letter_spacing`, `color`, `text_transform`, `font_features`, `underline`, `strikethrough`, `highlight` and `stroke`. Anything a span leaves out comes from the node. Span text and span fields accept expressions; `font_features`, the decorations and `stroke` take them in their own fields.
+
+`baseline_shift` moves a span up by that many pixels, or down when negative. The line keeps its height, so a shifted span can overlap the lines around it. A superscript is a smaller `font_size` with a `baseline_shift`:
+
+```json
+{
+  "id": 1,
+  "type": "text",
+  "params": {
+    "content": [
+      { "text": "E = mc" },
+      { "text": "2", "font_size": 40, "baseline_shift": 30 },
+      { "text": " explained", "color": "#f5b301", "font_weight": 700 }
+    ],
+    "font_size": 72,
+    "position": [640, 360],
+    "alignment_horizontal": "center"
+  }
+}
+```
+
+A span's gradient `color` covers that span's lines. Set `paint_space` to `text` to stretch it over the whole text. The node's `color` always covers the whole text.
+
+In the `glyph_*` params, `span` is the index of the span being drawn and `span_count` the number of spans, so you can animate one span: `"glyph_offset": "=if(span == 1, vec2(0, -10 * sin(time * 6 + glyph)), vec2(0, 0))"`.
+
+## Decorations
+
+`underline`, `strikethrough` and `highlight` are off when absent. Set one on the node to decorate all the text, or on a span to decorate that span. A span's own decoration replaces the node's, and `null` turns the node's off for that span.
+
+- `underline` and `strikethrough` take `style` (`solid`, `double`, `dotted`, `dashed` or `wavy`), `thickness` and `offset` in pixels (the font's when absent), `paint` (the text's color when absent) and `extent`.
+- `highlight` draws a box behind each line and takes `paint` (black by default), `padding` as `[x, y]` pixels, `radius` and `extent`.
+
+`extent` is the `[start, end]` of the decoration along the text, as fractions of its width, and runs across line breaks. Animate it to draw a line on:
+
+```json
+{
+  "id": 1,
+  "type": "text",
+  "params": {
+    "content": [
+      { "text": "Ship it " },
+      { "text": "today", "highlight": { "paint": "#ffd60a", "padding": [8, 2], "radius": 6 } }
+    ],
+    "color": "#111111",
+    "font_size": 64,
+    "position": [640, 360],
+    "underline": { "thickness": 4, "extent": "=vec2(0, clamp(time * 2, 0, 1))" }
+  }
+}
+```
+
+Each field takes a literal or an expression, but a whole decoration can't be one expression. Decorations follow the node's transform, opacity and motion blur, but not the `glyph_*` params. They don't change the layout, `text_width` or `text_height`.
+
+## Stroke
+
+`stroke` outlines the glyphs with a `paint` (black by default), a `width` in pixels (`2` by default) and an `align`. `outside`, the default, draws the outline behind the fill, reaching `width` pixels past each glyph's edge, as captions do. `center` draws it over the fill, centered on the edge. As with decorations, a span's `stroke` replaces the node's and `null` turns it off.
+
+```json
+{
+  "id": 1,
+  "type": "text",
+  "params": {
+    "content": "Breaking news",
+    "font_size": 72,
+    "position": [640, 600],
+    "alignment_horizontal": "center",
+    "stroke": { "paint": [0, 0, 0, 255], "width": 6 }
+  }
+}
+```
+
+A stroke doesn't change the layout or the measured size. `glyph_opacity` fades a glyph's stroke and fill together. Decorations aren't stroked, and neither are color and bitmap glyphs such as emoji.
+
+A text node draws at most 2048 glyphs, counting a stroked glyph twice and each decoration box once. Whitespace isn't drawn and doesn't count. Past the limit, the render fails with an error naming the node.
+
+## Fit and truncation
+
+`max_lines` and `max_height` drop the lines past them, and are unlimited when absent. `overflow` sets how the last line shown ends: `clip` leaves it as it is, and `ellipsis` ends it with `…`.
+
+`fit: "shrink"` scales every font size by one factor, at most 1, so the text fits `max_width`, `max_lines` and `max_height` without breaking a word. It shrinks no further than `min_font_size`, and lines that still don't fit are dropped by `overflow`. Letter spacing, line height, decorations and strokes scale with the text.
+
+```json
+{
+  "id": 1,
+  "type": "text",
+  "params": {
+    "content": "A headline that may run longer than the space it has",
+    "font_size": 72,
+    "position": [80, 80],
+    "max_width": 800,
+    "max_lines": 2,
+    "fit": "shrink",
+    "min_font_size": 40,
+    "overflow": "ellipsis"
+  }
+}
+```
+
+`text_width` and `text_height` measure the text as drawn, after truncation and fit, and the `glyph_*` params see only the glyphs and lines shown.
+
+## Case, features and spacing
+
+`text_transform` sets the case before the text is shaped: `none`, `uppercase`, `lowercase` or `capitalize`, which uppercases the first letter or digit of each word. It uses Unicode case mapping, so `ß` becomes `SS`.
+
+`font_features` turns OpenType features on and off by four-character tag. `0` turns a feature off, `1` turns it on and larger values select an alternate. Each value takes a literal or an expression, but the whole map can't be one expression. A span's features merge over the node's. Tabular figures keep a counter from jittering:
+
+```json
+{
+  "id": 1,
+  "type": "text",
+  "params": {
+    "content": "=floor(progress(0, 60) * 1250)",
+    "font_size": 96,
+    "position": [640, 360],
+    "alignment_horizontal": "center",
+    "font_features": { "tnum": 1 }
+  }
+}
+```
+
+`paragraph_spacing` adds pixels after each paragraph but the last. A line break in the text starts a new paragraph.
+
+## Fonts
+
+`font_family` must name a font the renderer has loaded. Lumen bundles Roboto, the default, and draws a family that isn't loaded in Roboto. Characters a font lacks, such as CJK, Hebrew or emoji, fall back only to other loaded fonts, so load a font that covers them. [Self-hosting](../../open-source/self-hosting#fonts) lists where `lumen-server` looks for fonts.
+
+Fonts registered in the browser preview aren't part of a render request. See [Preview to render](../../guides/preview-to-render).

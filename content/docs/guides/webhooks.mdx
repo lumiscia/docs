@@ -13,7 +13,7 @@ const lumen = new Lumen({
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const { id, error } = await lumen.render(composition, {
+const { id } = await lumen.render(composition, {
   webhookUrl: "https://example.com/webhooks/lumiscia",
 });
 ```
@@ -29,7 +29,7 @@ A render sends one webhook, for one of two events:
 | `render.succeeded` | The artifact is ready to download.         |
 | `render.failed`    | The render failed. Failures aren't billed. |
 
-Webhooks don't report queue position or progress. For those, use `waitForRender()` or `subscribeToRender()` from the [Node SDK](../sdks/node).
+Webhooks don't report queue position or progress. For those, use `waitForRender()` with `onProgress` from the [Node SDK](../sdks/node#wait-for-a-render).
 
 ## Payload
 
@@ -64,27 +64,66 @@ The body is JSON:
 | `resolution`     | Artifact size as `<width>x<height>`. Present on success.                          |
 | `error`          | Why the render failed. Present on failure.                                        |
 
-Download the artifact from `artifactUrl` with your API key, or call `getRenderArtifact(id)`. Artifacts expire; the render's `outputExpiresAt` gives the time, and [Pricing](../pricing) lists retention per plan.
+Download the artifact from `artifactUrl` with your API key, or call `download(id)`. Artifacts expire; the render's `outputExpiresAt` gives the time, and [Pricing](../pricing) lists retention per plan.
 
 ## Delivery
 
-Each delivery carries these headers:
+Webhooks are signed with the [Standard Webhooks](https://www.standardwebhooks.com) scheme. Each delivery carries these headers:
 
-| Header             | Value                                                             |
-| ------------------ | ----------------------------------------------------------------- |
-| `lumen-webhook-id` | Id of the delivery, such as `wh_...`. The same on every retry.    |
-| `lumen-timestamp`  | Unix time in seconds when the attempt was sent.                   |
-| `lumen-signature`  | `v1=` and a hex HMAC-SHA256 of `<webhook id>.<timestamp>.<body>`. |
-| `user-agent`       | `Lumen-Webhooks/1.0`                                              |
+| Header              | Value                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webhook-id`        | Id of the delivery. The same on every retry.                                                                                                                   |
+| `webhook-timestamp` | Unix time in seconds when the attempt was sent.                                                                                                                |
+| `webhook-signature` | `v1,` and a base64 HMAC-SHA256 of `<webhook id>.<timestamp>.<body>`, signed with your workspace's `whsec_` secret. Several signatures are separated by spaces. |
+| `user-agent`        | `Lumen-Webhooks/1.0`                                                                                                                                           |
 
 Return a `2xx` status to acknowledge a delivery. Lumiscia makes up to 3 attempts when your endpoint returns any other status, 2 seconds and then 4 seconds apart.
 
-<Callout type="warn" title="Signatures can't be verified yet">
-  Lumiscia doesn't issue webhook signing secrets to workspaces yet, so you can't check `lumen-signature`. Treat a webhook as a notification, and fetch the render with `getRender(id)` or `GET /v1/renders/<id>` before you act on it.
-</Callout>
+## Verify signatures
+
+`verifyWebhook` from `@lumiscia/lumen-sdk` checks the signature and the timestamp, then returns the typed event. Pass it the raw body exactly as received, since parsing and re-serializing the JSON breaks the signature. This handler takes a web `Request`, as in Cloudflare Workers, and your workspace's webhook signing secret:
+
+```ts
+import { LumenWebhookError, verifyWebhook } from "@lumiscia/lumen-sdk";
+
+export async function handleWebhook(request: Request, secret: string): Promise<Response> {
+  let event;
+  try {
+    event = await verifyWebhook({
+      body: await request.text(),
+      headers: request.headers,
+      secret,
+    });
+  } catch (error) {
+    if (error instanceof LumenWebhookError) {
+      return new Response(error.code, { status: 400 });
+    }
+    throw error;
+  }
+
+  if (event.event === "render.succeeded") {
+    console.log("Render ready:", event.id, event.artifactUrl);
+  } else {
+    console.log("Render failed:", event.id, event.error);
+  }
+  return new Response(null, { status: 204 });
+}
+```
+
+`headers` also takes a plain object, such as Node's `request.headers`, and `body` takes a string, `ArrayBuffer`, or `Uint8Array`. `toleranceSeconds` sets how far `webhook-timestamp` may be from the current time, 300 seconds by default.
+
+If a delivery can't be trusted or parsed, `verifyWebhook` throws a `LumenWebhookError` with one of these codes:
+
+| Code                     | Meaning                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `missing_headers`        | A `webhook-*` header is missing, or `webhook-timestamp` isn't a Unix time.    |
+| `invalid_secret`         | The secret isn't `whsec_` followed by base64.                                 |
+| `timestamp_out_of_range` | `webhook-timestamp` is further from the current time than `toleranceSeconds`. |
+| `invalid_signature`      | No `v1` signature matches the body.                                           |
+| `invalid_payload`        | The body isn't JSON, or isn't a render event.                                 |
 
 ## Handling deliveries
 
-- Use `lumen-webhook-id` or the render `id` to ignore duplicate deliveries.
-- Confirm the render with the API before making changes your users can see, such as publishing the video.
+- Use `webhook-id` or the render `id` to ignore duplicate deliveries.
+- Verify the signature before making changes your users can see, such as publishing the video.
 - Ignore payload fields you don't recognize. New fields can appear.

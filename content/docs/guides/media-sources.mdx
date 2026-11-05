@@ -18,7 +18,7 @@ A composition never contains files or URLs. Each `media_in` node and audio clip 
       { "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } },
       { "id": 2, "type": "media_output" }
     ],
-    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
   }
 }
 ```
@@ -27,36 +27,33 @@ The same composition renders with different files when you change only the manif
 
 ## Upload a file
 
-`uploadMedia()` creates the media and uploads its bytes. `mediaReference()` turns the result, or a media id, into the `lumen:<media_id>` form the manifest takes.
+`uploadMedia()` creates the media and uploads its bytes. Pass the result as a manifest value, and the SDK sends it as `lumen:<media_id>`. `mediaReference()` builds that string from a media record or id, for when you write the request yourself.
 
 ```ts
 import { readFile } from "node:fs/promises";
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+import { Lumen } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const bytes = await readFile("hero.png");
 const hero = await lumen.uploadMedia({
-  body: bytes,
-  contentType: "image/png",
+  body: await readFile("hero.png"),
   fileName: "hero.png",
-  sizeBytes: bytes.byteLength,
 });
 
-const { id, error } = await lumen.render(composition, {
-  media: { hero: mediaReference(hero) },
+const { id } = await lumen.render(composition, {
+  media: { hero },
 });
 ```
+
+The content type comes from `contentType`, the blob's type, or the file name's extension. A stream also needs `sizeBytes`. Bodies over 64 MiB, and every stream, go up as a multipart upload in 8 MiB parts. See [Upload media](../sdks/node#upload-media) for every body type.
 
 Without the SDK, the upload is two requests:
 
 1. `POST /v1/media` with `fileName`, `contentType` and `sizeBytes`. The response has the `media` object, an `uploadUrl` (`/v1/media/<id>/content`) and `maxBytes`, the largest upload allowed.
 2. `PUT` the file to `uploadUrl` with your API key and a `content-length` header. The response has the updated `media` object.
-
-For large files, pass `multipart: true` to upload in 8 MiB parts, or `multipart: { partSizeBytes }` to choose the part size.
 
 ## Ingest from a URL
 
@@ -95,7 +92,7 @@ A `media_in` node with `kind: "image"` shows the image on every frame.
 
 ## Video
 
-Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to source frames `range_start` up to, but not including, `range_end`. When `range_end` is not greater than `range_start` (both default to 0), the whole video plays.
+Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to source frames `range_start` up to, but not including, `range_end`. `range_start` defaults to 0 and works on its own. Leave out `range_end` to play to the end of the video.
 
 ```json
 {
@@ -113,6 +110,10 @@ Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to so
 ```
 
 `speed` scales playback, and a negative speed plays backwards. `loop_mode` sets what happens past the end of the range: `clamp` (the default) holds the last frame, `repeat` starts over, and `ping_pong` plays back and forth. Playback follows the video's own frame rate, so a 24 fps video plays at normal speed in a 30 fps composition.
+
+Renders read video and audio only from files that hold their own data, such as MP4, MOV, WebM, MKV and MPEG-TS. HLS and DASH playlists, concat lists and image sequences are refused. A `media_in` whose source can't be opened, including a video with no usable frame rate, fails the render before the first frame, with the reason.
+
+Images and video with transparency, such as PNGs, ProRes 4444 and WebM with alpha, are premultiplied when they are decoded, as in the browser preview.
 
 ## Audio
 

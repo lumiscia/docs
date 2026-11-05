@@ -9,7 +9,7 @@ description: Build compositions in TypeScript with Composition, typed params and
 npm install @lumiscia/lumen-shared
 ```
 
-`@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare` re-export `Composition` and `AudioTrack`. The expression helpers, `defineComposition`, `prop`, `fn` and `wgslShader` come only from `@lumiscia/lumen-shared`.
+`@lumiscia/lumen-sdk` re-exports everything in `@lumiscia/lumen-shared`, so if you use the SDK, import `Composition`, the expression helpers, `defineComposition`, `prop`, `fn` and `wgslShader` from `@lumiscia/lumen-sdk` instead.
 
 ## Create a composition
 
@@ -23,11 +23,11 @@ const composition = new Composition({
 });
 ```
 
-`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. `setSize()`, `setFps()`, `setDurationFrames()`, `setDurationSeconds()`, `setBackgroundColor()` and `setMetadata()` change these later.
+`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. Pass every setting to the constructor, since a composition has no setters. To fill the frame with a color, add a `background` node.
 
 ## Add and connect nodes
 
-`addNode()` takes the node's `type` and `params`, with the same snake_case names as the JSON, and returns the node. Ids count up from 0 unless you pass an `id`.
+`addNode()` takes the node's `type` and `params`, with the same snake_case names as the JSON, plus optional `inputs`, and returns the node. Ids count up from 0 unless you pass an `id`.
 
 ```ts
 const background = composition.addNode({
@@ -44,18 +44,16 @@ const title = composition.addNode({
   },
 });
 
-const stack = composition.addNode({ type: "raster_multimerge" });
-const output = composition.addNode({ type: "media_output" });
-
-composition
-  .connect(background, stack, { toPort: "layers" })
-  .connect(title, stack, { toPort: "layers" })
-  .connect(stack, output, { toPort: "source" });
+const stack = composition.addNode({
+  type: "raster_multimerge",
+  inputs: { layers: [background, title] },
+});
+composition.addNode({ type: "media_output", inputs: { source: stack } });
 ```
 
-`raster_multimerge` stacks its `layers` in connection order, so the title draws over the background.
+`inputs` maps each input port to the node that feeds it, and a variadic port such as `layers` takes an array. Port names are typed from the node type. `raster_multimerge` stacks its `layers` in connection order, so the title draws over the background.
 
-`connect(from, to, options)` takes nodes or ids. Pass `toPort` on every call: the default, `"input"`, isn't a port on any current node. `fromPort` defaults to `output`. See [Connections](../composition-format#connections) for each node's port names.
+`connect(from, to, { toPort })` adds the same connection after both nodes exist. It takes nodes or ids, and `toPort` is required. The connection always leaves the `output` port. `inputs` and `connect` throw for a node from another composition. See [Connections](../composition-format#connections) for each node's port names.
 
 ## Animate params
 
@@ -86,7 +84,11 @@ const rise = fn("rise(start)", (start: Num) => tween(0, 1, start, 12, "out_cubic
 composition.addFunction(rise);
 ```
 
-`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
+`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`.
+
+For a form the helpers don't cover, such as `if(..)` or `node(..)`, wrap the expression text, without its `=`, in `expr()`: `expr("if(frame > 30, 1, 0)")`. To pass text that starts with `=` as literal text, wrap it in `literal()`, which escapes the `=` as `==`.
+
+Params nested in rich text, such as the fields of a text node's spans and decorations, also take an `Expr`. Type such a value built outside `addNode` with `ExpressionInput`, as in `ExpressionInput<TextSpan>`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
 
 ## Reuse a template
 
@@ -111,28 +113,25 @@ const card = composition.addNode(lowerThird.clip({ start: 15, props: { name: "Ad
 const placed = composition.addNode({
   type: "transform",
   params: { translate_x: 80, translate_y: 520 },
+  inputs: { source: card },
 });
 
-composition
-  .connect(card, placed, { toPort: "source" })
-  .connect(placed, stack, { toPort: "layers" });
+composition.connect(placed, stack, { toPort: "layers" });
 ```
 
-Adding a clip registers its template in `compositions`. A clip draws at the template's size from the top-left corner of the canvas, so the `transform` moves it into place. `clip()` also takes `duration`, `offset`, `speed` and `end`; see [Templates](../composition-format#templates).
+Adding a clip registers its template in `compositions`, and `connect` adds `placed` to the existing `stack` as its top layer. A clip draws at the template's size from the top-left corner of the canvas, so the `transform` moves it into place. `clip()` also takes `duration`, `offset`, `speed` and `end`; see [Templates](../composition-format#templates).
 
 ## Add audio
 
-`AudioTrack` holds the clips on one track. Clip times are in seconds or milliseconds, and clips on a track can't overlap.
+`addAudio()` adds a clip, with every time in seconds: `start` on the timeline, `duration`, and `offset` into the source.
 
 ```ts
-import { AudioTrack } from "@lumiscia/lumen-shared";
-
-const music = new AudioTrack({ id: "music", volume: 0.8 });
-music.addClip({ sourceId: "song", startSeconds: 0, durationSeconds: 4 });
-composition.addAudioTrack(music);
+composition
+  .addAudioTrack({ id: "music", gain: 0.8 })
+  .addAudio({ source: "song", start: 0, duration: 4, offset: 1.5, trackId: "music" });
 ```
 
-`sourceId` is the manifest alias of an uploaded audio file.
+`source` is the manifest alias of an uploaded audio file. `trackId` defaults to `main`, a track that isn't declared yet becomes a plain track, and clips may overlap. To set a track's `name`, `muted`, `solo` or `gain`, call `addAudioTrack()` before the track's first clip. Clips take a `gain` too. Times are written to the JSON as whole milliseconds.
 
 ## Serialize and render
 
@@ -146,7 +145,7 @@ const lumen = new Lumen({
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const { id, error } = await lumen.render(composition);
+const { id } = await lumen.render(composition);
 ```
 
 A composition that uses media, like the `song` alias above, also needs a `media` manifest. See [Media sources](media-sources).

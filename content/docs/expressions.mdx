@@ -20,25 +20,25 @@ To store a literal string that starts with `=`, write `==`. `"==total"` is the t
 
 ## Where expressions work
 
-Most params accept an expression in place of a literal: numbers, booleans, text, vec2 params such as `position`, and paint params such as `fill_paint`. A few params take literals only, mostly enums such as `merge.blend_mode` and `transform.sampling`, plus `clip.composition` and `clip.end`. The [node reference](nodes) lists which.
+Most params accept an expression in place of a literal: numbers, booleans, text, enums, vec2 params such as `position`, and paint params such as `fill_paint`. A few params take literals only, such as `merge.mask_mode`, `resize.mode`, `background.width` and `background.height`, plus `clip.composition` and `clip.end`. The [node reference](nodes) lists which.
 
-The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, and a paint param takes a color (a paint expression gives a solid color, not a gradient).
+The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, and a paint param takes a color (a paint expression gives a solid color, not a gradient). An enum param takes the option's name as a string, such as `=if(frame > 10, 'italic', 'normal')` for `font_style`. A value that names no option is an error, and so is NaN or infinity for an enum or integer param.
 
 ## Values
 
 Expressions work with numbers, booleans, strings, vec2 values and colors.
 
-| Literal                         | Value                                                          |
-| ------------------------------- | -------------------------------------------------------------- |
-| `42`, `0.5`                     | Number.                                                        |
-| `true`, `false`                 | Boolean.                                                       |
-| `'Launch'`, `"Launch"`          | String. Escape quotes and backslashes with `\`.                |
-| `#ff8000`, `#ff800080`          | Color.                                                         |
-| `1.5s`, `300ms`                 | Duration, converted to frames at the composition's frame rate. |
-| `vec2(10, 20)`                  | Vec2.                                                          |
-| `rgb(255, 128, 0)`, `rgba(...)` | Color from components in 0 to 255.                             |
+| Literal                         | Value                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `42`, `0.5`, `.5`, `1e3`        | Number.                                                                                              |
+| `true`, `false`                 | Boolean.                                                                                             |
+| `'Launch'`, `"Launch"`          | String. Escape quotes and backslashes with `\`, and write `\n`, `\t` or `\r` for control characters. |
+| `#ff8000`, `#ff800080`          | Color.                                                                                               |
+| `1.5s`, `300ms`                 | Duration, converted to frames at the composition's frame rate.                                       |
+| `vec2(10, 20)`                  | Vec2.                                                                                                |
+| `rgb(255, 128, 0)`, `rgba(...)` | Color from components in 0 to 255.                                                                   |
 
-A boolean converts to `1` or `0` where a number is needed, and a numeric string such as `'12'` converts to a number. Any value converts to text for a string param. Vec2 values and colors never convert to numbers.
+A boolean converts to `1` or `0` where a number is needed. Strings, vec2 values and colors never convert to numbers, so `'12' + 1` is an error. Any value converts to text for a string param.
 
 ## Globals
 
@@ -52,7 +52,7 @@ A boolean converts to `1` or `0` where a number is needed, and a numeric string 
 
 Inside a template, `frame` and `time` follow the template's own clock, which the playing clip's `start`, `offset` and `speed` set.
 
-The `text` node's `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` params are evaluated once per glyph. In them, `glyph`, `word` and `line` are the zero-based index of the glyph, word and line being drawn, and `glyph_count`, `word_count` and `line_count` are their totals. Anywhere else, these globals are an error.
+The `text` node's `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` params are evaluated once per glyph. In them, `glyph`, `word`, `line` and `span` are the zero-based index of the glyph, word, line and [span](nodes/source/text) being drawn, and `glyph_count`, `word_count`, `line_count` and `span_count` are their totals. In plain string content, `span` is 0 and `span_count` is 1. Anywhere else, these globals are an error.
 
 There is no global for the timeline length. Write the frame count as a number when you need it.
 
@@ -66,9 +66,9 @@ There is no global for the timeline length. Write the frame count as a number wh
 | `&&`, <code>\|\|</code>, `!` | Boolean logic, short-circuiting. |
 | `( ... )`                    | Grouping.                        |
 
-Two vec2 values add, subtract, multiply and divide component by component, and a number scales a vec2 with `*` or `/`. Colors have no arithmetic; mix them with `lerp`. Division or modulo by zero is an error.
+Two vec2 values add, subtract, multiply and divide component by component, and a number scales a vec2 with `*` or `/`. Colors have no arithmetic; mix them with `lerp`. Division or modulo by exactly zero is an error.
 
-`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch.
+`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch. A condition is false when it is `false`, exactly `0`, NaN or an empty string, or a vec2 or color whose components are all 0. Any other value is true, however small.
 
 ```txt
 =if(frame < 45, 0, 1)
@@ -102,7 +102,6 @@ Two vec2 values add, subtract, multiply and divide component by component, and a
 | `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                     |
 | `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`. |
 | `lerp(from, to, t)`                      | Interpolates numbers, vec2 values or colors by `t`. Colors mix premultiplied.                       |
-| `linear(from, to, t)`                    | Same as `lerp`.                                                                                     |
 | `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.         |
 | `cubic_bezier(x1, y1, x2, y2, t)`        | CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t`.                                                 |
 
@@ -121,7 +120,7 @@ Two vec2 values add, subtract, multiply and divide component by component, and a
 | `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                            |
 | `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template. |
 
-`text_width` and `text_height` need only the first argument. Pass `node(id)` instead of text to measure a `text` node with its own font settings.
+`text_width` and `text_height` need only the first argument. Pass `node(id)` alone instead of text to measure a `text` node with its own font settings. `node(id)` takes no other arguments, so `text_width(node(8), 32)` fails when the composition loads.
 
 ```txt
 =text_width('Launch', 64, 0, 'Roboto')
@@ -136,7 +135,7 @@ Two vec2 values add, subtract, multiply and divide component by component, and a
 =node(3, 'opacity') * 0.5
 ```
 
-It reads number, boolean, text and vec2 params. Paint params such as `fill_paint` and `text.color` can't be read. The id must be a number literal.
+It reads number, boolean, text and vec2 params. Paint params such as `fill_paint` and `text.color` can't be read. The id must be a number literal. Dotted reads such as `title.opacity` don't parse; use `node(id, 'param')`.
 
 `node(id)` without a param name works only as the argument of `text_width` and `text_height`.
 
@@ -157,11 +156,11 @@ The top-level `functions` object defines functions you can call from any express
 }
 ```
 
-A body can use its parameters, the globals and other functions, and the leading `=` is optional. Lumen expands each call where you use it. Functions can't call each other in a cycle, and a name can't reuse a built-in or global.
+A body can use its parameters, the globals and other functions, and the leading `=` is optional. Lumen expands each call where you use it. Functions can't call each other in a cycle, and a name can't reuse a built-in, a global, `if`, `node`, `true` or `false`.
 
 ## TypeScript helpers
 
-`@lumiscia/lumen-shared` exports a typed helper for every built-in, named in camelCase (`tween`, `outExpo`, `textWidth`), plus the globals (`frame`, `time`, `fps`, `width`, `height`), easing names as `ease.outCubic`, `sec()` and `ms()` for durations, and `hex()` for colors. Each helper returns an `Expr` that node params accept directly and that serializes to an `=` string.
+`@lumiscia/lumen-shared` exports a typed helper for every built-in, named in camelCase (`tween`, `outExpo`, `textWidth`), plus the globals (`frame`, `time`, `fps`, `width`, `height`, and glyph globals such as `glyph` and `spanCount`), easing names as `ease.outCubic`, `sec()` and `ms()` for durations, and `hex()` for colors. Each helper returns an `Expr` that node params accept directly and that serializes to an `=` string.
 
 ```ts
 import { Composition, ease, frame, sec, sin, tween } from "@lumiscia/lumen-shared";
@@ -186,11 +185,14 @@ composition.addNode({
 
 ## Errors
 
-An expression mistake fails validation when you submit the render, or fails the render itself. Common causes:
+An expression mistake fails validation when you submit the render, or fails the render itself. Syntax errors and unknown variables, functions and easing names fail when the composition loads. Errors name the node and param at fault. Common causes:
 
 - a missing leading `=`, so the value is read as a literal,
 - `=` where you meant `==`,
-- an unknown global, function or easing name,
+- an unknown variable, function or easing name,
 - a `glyph` global outside the `glyph_*` params, or `prop()` outside a template,
 - division or modulo by zero,
+- a string where a number is needed, such as `'12' + 1`,
 - a result the param can't take, such as a vec2 for a number param.
+
+Expressions have size limits. An expression, with its function calls expanded, can nest 64 levels deep and hold 10,000 operations. Nodes that read each other through `node()`, `text_width` or `text_height` fail past 96 levels of nested evaluation or 10,000 evaluations from one expression.

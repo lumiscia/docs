@@ -7,6 +7,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `time_remap` renders its source at the frame given by `frame` instead of the current one. Use expressions for slow motion, holds and reverse playback.
 
+A `frame` below 0 renders frame 0, and one that isn't finite is an error. With `loop_enabled`, frames wrap from `loop_end` back to `loop_start`, and `loop_end` itself is never shown.
+
 <NodeReference type="time_remap" />
 
 ## Example

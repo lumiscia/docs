@@ -1,0 +1,88 @@
+---
+title: Upgrade to 0.4
+description: The breaking changes in the 0.4.0 release of the Lumen packages and lumen-server, and what to change.
+---
+
+Every `@lumiscia/lumen-*` package moved to 0.4.0 together, and the engine now rejects compositions it used to render with a silent fallback. Upgrade all the packages at once, then work through the sections that apply to you. Error messages from Lumen now name the JSON path or the node and param at fault, which makes the composition changes quick to find.
+
+## Compositions
+
+- `render_settings.background_color` is an error. Connect a [`background`](nodes/source/background) node instead.
+- Unknown keys in `timeline`, `render_settings`, templates, nodes and connections are errors, so a typo like `fpss` fails instead of falling back to 30 fps.
+- `from_port` can only be `output`. Leave it out.
+- A second connection to an input that takes one source is an error. It used to replace the first.
+- Duplicate node ids, repeated audio track or clip ids, and clips on a track the timeline doesn't declare are errors.
+- Audio clips take whole-number `start_ms`, `duration_ms` and `source_start_ms`. `start_frame`, `duration_frames` and `source_start_seconds` are errors.
+- `metadata` must be an object, with a string `name` if set.
+- The `alpha_premultiply`, `channel_shuffle`, `curves` and `memo` nodes are gone. Every raster is premultiplied, so drop `alpha_premultiply`. Rename `curves` to [`color_grade`](nodes/processing/color-grade) and `curve_source` to `lut_source`. Drop `memo`: static branches are already reused across frames. Use a [`wgsl_shader`](nodes/processing/wgsl-shader) to rearrange channels.
+- `shape` lost `polygon` and `polygon_points`. Draw polygons with a [`path`](nodes/vector/path) node and closed path data.
+- `media_in` `range_end` is the first frame past the range and is optional. Leave it out instead of setting `0` to play to the end.
+- `color_grade` `interpolation` takes `"nearest"` or `"linear"` instead of `0` or `1`, and enum params no longer fall back to their first option on an unknown value.
+- A `transform` pivot needs `custom_pivot: true`, and a custom `wgsl_shader` must declare `@workgroup_size(8, 8, 1)`.
+- `background` `width` and `height` no longer take expressions.
+- Malformed `path` data and a gradient `shadow` `color` are errors. They used to draw nothing or the gradient's first stop.
+- A `text` node that draws more than 2048 glyphs fails the render instead of dropping the rest.
+- Characters a font lacks, such as CJK or emoji, fall back only to loaded fonts, not the machine's installed fonts. Load a font that covers them. See [Text](nodes/source/text#fonts).
+
+The `lumenSchemaVersion` stays `"0.1.0"`.
+
+## Expressions
+
+- `linear(a, b, t)` is gone. Use `lerp(a, b, t)`.
+- Strings are no longer read as numbers, so `'12' + 1` is an error.
+- `title.opacity` doesn't parse. Use `node(id, 'opacity')`.
+- Unknown variables, syntax errors and `text_width(node(id), size)` fail when the composition loads instead of mid-render.
+- NaN or infinity for an enum or integer param is an error.
+
+See [Expressions](expressions) for the full rules, including the new number forms and evaluation limits.
+
+## SDK
+
+- Node.js 22 or newer is required, and `@lumiscia/lumen-sdk/cloudflare` is gone. Import from `@lumiscia/lumen-sdk` on Node and on Workers.
+- The default `baseUrl` is `https://api.lumiscia.com/v1`.
+- Every method throws a `LumenError` instead of returning `{ error }`. `render`, `getRender` and `waitForRender` return a `Render`, so `const { id } = await lumen.render(composition)` needs no check for `undefined`.
+- `RenderJob`, `RenderResult` and `LumenApiError` are now `Render`, `RenderFailure` and `LumenError`. `costCents` is `costMicros`, and `url` is absolute.
+- `getRenderArtifact(id)` is `download(renderOrId)`, which returns a `Response`.
+- `waitForRender(id, { onEvent })` is `waitForRender(id, { onProgress, signal })`, and it resolves with the finished `Render`. `subscribeToRender` and the `websocket` option are gone.
+- The six upload methods are one `uploadMedia({ body, fileName?, contentType?, sizeBytes?, signal? })`. Large files and streams go up in parts automatically, and the result can go straight into `media` in `render`.
+- `verifyWebhook` is new. See [Webhooks](guides/webhooks#verify-signatures).
+
+[Node.js SDK](sdks/node) covers each method.
+
+## Composition builder
+
+`Composition` and the expression helpers now also come from `@lumiscia/lumen-sdk`.
+
+- `setSize`, `setFps`, `setDurationFrames`, `setDurationSeconds`, `setMetadata`, `setAudio` and `setBackgroundColor` are gone. Pass `renderSettings`, `timeline` and `metadata` to the constructor.
+- `connect(from, to)` needs `{ toPort }` and lost `fromPort`. Prefer `addNode({ ..., inputs: { base: background, overlay: title } })`.
+- `AudioTrack` and `addClip` are gone. Use `addAudioTrack({ id, name, muted, solo, gain })` and `addAudio({ source, start, duration, offset, trackId, gain })`, with times in seconds.
+
+See [Composition builder](guides/composition-builder).
+
+## Preview
+
+- `LumenCanvas` and `LumenCanvasProps` are `Player` and `PlayerProps` in React and Svelte.
+- `compositionJson` is `composition`, which takes an object or a `Composition`.
+- `mediaSources` and `audioSources` are one `media` map of alias to source. Register fonts with the new `fonts` map.
+- `className`, `class` and `style` apply to a wrapping `<div>`, which the canvas fills.
+- `error` is a message, and the new `errorCode` is one of `audio_failed`, `load_failed`, `render_failed`, `webgpu_unavailable` or `worker_failed`.
+- `preview.seek()` returns a promise. `preview.controller` and `preview.reset()` are gone. In Svelte, read state from `preview.state`.
+- Remove `vite-plugin-wasm`, `vite-plugin-top-level-await` and any `optimizeDeps.exclude` for these packages from your Vite config.
+- The `@lumiscia/lumen-bindings` `/web`, `/nodejs` and `/no-modules` entry points are gone. `.` is the browser build, `/bundler` is for Vite, and `/node` parses compositions.
+- Media helpers such as `LumenMediaBridge` import from `@lumiscia/lumen-preview/media`.
+
+See [React](sdks/react) or [Svelte](sdks/svelte).
+
+## Self-hosting
+
+- `lumen-server` refuses to bind a non-loopback address without a token.
+- Compositions read media only from their manifest, and downloads from private addresses are refused unless you pass `--allow-media-host`.
+- Renders run one at a time by default (`--max-concurrent-renders`), and only the latest 16 finished renders are kept (`--retained-renders`).
+- Errors use `{ code, error }`, `webhookUrl` returns `400 webhooks_unsupported`, and the artifact route answers `409` until the render succeeds.
+- `job_id`, the `project` alias and `--verbose-debug` are gone. Use `RUST_LOG=lumen_server=debug` for debug logs.
+- Fonts are matched by the family name inside each file, from the manifest, `LUMEN_FONT_DIR`, then installed fonts.
+- On Linux the default encoder is `h264_vulkan`, falling back to `libx264`. The `h264`, `hevc`, `h265` and `av1` short names and `*_vaapi` encoders are refused.
+- CUDA hardware decode is gone. `LUMEN_HARDWARE_DECODE=1` decodes on Vulkan with FFmpeg 8.0 or newer. The `ffmpeg` executable no longer needs to be on `PATH`.
+- HLS, DASH, concat lists and image sequences are refused as inputs.
+
+See [Self-hosting](open-source/self-hosting) and [Platform support](open-source/platform-support).

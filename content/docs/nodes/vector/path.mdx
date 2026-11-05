@@ -5,7 +5,9 @@ description: Produces a rasterized vector path source.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`path` draws SVG-style path data to a raster, with an optional fill and stroke. Animate `trim_start` or `trim_end` to draw a stroke on over time.
+`path` draws SVG-style path data to a raster, with an optional fill and stroke. Animate `trim_start` or `trim_end` to draw a stroke on over time. Close a contour with `Z` to draw a polygon.
+
+Malformed `data` fails the frame with an error naming the node and the position where parsing stopped. Coordinates and radii beyond ±1e7 fail the same way. An empty string draws nothing, and a `stroke_width` of 0 or less draws no stroke.
 
 <NodeReference type="path" />
 

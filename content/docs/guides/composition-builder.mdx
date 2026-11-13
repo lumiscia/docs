@@ -236,17 +236,15 @@ Adding a clip registers its template in `compositions`. A clip draws at the temp
 `addAudio()` adds a clip, with every time in seconds: `start` on the timeline, `duration`, and `offset` into the source. `fadeIn` and `fadeOut` fade the clip from and to silence on an equal-power curve.
 
 ```ts
-composition
-  .addAudioTrack({ id: "music", gain: 0.8 })
-  .addAudio({
-    source: "song",
-    start: 0,
-    duration: 4,
-    offset: 1.5,
-    trackId: "music",
-    fadeIn: 1,
-    fadeOut: 1,
-  });
+composition.addAudioTrack({ id: "music", gain: 0.8 }).addAudio({
+  source: "song",
+  start: 0,
+  duration: 4,
+  offset: 1.5,
+  trackId: "music",
+  fadeIn: 1,
+  fadeOut: 1,
+});
 ```
 
 `source` is the name the host resolves to an audio file, such as a `media` alias or an `asset:<id>`. `trackId` defaults to `main`, a track that isn't declared yet becomes a plain track, and clips may overlap. To set a track's `name`, `muted`, `solo` or `gain`, call `addAudioTrack()` before the track's first clip. Clips take a `gain` too. Times are written to the JSON as whole milliseconds.

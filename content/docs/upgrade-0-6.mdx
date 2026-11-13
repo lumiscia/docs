@@ -107,7 +107,7 @@ textureStore(output, vec2<i32>(id.xy), vec4<f32>(lumen_srgb_to_linear(curved) * 
 - A text node draws up to 16384 glyphs by default, up from 2048. The limit is a host setting.
 - A template name in `compositions` can be at most 256 bytes.
 - The root and each template hold at most 512 audio tracks and 8192 audio clips, and clips play templates that have sound at most 4096 times in all. Past one, the check fails with `audio.invalid`.
-- Audio playback is bounded. A 512-sample interval can be inside at most 1024 clips and time remaps, with a loop restarting at most 32 times in it, and sound at most 1024 clips. One planning call returns at most 500,000 segments, and the preview's plan of the whole timeline covers at most about 3 hours and 200,000 segments. Past a limit, the render or the preview load fails with `audio.limit`.
+- Audio playback is bounded. A 512-sample interval can be inside at most 1024 clips and time remaps, with a loop restarting fewer than 32 times in it, and sound at most 1024 clips. One planning call returns at most 500,000 segments, and the preview's plan of the whole timeline covers at most about 3 hours and 200,000 segments. Past a limit, the render or the preview load fails with `audio.limit`.
 - Node inputs and outputs carry a kind, `raster` or `scene`, for the new [3D nodes](guides/3d). Wiring one kind into the other fails with `connection.wrong_kind`.
 
 ## Expressions

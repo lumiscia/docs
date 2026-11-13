@@ -22,21 +22,21 @@ The optional fields are `lumenSchemaVersion`, the Lumen version the composition 
 
 The API checks each render request when you submit it, before it queues or charges anything. The composition must match the Lumen 0.6 [composition schema](composition-format), use only known node types and params, and stay within these limits:
 
-| Limit            | Value                                             |
-| ---------------- | ------------------------------------------------- |
-| Frame rate       | Up to 60 fps                                      |
-| Duration         | Up to 10,800 frames                               |
-| Width            | Up to 3,840 px                                    |
-| Height           | Up to 2,160 px                                    |
-| Nodes            | 1 to 250                                          |
-| Composition JSON | 1 MB                                              |
-| Media            | Up to 50 distinct files, by alias or `asset:<id>` |
+| Limit            | Value                                                                    |
+| ---------------- | ------------------------------------------------------------------------ |
+| Frame rate       | Up to 60 fps                                                             |
+| Duration         | Up to 10,800 frames                                                      |
+| Width            | Up to 3,840 px                                                           |
+| Height           | Up to 2,160 px                                                           |
+| Nodes            | 1 to 250                                                                 |
+| Composition JSON | 1 MB                                                                     |
+| Media            | Up to 50 manifest entries, and up to 50 distinct files with `asset:<id>` |
 
 The API accepts every Lumen 0.6 node type, including the [3D nodes](guides/3d). `lumenSchemaVersion` must be `0.6` or a 0.6 release such as `0.6.2`, and any other version is rejected with `document.schema_version`. A composition without the field is read as 0.6.
 
 Your workspace tier can lower the resolution and duration limits. Free workspaces that have never topped up render up to 1080p and 2 minutes. See [Pricing](pricing#queue-priority).
 
-A request that fails these checks gets a `400` response with the code `invalid_project_payload`, an `error` message, a `requestId`, and `diagnostics` that name what is wrong and where:
+A composition that fails these checks gets a `400` response with the code `invalid_project_payload`, an `error` message, a `requestId`, and `diagnostics` that name what is wrong and where:
 
 ```json
 {
@@ -54,7 +54,7 @@ A request that fails these checks gets a `400` response with the code `invalid_p
 }
 ```
 
-`path` is a JSON pointer into the composition, and `node` is the node's `id` when there is one. Diagnostic codes such as `node.unknown_param` are stable; messages are not, so branch on the code. The SDK throws the response as a `LumenError` with the same `code`, `message` and `diagnostics`, so you can show them in a builder UI as is. Output settings that Lumiscia doesn't render get a `422` instead (see [Output](#output)).
+`path` is a JSON pointer into the composition, and `node` is the node's `id` when there is one. Diagnostic codes such as `node.unknown_param` are stable; messages are not, so branch on the code. The SDK throws the response as a `LumenError` with the same `code`, `message` and `diagnostics`, so you can show them in a builder UI as is. Output settings that Lumiscia doesn't render get a `422` instead (see [Output](#output)). More media than the limit allows also answers `422`, with `media_manifest_too_large` and no `diagnostics`.
 
 Lumen then checks the graph itself before it renders a frame:
 

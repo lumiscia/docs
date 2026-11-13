@@ -28,7 +28,7 @@ Expect occasional problems while the platform changes:
 
 ## Render queues
 
-A render can wait in `queued` before it moves to `processing`. Waits are longer when GPU workers are cold, when your workspace already has as many active renders as its tier allows, or during deploys. A [batch render](pricing#batch-renders) can wait up to 12 hours by design. Queue time is never billed. See [Pricing](pricing#queue-priority) for concurrency per tier.
+A render can wait in `queued` before it moves to `processing`. Waits are longer when GPU workers are cold, when your workspace already has as many active renders as its tier allows, or during deploys. A [batch render](pricing#batch-renders) waits for idle capacity, and after 12 hours it is queued like a standard render. Queue time is never billed. See [Pricing](pricing#queue-priority) for concurrency per tier.
 
 ## Media and artifacts
 

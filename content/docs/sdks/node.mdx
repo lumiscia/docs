@@ -111,10 +111,10 @@ console.log("Render created:", render.id, render.cached ? "(cached)" : "");
 `quality`, `codec`, `bitDepth` and `alpha` win over the same settings in the composition's [`render_settings`](../composition-format#render-settings), and apply to video outputs only. A host that can't serve one rejects the render instead of rendering something else, so alpha in an MP4, or 10 bits with `h264`, is an error.
 
 <Callout type="info" title="On Lumiscia">
-  Lumiscia renders an 8-bit MP4 of the whole timeline in `h264`, `hevc` or `av1`. It rejects
-  `alpha`, `bitDepth: 10`, the `prores` and `vp9` codecs, and every `output` format and `frames`
-  range other than that MP4 with a `422`, before the render is queued or charged. The other outputs
-  below work with a [self-hosted `lumen-server`](../open-source/self-hosting#output). See
+  Lumiscia renders an 8-bit MP4 of the whole timeline in `h264`, `hevc` or `av1`. It rejects `alpha:
+  true`, `bitDepth: 10`, the `prores` and `vp9` codecs, and every `output` format and `frames` range
+  other than that MP4 with a `422`, before the render is queued or charged. The other outputs below
+  work with a [self-hosted `lumen-server`](../open-source/self-hosting#output). See
   [Output](../how-it-works#output).
 </Callout>
 

@@ -45,7 +45,7 @@ The resolution limit counts pixels, so 1080p allows 1920×1080 or 1080×1920. Re
 
 ## Batch renders
 
-A batch render waits for idle GPU time and costs half the per-second rate: $0.00375 per second, or $0.0025 on Pro. The $0.01 fee per render stays the same. To make one, add `"priority": "batch"` next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. The render stays `queued` until it starts, within 12 hours, and its `priority` reads `batch`. Batch renders don't count against your renders at a time or your new renders a minute. The SDK's `render()` doesn't take `priority`, so send this request yourself.
+A batch render waits for idle GPU time and costs half the per-second rate: $0.00375 per second, or $0.0025 on Pro. The $0.01 fee per render stays the same. To make one, add `"priority": "batch"` next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. The render stays `queued` until idle capacity picks it up, and its `priority` reads `batch`. After 12 hours it is queued like a standard render. One that has not started after 14 hours fails with `dispatch_lost`. Batch renders don't count against your renders at a time or your new renders a minute. The SDK's `render()` doesn't take `priority`, so send this request yourself.
 
 A batch request that breaks one of these rules is rejected with its code:
 

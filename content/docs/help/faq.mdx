@@ -31,7 +31,7 @@ Use any of these:
 
 ## Can I test without paying for GPU time?
 
-Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Test renders send no webhook, and each test key runs up to 5 at a time.
+Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Successful test renders send no webhook, and a test render that fails during submission can send `render.failed`. Each test key runs up to 5 at a time.
 
 To check a composition without rendering it at all, use [`POST /v1/renders/check`](../how-it-works#check-before-you-render).
 
@@ -52,13 +52,13 @@ Every render must fit within:
 - 10,800 frames,
 - 250 nodes,
 - 1 MB of composition JSON,
-- 50 distinct media sources.
+- 50 manifest entries, and 50 distinct media files with `asset:<id>` references.
 
-Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB.
+Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB, but a file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`.
 
 ## Why is my render queued?
 
-Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. A [batch render](../pricing#batch-renders) waits for idle GPU time, up to 12 hours. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
+Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. A [batch render](../pricing#batch-renders) waits for idle GPU time, and after 12 hours it is queued like a standard render. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
 
 ## Can I run Lumen myself?
 

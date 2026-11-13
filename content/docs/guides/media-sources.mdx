@@ -67,7 +67,7 @@ A part that failed or timed out is safe to send again under the same number, and
 
 ## Ingest from a URL
 
-`createUrlMedia()` has Lumiscia fetch a file that is already online. The URL must use `https`, and can't point at `localhost` or contain credentials. The server must answer with an image, video, audio or font `content-type`.
+`createUrlMedia()` has Lumiscia fetch a file that is already online. The URL must use `https`, and can't point at `localhost` or contain credentials. If the server sends a `content-type`, it must name an image, video, audio or font type.
 
 ```ts
 const intro = await lumen.createUrlMedia({
@@ -85,7 +85,7 @@ Lumiscia probes every file after it arrives. A render accepts only media whose `
 | Rule             | Value                                                                       |
 | ---------------- | --------------------------------------------------------------------------- |
 | Expiry           | 24 hours after you create the media (`expiresAt`)                           |
-| Media per render | Up to 50 distinct files, in the manifest and as `asset:<id>` together       |
+| Media per render | Up to 50 manifest entries, and up to 50 distinct files with `asset:<id>`    |
 | Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit. |
 | Manifest values  | `lumen:<media_id>`                                                          |
 
@@ -106,7 +106,7 @@ New renders can't use the media from then on, and `GET /v1/media/<id>` answers `
 
 ## What you can upload
 
-Uploads take images, video, audio and fonts, up to 1 GiB per file:
+Uploads take images, video, audio and fonts, up to 1 GiB per file. A file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`:
 
 | Kind   | Formats                                                                       | Limits                                                                 |
 | ------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -115,7 +115,9 @@ Uploads take images, video, audio and fonts, up to 1 GiB per file:
 | Audio  | Files with an `audio/*` content type                                          | 10 minutes long                                                        |
 | Fonts  | TrueType (`font/ttf`) and OpenType (`font/otf`)                               | 20 MiB                                                                 |
 
-Models (`.glb`), environment maps (`.hdr`, `.exr`) and `.cube` LUTs can't be uploaded, so `model_3d.source`, `render_3d.environment_map` and `color_grade.lut_source` have nothing to read on Lumiscia. An `asset:<id>` in one of them is rejected with a `422` and the code `media.wrong_kind`, and a URL is rejected like any other. You can still preview those nodes with local files, and render 3D scenes built from `shape_3d`, `text_3d` and `image_plane_3d`.
+A video or audio file may hold only audio and video streams. One with a subtitle or data stream, such as timecode or camera metadata, is rejected with `MEDIA_STREAM_TYPE_UNSUPPORTED`. Re-mux it with only its audio and video streams.
+
+Models (`.glb`), environment maps (`.hdr`, `.exr`) and `.cube` LUTs can't be uploaded, so `model_3d.source`, `render_3d.environment_map` and `color_grade.lut_source` have nothing to read on Lumiscia. An existing upload referenced in one of these fields is rejected with `422` and `media.wrong_kind`, a missing upload returns `media.not_found`, and a URL is rejected like any other. You can still preview those nodes with local files, and render 3D scenes built from `shape_3d`, `text_3d` and `image_plane_3d`.
 
 ## Images
 
@@ -191,7 +193,7 @@ const title = {
 };
 ```
 
-An `asset:<id>` that names no font in your workspace is rejected with `media.not_found`. A plain family name that the render has no font for falls back to the bundled font, with a `font.fallback` warning.
+A missing font asset returns `media.not_found`, and an existing upload that is not a font returns `media.wrong_kind`. A plain family name that the render has no font for falls back to the bundled font, with a `font.fallback` warning.
 
 ## Preview with local files
 

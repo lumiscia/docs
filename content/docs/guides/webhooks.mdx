@@ -18,7 +18,7 @@ const { id } = await lumen.render(composition, {
 });
 ```
 
-Without the SDK, add `webhookUrl` next to `media` and `composition` in the body of `POST /v1/renders`. The URL must use `https` and can't point at `localhost` or contain credentials, or the request is rejected with `invalid_webhook_url`. Renders created with a test API key send no webhook.
+Without the SDK, add `webhookUrl` next to `media` and `composition` in the body of `POST /v1/renders`. The URL must use `https` and can't point at `localhost` or contain credentials, or the request is rejected with `invalid_webhook_url`. Successful test renders send no webhook. A test render that fails during submission can send `render.failed`.
 
 ## Events
 

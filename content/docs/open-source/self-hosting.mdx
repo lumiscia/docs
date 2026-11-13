@@ -89,7 +89,7 @@ curl http://127.0.0.1:8080/health
 
 ### Submit a render
 
-`POST /renders` takes the same payload shape as the hosted API: a `composition`, an optional `media` manifest, and optional [output settings](#output).
+`POST /renders` takes a `composition`, an optional `media` manifest, and optional [output settings](#output).
 
 ```json title="render.json"
 {
@@ -161,24 +161,24 @@ curl -o render.mp4 http://127.0.0.1:8080/renders/<id>/artifact
 
 Every `:id` route returns `404` with `render_not_found` for an unknown render and for one the server has [dropped](#queueing-and-retention).
 
-The socket sends the render's current status when it connects, then each change, and closes after the render succeeds, fails or is cancelled. Its events are flat objects with `type`, `renderId`, `progress`, `url`, and `error` fields. The hosted API sends `{ type, state }` instead. The SDK's `waitForRender` reads both.
+The socket sends the render's current status when it connects, then each change, and closes after the render succeeds, fails or is cancelled. Its events are flat objects with `type`, `renderId`, `progress`, `url`, and `error` fields.
 
 ## Errors
 
 A failed request answers with its HTTP status and `{ "code", "error" }`, where `error` is the message:
 
-| Status | `code`                                                  | When                                                                                    |
-| ------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `400`  | `webhooks_unsupported`                                  | The body sets `webhookUrl`. `lumen-server` doesn't deliver webhooks.                    |
-| `400`  | `invalid_request_body`                                  | The body isn't the expected JSON. Without `content-type: application/json` it is `415`. |
-| `401`  | `unauthorized`                                          | The server has a token, and the request's token is missing or wrong.                    |
-| `404`  | `render_not_found`                                      | No render has that id, or it was dropped.                                               |
-| `409`  | `artifact_not_ready`, or the render's own error code    | The render has not succeeded.                                                           |
-| `413`  | `request_too_large`                                     | The body is over 2 MiB.                                                                 |
-| `422`  | `invalid_project_payload`                               | The composition doesn't parse, or names an `asset:` it can't use.                       |
-| `422`  | `invalid_media_alias`, `media_manifest_too_large`       | The manifest breaks the [alias rules](#media-from-urls).                                |
-| `422`  | `invalid_output`, `invalid_quality`, `output_too_large` | The [output settings](#output) can't be rendered on this host.                          |
-| `503`  | `render_queue_full`                                     | Every render slot is busy and the queue is full.                                        |
+| Status              | `code`                                                  | When                                                                                                                 |
+| ------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `400`               | `webhooks_unsupported`                                  | The body sets `webhookUrl`. `lumen-server` doesn't deliver webhooks.                                                 |
+| `400`, `415`, `422` | `invalid_request_body`                                  | `400` for malformed JSON, `422` for JSON with an incompatible shape, or `415` without an accepted JSON content type. |
+| `401`               | `unauthorized`                                          | The server has a token, and the request's token is missing or wrong.                                                 |
+| `404`               | `render_not_found`                                      | No render has that id, or it was dropped.                                                                            |
+| `409`               | `artifact_not_ready`, or the render's own error code    | The render has not succeeded.                                                                                        |
+| `413`               | `request_too_large`                                     | The body is over 2 MiB.                                                                                              |
+| `422`               | `invalid_project_payload`                               | The composition doesn't parse, or names an `asset:` it can't use.                                                    |
+| `422`               | `invalid_media_alias`, `media_manifest_too_large`       | The manifest breaks the [alias rules](#media-from-urls).                                                             |
+| `422`               | `invalid_output`, `invalid_quality`, `output_too_large` | The [output settings](#output) can't be rendered on this host.                                                       |
+| `503`               | `render_queue_full`                                     | Every render slot is busy and the queue is full.                                                                     |
 
 `invalid_project_payload` carries a `diagnostics` array of everything wrong with the composition, at most 50. Each has a `severity`, a stable `code`, a JSON pointer `path`, the `node` id when there is one, and a `message`:
 
@@ -302,7 +302,7 @@ A render fails when:
 
 - a download fails, takes longer than 2 minutes, or can't connect within 10 seconds,
 - a file is larger than 512 MiB (64 MiB for a `.cube` LUT), or the render's files add up to more than 2 GiB,
-- a host has no public address and isn't [allowed](#internal-media-hosts). The error code is `media_download_failed`.
+- a URL names a non-public address and isn't [allowed](#internal-media-hosts). A literal address fails before connecting with `media_download_forbidden_host`. A hostname that resolves only to non-public addresses, or a redirect to one, fails with `media_download_failed`.
 
 ### Internal media hosts
 

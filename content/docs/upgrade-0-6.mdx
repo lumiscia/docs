@@ -106,6 +106,8 @@ textureStore(output, vec2<i32>(id.xy), vec4<f32>(lumen_srgb_to_linear(curved) * 
 
 - A text node draws up to 16384 glyphs by default, up from 2048. The limit is a host setting.
 - A template name in `compositions` can be at most 256 bytes.
+- The root and each template hold at most 512 audio tracks and 8192 audio clips, and clips play templates that have sound at most 4096 times in all. Past one, the check fails with `audio.invalid`.
+- Audio playback is bounded. A 512-sample interval can be inside at most 1024 clips and time remaps, with a loop restarting at most 32 times in it, and sound at most 1024 clips. One planning call returns at most 500,000 segments, and the preview's plan of the whole timeline covers at most about 3 hours and 200,000 segments. Past a limit, the render or the preview load fails with `audio.limit`.
 - Node inputs and outputs carry a kind, `raster` or `scene`, for the new [3D nodes](guides/3d). Wiring one kind into the other fails with `connection.wrong_kind`.
 
 ## Expressions
@@ -186,6 +188,7 @@ Playback no longer loops by default. It stops on the last frame and calls `onEnd
 
 - `LumenPreviewErrorCode` gains `"invalid_option"`, so an exhaustive `switch` over it needs a new case.
 - `@lumiscia/lumen-preview` exports only `createLumenPreview`, `mountPreview`, `LumenPreviewContext`, `LumenPreviewSession` and their types. The `./media`, `./session` and `./audio-engine` subpaths are removed, with `LumenMediaBridge`, `LumenMediaError` and the rest of the media bridge. The bindings contract for a custom host moves to `@lumiscia/lumen-preview/advanced`.
+- A custom host also changes that contract. Bindings implement `mediaDependencies(compositionJson)` and `modelInfo(bytes)`. A controller implements `setModel`, `hasModel` and `removeModelSource`, the same three for `Environment` and `Lut` (`setEnvironment`, `setLut`), and `validateComposition(compositionJson)`. `audioTimeline()` returns the engine's audio plan as JSON, `{ voices, segments, durationFrames, fps }`, instead of parsed tracks and clips.
 - `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` no longer re-export `MediaRegistration`.
 - Only the `media` entries the composition names are fetched, and the rest are released. When an expression computes a source, give entries a `kind` unless the node or the blob's type says it.
 - A `kind` the composition doesn't read the source as fails with `media.wrong_kind`. Drop it, or fix it to the kind the node reads.
@@ -265,6 +268,16 @@ For Rust users of the `lumen_server` library:
 - The library reads no environment variables. Pass a `RenderConfig` in `RenderOptions::config`, and set `RenderOptions::encoder` to pin an encoder.
 - `RenderError` is `ServerRenderError`, with `code()`, `retryable()` and a private body. `audio_render_failed` is now the engine's code or `encode_failed`, `invalid_fps` is `invalid_render_profile`, and `media_root_error` and `font_dir_error` are `invalid_config`.
 - `render_project_mp4` is `render_project`, which returns a `RenderedOutput { bytes, format }`. Use `render_project(..)?.bytes` for the MP4 bytes.
+- `MediaStore::resolve(source, kind) -> Result<ResolvedMedia, MediaError>` replaces the per-kind `get_*_resolver` getters and `font_resolver_id`. Resolver `id()` methods are removed. Each `ResolvedMedia` carries a `MediaIdentity` (`MediaIdentity::of_key`, `unique()` or `of_file`) that must change when the source's bytes change. A font the store lacks is `Err(MediaError::source_not_found(..))`, not `Ok(None)`. To call a store, use `media::resolve_as::<dyn ImageResolver>(store, source)`.
+- `MediaError::{SourceNotFound, Decode, AssetNotFound, AssetWrongKind}` are replaced by `MediaError::Failed(MediaFailure)`. Build one with `MediaError::source_not_found` or `MediaError::decode`.
+- `MediaFrame` has the new variants `WideRgba` and `LinearRgba`, so a `match` needs arms for them. `Warning::UnsupportedColor { kind, media, .. }` covers images and video (`kind` is `AssetKind::Image` or `AssetKind::Video`) with the code `media.color_unsupported`. `ColorTags` gains `primaries`, `transfer` and `chroma_location`, built with `ColorTags::new(matrix, full_range)`. `YuvColor` gains `primaries` and `transfer`, built with `YuvColor::sdr(matrix, full_range)`.
+- `GpuCompositionRenderer::render(composition, frame, media, target)` replaces `render_frame`, `render_frame_at`, `render_frame_submitted` and `render_frame_into_external`. `target` is `RenderTarget::Owned` or `RenderTarget::External(texture)`, and `render` returns a `RenderedFrame { raster, submission }`. To time the stages apart, call `bind_frame(.., target)`, `upload_frame` and `submit_frame`. `FfmpegVideoResolver`, `FfmpegAudioResolver`, `FfmpegResolverOptions` and `ImageFileResolver` are at `lumen_engine::media`, and the `lumen_engine::ffmpeg` and `lumen_engine::image` aliases are gone.
+- `set_media_texture_cache_budget(bytes)` is `set_cache_budgets(CacheBudgets { image_textures: bytes, ..renderer.cache_budgets() })`. The pool and retained-output setters are the `pooled_textures` and `retained_outputs` fields.
+- `set_output_alpha` takes an `OutputAlpha`: `Premultiplied` (the default), `Straight` or `Opaque`. `premultiply_rgba_in_place_if_needed` is removed.
+- Hand-written `Node` and `NodeParams` implementations must add `for_each_media_source`, and `PropertyDef` has a `media` field.
+- `AudioMixer::new` takes the `Composition` instead of its timeline, and `mix_range` takes `&mut self` and returns a `LumenError` on failure. `AudioTrack::volume` and `AudioClip::volume` are an `AudioGain`, and `CompositionTemplate` has an `audio` field.
+- `resolve_encoder` takes the `OutputFormat` after the composition and returns a `ServerRenderError` instead of an `anyhow::Error`. A `match` over these enums needs the new variants: `OutputFormat::{Mov, Webm}`, `ProRes` and `Vp9` on `OutputCodec` and `EncodeCodec`, `Vpx` and `ProRes` on `EncoderFamily`, and `Yuv420p`, `Yuv420p10`, `Yuva420p`, `Yuv444p10` and `Yuva444p10` on `PixelFormat`.
+- `VulkanVideoTarget::nv12(renderer, size)` is `VulkanVideoTarget::new(renderer, size, BitDepth, dither)`, and `CudaNvencTargetPool::rgba8(renderer, size)` is `CudaNvencTargetPool::new(renderer, size, BitDepth, dither)`. `VulkanVideoFrame::new` takes a `VulkanFrameLayout` (`nv12` or `p010`) instead of a width and height.
 - `Mp4Render::open` takes a `&RenderOutput` after the output path and a `CancelToken` last, and `Mp4Render::set_cancel` is gone. `RenderOptions` has new fields, so build it with `..RenderOptions::default()`.
 
 <Tabs items={["0.5", "0.6"]}>

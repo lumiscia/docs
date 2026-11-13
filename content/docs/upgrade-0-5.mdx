@@ -9,7 +9,7 @@ Every `@lumiscia/lumen-*` package moved to 0.5.0 together. Upgrade all the packa
 
 The `lumenSchemaVersion` stays `"0.1.0"`.
 
-- `ease`, `key` and `keyframes` are reserved names, so a composition function or one of its parameters can't use them. Rename it.
+- `ease`, `key`, `keyframes`, `noise`, `random`, `path_point` and `path_angle` are reserved names. Rename composition functions or function parameters that use them.
 - Problems come back as a list of diagnostics, each with a stable `code` and a JSON pointer `path`, instead of one joined string. Messages lose their `composition structure validation failed:` prefix, so match on the `code`, not the message.
 - A composition nested more than 48 nodes deep fails with `render.too_deeply_nested`.
 - A font staged under a `media` alias now draws under the name the composition asks for. It used to load and then fall back silently.
@@ -93,6 +93,14 @@ See [React](sdks/react) or [Svelte](sdks/svelte).
 - `lumen-server` keeps uploaded media and resolves `asset:<id>` references. `uploadMedia` and `createUrlMedia` in the SDK work against it.
 - NVENC on the CUDA path encodes BT.709 and tags it so, instead of BT.601.
 - `lumen-local` takes `--quality`, `--codec` and `--quality-config`, and `--check` with `--format json`. `--bitrate`, `--crf`, `--qp` and `--preset` replace the preset's settings, so they can't be combined with `--quality`. In 0.6, `lumen-local` became the [Lumen CLI](open-source/cli).
-- For Rust users of `lumen-server`, `RenderOptions::encoder` and `resolve_encoder` replace `video_encoder` and `quality`. In `lumen-engine-ffmpeg`, `VideoDecoder::receive_rgba_frame` and `receive_cpu_frame` are replaced by `receive_video_frame`.
+
+For Rust users of `lumen-server` and the engine crates:
+
+- `RenderOptions::encoder` and `resolve_encoder` replace `video_encoder` and `quality`, and `Mp4Render::open` takes the resulting choice.
+- In `lumen-engine-ffmpeg`, `QualityConfig` resolves presets into a `VideoEncoderChoice`. `VideoEncoderChoice::resolve` and `check_quality` are removed. `EncoderQuality::rate_control` is optional and `EncoderQuality` gains `options`.
+- `VideoDecoder::receive_rgba_frame` and `receive_cpu_frame` are replaced by `receive_video_frame`.
+- `MediaStore::get_font_resolver` returns a `Result`. `json::check` and `check_value` take the asset store as their third argument.
+- `MediaFrame` has a new `RawRgba` variant, so a `match` needs an arm for it.
+- `json::unknown_param_error` is removed, and `GraphValidationError::InvalidSettings` has a `field` pointer.
 
 See [Self-hosting](open-source/self-hosting).

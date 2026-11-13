@@ -81,39 +81,39 @@ Two vec2 values, or two vec3 values, add, subtract, multiply and divide componen
 
 ### Math
 
-| Function                      | Result                                                   |
-| ----------------------------- | -------------------------------------------------------- |
-| `min(a, b, ...)`              | Smallest of two or more numbers.                         |
-| `max(a, b, ...)`              | Largest of two or more numbers.                          |
-| `abs(x)`                      | Absolute value.                                          |
-| `floor(x)`                    | Rounds down.                                             |
-| `ceil(x)`                     | Rounds up.                                               |
-| `round(x)`                    | Rounds to the nearest integer.                           |
-| `fract(x)`                    | Fractional part.                                         |
-| `mod(x, divisor)`             | Remainder, with the sign of `x`.                         |
-| `pow(base, exponent)`         | `base` raised to `exponent`.                             |
-| `sign(x)`                     | -1, 0 or 1 by the sign of `x`.                           |
-| `sin(radians)`                | Sine.                                                    |
-| `cos(radians)`                | Cosine.                                                  |
-| `atan2(y, x)`                 | Angle in radians of the point `(x, y)` from the +x axis, from -π to π. |
-| `hypot(x, y)`                 | Length of the vector `(x, y)`.                           |
-| `clamp(x, min, max)`          | `x` limited to `min..max`.                               |
+| Function                                       | Result                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `min(a, b, ...)`                               | Smallest of two or more numbers.                                                                 |
+| `max(a, b, ...)`                               | Largest of two or more numbers.                                                                  |
+| `abs(x)`                                       | Absolute value.                                                                                  |
+| `floor(x)`                                     | Rounds down.                                                                                     |
+| `ceil(x)`                                      | Rounds up.                                                                                       |
+| `round(x)`                                     | Rounds to the nearest integer.                                                                   |
+| `fract(x)`                                     | Fractional part.                                                                                 |
+| `mod(x, divisor)`                              | Remainder, with the sign of `x`.                                                                 |
+| `pow(base, exponent)`                          | `base` raised to `exponent`.                                                                     |
+| `sign(x)`                                      | -1, 0 or 1 by the sign of `x`.                                                                   |
+| `sin(radians)`                                 | Sine.                                                                                            |
+| `cos(radians)`                                 | Cosine.                                                                                          |
+| `atan2(y, x)`                                  | Angle in radians of the point `(x, y)` from the +x axis, from -π to π.                           |
+| `hypot(x, y)`                                  | Length of the vector `(x, y)`.                                                                   |
+| `clamp(x, min, max)`                           | `x` limited to `min..max`.                                                                       |
 | `remap(x, from_min, from_max, to_min, to_max)` | `x` mapped from one range onto another, without clamping. `from_min` and `from_max` must differ. |
-| `smoothstep(edge0, edge1, x)` | Hermite smoothing of `x` between two edges, from 0 to 1. |
-| `step(from, to, t)`           | `to` once `t >= 1`, otherwise `from`.                    |
+| `smoothstep(edge0, edge1, x)`                  | Hermite smoothing of `x` between two edges, from 0 to 1.                                         |
+| `step(from, to, t)`                            | `to` once `t >= 1`, otherwise `from`.                                                            |
 
 ### Animation
 
-| Function                                 | Result                                                                                              |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                     |
-| `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`. |
-| `lerp(from, to, t)`                      | Interpolates numbers, vec2 or vec3 values, colors or path data by `t`. Colors mix premultiplied.    |
-| `keyframes(t, ease, keys...)`            | The value of a keyframe track at time `t`. `ease` may be left out. See [Keyframes](#keyframes).     |
-| `key(at, value, ease)`                   | A keyframe for `keyframes`. `ease` may be left out.                                                 |
-| `ease(easing, t)`                        | An easing applied to progress `t`, such as `ease('out_expo', progress(0, 18))`.                     |
+| Function                                 | Result                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                                           |
+| `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`.                       |
+| `lerp(from, to, t)`                      | Interpolates numbers, vec2 or vec3 values, colors or path data by `t`. Colors mix premultiplied.                          |
+| `keyframes(t, ease, keys...)`            | The value of a keyframe track at time `t`. `ease` may be left out. See [Keyframes](#keyframes).                           |
+| `key(at, value, ease)`                   | A keyframe for `keyframes`. `ease` may be left out.                                                                       |
+| `ease(easing, t)`                        | An easing applied to progress `t`, such as `ease('out_expo', progress(0, 18))`.                                           |
 | `cubic_bezier(out, in)`                  | The easing CSS writes `cubic-bezier(out.x, out.y, in.x, in.y)`, with vec2 handles. Both x components must be from 0 to 1. |
-| `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.         |
+| `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.                               |
 
 `tween`, `lerp` and `keyframes` interpolate numbers, vec2 and vec3 values, colors and path data. Two paths interpolate point by point, so they must have the same commands in the same order; that morphs a `path` node's `data`.
 
@@ -121,15 +121,15 @@ Two vec2 values, or two vec3 values, add, subtract, multiply and divide componen
 
 An easing is a value: a quoted name, or `cubic_bezier(out, in)`. The names are `'linear'`, `'hold'`, which keeps the value until the next key and then jumps, and these families, each with `in_`, `out_` and `in_out_` forms such as `'out_expo'`:
 
-| Family    | Shape                                    |
-| --------- | ---------------------------------------- |
-| `quad`, `cubic`, `quart`, `quint` | Polynomial, steeper with each power. |
-| `sine`    | Sinusoidal.                              |
-| `expo`    | Exponential.                             |
-| `circ`    | Circular.                                |
-| `back`    | Pulls back, or overshoots.               |
-| `elastic` | Overshoots and oscillates like a spring. |
-| `bounce`  | Bounces like a dropped ball.             |
+| Family                            | Shape                                    |
+| --------------------------------- | ---------------------------------------- |
+| `quad`, `cubic`, `quart`, `quint` | Polynomial, steeper with each power.     |
+| `sine`                            | Sinusoidal.                              |
+| `expo`                            | Exponential.                             |
+| `circ`                            | Circular.                                |
+| `back`                            | Pulls back, or overshoots.               |
+| `elastic`                         | Overshoots and oscillates like a spring. |
+| `bounce`                          | Bounces like a dropped ball.             |
 
 Each name except `linear` and `hold` is also a function of one argument, such as `out_bounce(t)`, that maps progress from 0 to 1. `ease(easing, t)` applies any easing, `cubic_bezier` included:
 
@@ -153,19 +153,19 @@ A key can hold text that isn't path data, such as a readout that steps between w
 
 ### Noise and randomness
 
-| Function           | Result                                                                                                                 |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `noise(seed, x)`   | Smooth gradient noise from -1 to 1, continuous in `x` and varying about once per unit. Each `seed` is an unrelated curve. |
-| `random(seed, x)`  | A uniform number from 0 up to 1, fixed by its inputs. `random(x)` uses seed 0.                                          |
+| Function          | Result                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `noise(seed, x)`  | Smooth gradient noise from -1 to 1, continuous in `x` and varying about once per unit. Each `seed` is an unrelated curve. |
+| `random(seed, x)` | A uniform number from 0 up to 1, fixed by its inputs. `random(x)` uses seed 0.                                            |
 
 Both are built from integer hashing, so a frame renders the same on every host. `=noise(1, time * 2) * 20` drifts a value by up to 20, and `=random(glyph)` in a `glyph_*` param gives each glyph its own value.
 
 ### Paths
 
-| Function                    | Result                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `path_point(path_data, t)`  | The vec2 point `t` of the way along path data by arc length, with `t` clamped to 0 to 1.                      |
-| `path_angle(path_data, t)`  | The direction in degrees the path heads at that point, clockwise from +x like `rotation`, counting whole turns. |
+| Function                   | Result                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `path_point(path_data, t)` | The vec2 point `t` of the way along path data by arc length, with `t` clamped to 0 to 1.                        |
+| `path_angle(path_data, t)` | The direction in degrees the path heads at that point, clockwise from +x like `rotation`, counting whole turns. |
 
 Because `t` measures arc length, a steady `t` moves at a steady speed. Moves between contours add no length, and a closed contour's closing segment does.
 
@@ -178,19 +178,19 @@ Because `t` measures arc length, a steady `t` moves at a steady speed. Moves bet
 
 ### Values and text
 
-| Function                                               | Result                                                            |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| `vec2(x, y)`                                           | A vec2.                                                           |
-| `vec3(x, y, z)`                                        | A vec3.                                                           |
-| `rgb(r, g, b)`                                         | An opaque color from components in 0 to 255.                      |
-| `rgba(r, g, b, a)`                                     | A color with alpha, components in 0 to 255.                       |
-| `uppercase(text)`                                      | Text in uppercase.                                                |
-| `lowercase(text)`                                      | Text in lowercase.                                                |
+| Function                                               | Result                                                                                                                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vec2(x, y)`                                           | A vec2.                                                                                                                                                                    |
+| `vec3(x, y, z)`                                        | A vec3.                                                                                                                                                                    |
+| `rgb(r, g, b)`                                         | An opaque color from components in 0 to 255.                                                                                                                               |
+| `rgba(r, g, b, a)`                                     | A color with alpha, components in 0 to 255.                                                                                                                                |
+| `uppercase(text)`                                      | Text in uppercase.                                                                                                                                                         |
+| `lowercase(text)`                                      | Text in lowercase.                                                                                                                                                         |
 | `format(value, decimals, width, fill)`                 | A number as text with `decimals` digits after the point (default 0), padded on the left with the one-character `fill` (default a space) to `width` characters (default 0). |
-| `concat(parts...)`                                     | Strings and numbers joined into one string. A number shows as it does in a text param. |
-| `text_width(text, font_size, max_width, font_family)`  | Laid-out width of the text in pixels.                             |
-| `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                            |
-| `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template. |
+| `concat(parts...)`                                     | Strings and numbers joined into one string. A number shows as it does in a text param.                                                                                     |
+| `text_width(text, font_size, max_width, font_family)`  | Laid-out width of the text in pixels.                                                                                                                                      |
+| `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                                                                                                                                     |
+| `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template.                                                                                                          |
 
 `format` rounds halves away from zero on the number as written, so `format(2.5)` is `'3'` and `format(1.005, 2)` is `'1.01'`. With a `'0'` fill the sign stays first: `format(-5, 0, 4, '0')` is `'-005'`. `value` must be finite, `decimals` a whole number from 0 to 20 and `width` one from 0 to 64. `concat` takes strings and numbers only, and its result is at most 1 MiB. Together they make a frame counter:
 

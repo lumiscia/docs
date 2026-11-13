@@ -30,15 +30,15 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `repeat` draws up to 1024 copies of the node in one pass. Copy `i` adds `i` times `rotation_offset`, `scale_offset` and `opacity_offset` to the node's own rotation, scale and opacity, about its own anchor, and moves by `position_offset` per column. With `columns` set, copies wrap into rows that move by `row_offset`. Each copy's opacity is clamped to 0 to 1, and later copies draw over earlier ones.
 
-| Field             | Default  | Description                                                                 |
-| ----------------- | -------- | --------------------------------------------------------------------------- |
-| `count`           | Required | Copies to draw, from 0 to 1024. 0 draws nothing and 1 draws the node alone. |
-| `columns`         | `0`      | Copies per row. 0 puts every copy in one row.                               |
-| `position_offset` | `[0, 0]` | Pixels added for each column.                                               |
-| `row_offset`      | `[0, 0]` | Pixels added for each row.                                                  |
-| `rotation_offset` | `0`      | Clockwise degrees added for each copy.                                      |
+| Field             | Default  | Description                                                                                                 |
+| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `count`           | Required | Copies to draw, from 0 to 1024. 0 draws nothing and 1 draws the node alone.                                 |
+| `columns`         | `0`      | Copies per row. 0 puts every copy in one row.                                                               |
+| `position_offset` | `[0, 0]` | Pixels added for each column.                                                                               |
+| `row_offset`      | `[0, 0]` | Pixels added for each row.                                                                                  |
+| `rotation_offset` | `0`      | Clockwise degrees added for each copy.                                                                      |
 | `scale_offset`    | `[0, 0]` | Scale added for each copy, per axis. A negative offset shrinks later copies through 0 into mirrored copies. |
-| `opacity_offset`  | `0`      | Opacity added for each copy.                                                |
+| `opacity_offset`  | `0`      | Opacity added for each copy.                                                                                |
 
 Each field takes a literal or an expression, evaluated once per frame, but the whole `repeat` can't be one expression. A 4 × 3 grid of dots:
 

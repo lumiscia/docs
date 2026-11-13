@@ -9,10 +9,10 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `position`, `rotation` and `scale` are evaluated once per copy. In them, the expression global `instance` is the copy's index from 0 and `instance_count` is `count`, so one node lays out a grid, a ring or a path. Anywhere else these globals are an error.
 
-| Layout | `position`                                                                                            |
-| ------ | ----------------------------------------------------------------------------------------------------- |
+| Layout | `position`                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------ |
 | Grid   | `=vec3(instance % 10 * 1.5, 0, floor(instance / 10) * 1.5)`                                            |
-| Ring   | `=vec3(sin(instance / instance_count * 6.2832) * 3, 0, cos(instance / instance_count * 6.2832) * 3)` |
+| Ring   | `=vec3(sin(instance / instance_count * 6.2832) * 3, 0, cos(instance / instance_count * 6.2832) * 3)`   |
 | Spiral | `=vec3(sin(instance * 0.5) * instance * 0.05, instance * 0.02, cos(instance * 0.5) * instance * 0.05)` |
 
 A copy is placed in the input scene's own space, so it turns and scales about that scene's origin. Only objects are copied: the input's lights and camera appear once, placed as they would be without the node. Every copy of a skinned model plays the same clip at the same time. An `instance_3d` may hold another, up to 8 deep, and their counts multiply. `count` 0 leaves the scene out entirely, lights and camera too.

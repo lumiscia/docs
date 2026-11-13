@@ -22,17 +22,17 @@ This renders 3 seconds of a dark [`background`](nodes/source/background) at 1280
 
 ## Top-level fields
 
-| Field                | Required | Description                                                          |
-| -------------------- | -------- | -------------------------------------------------------------------- |
+| Field                | Required | Description                                                                               |
+| -------------------- | -------- | ----------------------------------------------------------------------------------------- |
 | `lumenSchemaVersion` | No       | The Lumen version the composition was written for. See [Schema version](#schema-version). |
-| `timeline`           | Yes      | Frame rate and length.                                               |
-| `render_settings`    | Yes      | Output size and encoding.                                            |
-| `nodes`              | Yes      | The nodes in the graph.                                              |
-| `connections`        | Yes      | Edges from node outputs to node inputs.                              |
-| `compositions`       | No       | Named templates that `clip` nodes play. See [Templates](#templates). |
-| `functions`          | No       | Expression functions. See [Expressions](expressions#functions).      |
-| `audio`              | No       | Audio tracks and clips. See [Audio](#audio).                         |
-| `metadata`           | No       | An object for your own data. `name`, if set, must be a string.       |
+| `timeline`           | Yes      | Frame rate and length.                                                                    |
+| `render_settings`    | Yes      | Output size and encoding.                                                                 |
+| `nodes`              | Yes      | The nodes in the graph.                                                                   |
+| `connections`        | Yes      | Edges from node outputs to node inputs.                                                   |
+| `compositions`       | No       | Named templates that `clip` nodes play. See [Templates](#templates).                      |
+| `functions`          | No       | Expression functions. See [Expressions](expressions#functions).                           |
+| `audio`              | No       | Audio tracks and clips. See [Audio](#audio).                                              |
+| `metadata`           | No       | An object for your own data. `name`, if set, must be a string.                            |
 
 Other top-level fields are ignored, so an editor can store its own state in the document. Everything else is strict. An unknown key in `timeline`, `render_settings`, a template, a node or a connection fails validation, as does an unknown node type or param. Lumen's errors name the JSON path at fault, such as `timeline.fps`.
 
@@ -54,11 +54,11 @@ Other top-level fields are ignored, so an editor can store its own state in the 
 
 The other keys choose how the video is encoded. A render request can set each of them too, and the request's value wins. Previews ignore them.
 
-| Key         | Values                                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `codec`     | `h264`, `hevc` or `av1` in an MP4, `prores` (ProRes 4444) in a MOV, or `vp9` in a WebM.                                         |
-| `quality`   | A quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`.                                          |
-| `bit_depth` | `8`, the default, or `10` for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                               |
+| Key         | Values                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `codec`     | `h264`, `hevc` or `av1` in an MP4, `prores` (ProRes 4444) in a MOV, or `vp9` in a WebM.                                               |
+| `quality`   | A quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`.                                                 |
+| `bit_depth` | `8`, the default, or `10` for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                                       |
 | `alpha`     | `true` keeps transparency as an alpha channel, which only `prores` in a MOV and `vp9` in a WebM hold. The default renders over black. |
 
 Asking for something the format can't hold, such as alpha in an MP4, is an error, never a different video. Lumiscia encodes `h264`, `hevc` and `av1`, with the four built-in presets.
@@ -105,18 +105,18 @@ Paint params, such as `fill_paint`, `background.paint` and `text.color`, take a 
 }
 ```
 
-| Field           | Default                 | Description                                                                                                  |
-| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `type`          | Required                | `linear_gradient`, `radial_gradient` or `conic_gradient`.                                                    |
-| `stops`         | Required                | One to eight stops, each `[offset, color]` or `{ "offset", "color" }`, with `offset` from 0 to 1.            |
-| `start`, `end`  | `[0, 0]`, `[1, 0]`      | The line of a linear gradient.                                                                               |
-| `center`        | `[0.5, 0.5]`            | The centre of a radial or conic gradient.                                                                    |
-| `radius`        | `[0.5, 0.5]`            | A radial gradient's horizontal and vertical radius. A number sets both.                                      |
-| `focal`         | `center`                | Where a radial gradient's first stop sits, for an off-centre highlight. It is moved inside the circle if it lies on or outside it. |
-| `angle`         | `0`                     | The start angle of a conic gradient, in degrees.                                                             |
-| `spread`        | `pad`                   | How the gradient continues past its ends: `pad`, `repeat` or `reflect`.                                      |
-| `units`         | `object_bounding_box`   | Whether points and radii are fractions of the shape's bounding box or pixels (`user_space`).                 |
-| `interpolation` | `srgb`                  | `srgb` blends the sRGB-encoded stops, and `linear_srgb` blends them in linear light.                         |
+| Field           | Default               | Description                                                                                                                        |
+| --------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `type`          | Required              | `linear_gradient`, `radial_gradient` or `conic_gradient`.                                                                          |
+| `stops`         | Required              | One to eight stops, each `[offset, color]` or `{ "offset", "color" }`, with `offset` from 0 to 1.                                  |
+| `start`, `end`  | `[0, 0]`, `[1, 0]`    | The line of a linear gradient.                                                                                                     |
+| `center`        | `[0.5, 0.5]`          | The centre of a radial or conic gradient.                                                                                          |
+| `radius`        | `[0.5, 0.5]`          | A radial gradient's horizontal and vertical radius. A number sets both.                                                            |
+| `focal`         | `center`              | Where a radial gradient's first stop sits, for an off-centre highlight. It is moved inside the circle if it lies on or outside it. |
+| `angle`         | `0`                   | The start angle of a conic gradient, in degrees.                                                                                   |
+| `spread`        | `pad`                 | How the gradient continues past its ends: `pad`, `repeat` or `reflect`.                                                            |
+| `units`         | `object_bounding_box` | Whether points and radii are fractions of the shape's bounding box or pixels (`user_space`).                                       |
+| `interpolation` | `srgb`                | `srgb` blends the sRGB-encoded stops, and `linear_srgb` blends them in linear light.                                               |
 
 A gradient's fields take literals only. An expression in a paint param gives a solid color.
 
@@ -132,16 +132,16 @@ A connection wires one node's output to another node's input port.
 
 `to_port` is required. Every node has one output, so `from_port` is optional and can only be `output`. Input port names depend on the node:
 
-| Port                      | Kind     | Nodes                                                                   |
-| ------------------------- | -------- | ----------------------------------------------------------------------- |
-| `source`                  | `raster` | `media_output`, `clip`, `image_plane_3d` and every processing node      |
-| `base`, `overlay`, `mask` | `raster` | `merge` (`mask` is optional)                                            |
-| `a`, `b`                  | `raster` | `boolean`                                                               |
-| `layers`                  | `raster` | `switch`, `raster_multimerge`                                           |
-| `map`                     | `raster` | `displacement_map`                                                      |
-| `texture`                 | `raster` | `model_3d` (optional)                                                   |
-| `objects`                 | `scene`  | `merge_3d`                                                              |
-| `scene`                   | `scene`  | `render_3d`, `instance_3d`                                              |
+| Port                      | Kind     | Nodes                                                              |
+| ------------------------- | -------- | ------------------------------------------------------------------ |
+| `source`                  | `raster` | `media_output`, `clip`, `image_plane_3d` and every processing node |
+| `base`, `overlay`, `mask` | `raster` | `merge` (`mask` is optional)                                       |
+| `a`, `b`                  | `raster` | `boolean`                                                          |
+| `layers`                  | `raster` | `switch`, `raster_multimerge`                                      |
+| `map`                     | `raster` | `displacement_map`                                                 |
+| `texture`                 | `raster` | `model_3d` (optional)                                              |
+| `objects`                 | `scene`  | `merge_3d`                                                         |
+| `scene`                   | `scene`  | `render_3d`, `instance_3d`                                         |
 
 Each port carries a `raster`, an image, or a `scene` of 3D objects, lights and cameras. Scene nodes output a scene and `render_3d` outputs a raster; every other node outputs a raster. A connection between different kinds fails with `connection.wrong_kind`.
 
@@ -153,14 +153,14 @@ A graph must contain exactly one `media_output` node, connected to the stream yo
 
 These params name a media file:
 
-| Param                         | Reads                  |
-| ----------------------------- | ---------------------- |
-| `media_in.source`             | An image or a video    |
-| `text.font_family`            | A font                 |
-| `color_grade.lut_source`      | A 3D `.cube` LUT       |
-| `model_3d.source`             | A binary glTF (`.glb`) model |
-| `render_3d.environment_map`   | An `.hdr` or `.exr` environment map |
-| An audio clip's `source_id`   | An audio file          |
+| Param                       | Reads                               |
+| --------------------------- | ----------------------------------- |
+| `media_in.source`           | An image or a video                 |
+| `text.font_family`          | A font                              |
+| `color_grade.lut_source`    | A 3D `.cube` LUT                    |
+| `model_3d.source`           | A binary glTF (`.glb`) model        |
+| `render_3d.environment_map` | An `.hdr` or `.exr` environment map |
+| An audio clip's `source_id` | An audio file                       |
 
 In Lumen, each is a path or `media` alias, or `asset:<id>` for an asset in the host's asset store. A source that can't be used fails with a `media.*` code naming the source and where it is used: `media.not_found`, `media.wrong_kind`, `media.unsupported`, `media.too_large` or `media.decode`.
 

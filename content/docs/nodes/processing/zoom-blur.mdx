@@ -1,0 +1,26 @@
+---
+title: Zoom Blur
+description: Blurs a raster along rays from a centre, as a zoom.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`zoom_blur` streaks each pixel along the ray from `center` through it. `amount` is the length of the streak as a fraction of the pixel's distance from `center`, so the centre stays sharp and the edges streak most. Animate `amount` for a punch-in or a hyperspace transition.
+
+The streak runs both ways along the ray and is sampled in equal ratios of scale, so it reaches farther away from `center` than towards it. `center` is in canvas pixels; leave it out to zoom about the middle of the canvas, `[width / 2, height / 2]`. `edge` is `clamp`, which repeats the canvas's edge pixels, or `transparent`. The output grows to cover the streaks.
+
+The blur takes about one sample per pixel of its longest streak, up to 4096. Streaks longer than about 256 pixels are taken in two passes, which softens sharp edges slightly more.
+
+<NodeReference type="zoom_blur" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "zoom_blur",
+  "params": {
+    "amount": "=tween(0.5, 0, 0, 15, 'out_expo')"
+  }
+}
+```

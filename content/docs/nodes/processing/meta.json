@@ -5,14 +5,20 @@
     "blur",
     "color-grade",
     "crop",
+    "directional-blur",
+    "displacement-map",
     "exposure",
+    "glow",
     "hue-saturation",
     "levels",
+    "motion-blur",
     "opacity",
+    "radial-blur",
     "resize",
     "shadow",
     "time-remap",
     "transform",
-    "wgsl-shader"
+    "wgsl-shader",
+    "zoom-blur"
   ]
 }

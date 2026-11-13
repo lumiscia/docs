@@ -1,0 +1,27 @@
+---
+title: Directional Blur
+description: Blurs a raster along a line, as a straight motion blur.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`directional_blur` spreads each pixel along a straight line `distance` pixels long, centred on the pixel, at `angle` degrees clockwise from horizontal. Use it for a speed streak on a layer that doesn't move, or a soft blur in one direction. For blur that follows a layer's actual motion, use [`motion_blur`](motion-blur) or the `motion_blur` param of `transform`, `shape`, `path` and `text`.
+
+`edge` sets what the source reads as beyond the canvas: `clamp` repeats the edge pixels, and `transparent` lets the blur fade out. The output grows to cover the source spread along the line.
+
+The blur takes about one sample per pixel of streak, up to 4096, so streaks up to 4096 pixels long stay smooth. Streaks longer than about 256 pixels are taken in two passes, which softens sharp edges slightly more.
+
+<NodeReference type="directional_blur" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "directional_blur",
+  "params": {
+    "distance": "=tween(120, 0, 0, 12, 'out_cubic')",
+    "angle": 0
+  }
+}
+```

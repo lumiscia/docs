@@ -31,7 +31,7 @@ Use any of these:
 
 ## Can I test without paying for GPU time?
 
-Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Successful test renders send no webhook, and a test render that fails during submission can send `render.failed`. Each test key runs up to 5 at a time.
+Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, whatever output they ask for, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Successful test renders send no webhook, and a test render that fails during submission can send `render.failed`. Each test key runs up to 5 at a time.
 
 To check a composition without rendering it at all, use [`POST /v1/renders/check`](../how-it-works#check-before-you-render).
 
@@ -41,7 +41,7 @@ Yes. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` render previews on the
 
 ## What can Lumiscia render?
 
-An MP4 of the whole timeline, 8 bits per channel, in `h264`, `hevc` or `av1`, from any Lumen 0.6 composition, 3D nodes included. Alpha, stills, image sequences, frame ranges, 10-bit output, ProRes and VP9 are rejected before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
+By default, an 8-bit MP4 of the whole timeline in `h264`. You can also ask for `hevc` or `av1` in an MP4, also at 10 bits per channel, a ProRes 4444 `mov` or a VP9 `webm` with or without alpha, a `png` or `jpeg` still, or a range of frames, from any Lumen 0.6 composition, 3D nodes included. Image sequences, and any combination a format can't hold, are rejected with a `422` before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
 
 ## What are the render limits?
 
@@ -49,12 +49,13 @@ Every render must fit within:
 
 - 3840 pixels wide and 2160 pixels tall,
 - 60 fps,
-- 10,800 frames,
+- 10,800 frames rendered, which a frame range counts by the frames it covers,
 - 250 nodes,
 - 1 MB of composition JSON,
-- 50 manifest entries, and 50 distinct media files counting `asset:<id>` references.
+- 50 manifest entries, and 50 distinct media files counting `asset:<id>` references,
+- 5,000,000,000 bytes of output, which the API checks up front for a `mov` (see [Output](../how-it-works#output)).
 
-Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB, but a file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`.
+Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, counted over the frames a render covers, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB, but a file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`.
 
 ## Why is my render queued?
 

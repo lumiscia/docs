@@ -35,7 +35,7 @@ Lumen is in heavy beta. Expect breaking changes in crate APIs, schema shapes, no
 1. Your backend sends a composition and its media manifest to `POST https://api.lumiscia.com/v1/renders` with an API key.
 2. The API validates the composition and the media it references, then queues the render. Each workspace has its own scheduler, which enforces your plan's concurrency limit and [queue priority](../pricing).
 3. A GPU render worker picks up the render and runs it with `lumen-server`, the same crate you can [run yourself](self-hosting).
-4. The worker uploads the MP4 artifact to Lumiscia's storage and reports the result and the measured render time.
+4. The worker uploads the artifact to Lumiscia's storage and reports the result and the measured render time.
 5. The API marks the render `succeeded` or `failed`, bills the render time, sends render events to subscribers, and delivers your webhook.
 
 Browser previews skip this pipeline. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` run Lumen compiled to WebAssembly on the viewer's device, so previews are free and need no API key. Preview output can differ from cloud renders in edge cases while the bindings evolve.

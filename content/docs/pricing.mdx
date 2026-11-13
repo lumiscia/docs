@@ -25,7 +25,7 @@ Charges come out of the monthly credit first, then your workspace balance. Unuse
 | Batch render time | Half the render-time rate. See [Batch renders](#batch-renders). |
 | Media             | $0.005 per GB uploaded or imported from a URL                   |
 
-The GPU worker measures render time to the millisecond, and there is no minimum. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing.
+The GPU worker measures render time to the millisecond, and there is no minimum. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing. Every output format is billed at the same rates, the render fee plus render time.
 
 Media is charged when its bytes arrive, so a file that is later rejected or deleted is still billed, and so is media whose render fails. Renders and uploads made with a test API key are free.
 
@@ -96,11 +96,11 @@ console.log(estimateRenderCost(30, 30, 180));
 | 30 s at 30 fps, standard |    900 |         5 s | $0.0475 |
 | 60 s at 30 fps, heavy    |  1,800 |        30 s |  $0.235 |
 
-These costs use the standard rate. At $0.0475 each, the Free plan's $5 credit covers 105 standard 30-second renders. For a closer estimate, render a short representative range and scale its render time by the full frame count.
+These costs use the standard rate. At $0.0475 each, the Free plan's $5 credit covers 105 standard 30-second renders. For a closer estimate, render a short representative range with `output.frames` and scale its render time by the full frame count.
 
 ## Billing in the API
 
-`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request body (same composition, media manifest, webhook URL, `codec`, `quality` and `priority`) with the same kind of key, live or test, in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
+`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request body (same composition, media manifest, webhook URL, `codec`, `quality`, `bit_depth`, `alpha`, `output` and `priority`) with the same kind of key, live or test, in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
 
 To retry safely after a timeout, send an `Idempotency-Key` header of 1 to 255 printable ASCII characters without spaces, such as a UUID, or pass `idempotencyKey` to the SDK's `render()`. For 24 hours, a request with the same key gets the first response again, with an `idempotent-replayed: true` header, and creates no second render. Reusing a key with a different body answers `422` with `idempotency_key_reused`, and a retry that arrives while the first request is still running answers `409` with `idempotency_key_in_progress`. If the first request failed, a retry with its key runs again.
 
@@ -108,7 +108,7 @@ The response's `render` object includes `status` (`queued`, `processing`, `succe
 
 ## Lowering cost
 
-- Render a short representative range before a full batch.
+- Render a short representative range of frames, with `output.frames` or a still, before a full batch.
 - Edit at a lower resolution and render the final version at full size.
 - Use the lowest frame rate your content needs.
 - Trim video sources with `range_start` and `range_end` on `media_in`.

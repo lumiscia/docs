@@ -12,7 +12,7 @@ Lumiscia is in beta. The API, SDKs, pricing, and limits can still change, and so
 - Limits on duration, resolution, frame rate, node count, media size, media expiry, and artifact retention.
 - SDK package names, exports, types, and helpers.
 - API request and response shapes, error messages, webhook payloads, and event names.
-- Renderer output for edge cases and newly added nodes.
+- Renderer output for edge cases, and newly added nodes and output formats.
 
 [Pricing](pricing) lists the current rates and tier limits, and [How it works](how-it-works#validation) lists the API limits. If you plan high-volume usage, treat beta pricing as guidance, not a contract, unless we have agreed on custom terms.
 
@@ -22,7 +22,7 @@ Expect occasional problems while the platform changes:
 
 - API downtime.
 - Longer queue times during deploys or capacity changes.
-- Failed renders from renderer regressions or unsupported media.
+- Failed renders from renderer regressions or unsupported media. The API checks an output format, alpha or bit depth against its rules before a worker encodes it, so an alpha video, a still or a 10-bit video it accepts can still fail, for example with `encode_failed`. A failed render costs nothing.
 - Browser previews that differ from cloud renders in edge cases while the WebAssembly bindings evolve.
 - Docs or dashboard changes that land before the matching SDK release.
 
@@ -32,7 +32,7 @@ A render can wait in `queued` before it moves to `processing`. Waits are longer 
 
 ## Media and artifacts
 
-Treat Lumiscia storage as temporary. Uploaded and URL-imported media expire after 24 hours, and you can [delete](guides/media-sources#delete-media) them sooner. Artifacts expire 1 day after the render on the free tier and 7 days after on paid tiers, and the artifact endpoint returns an error once they do. Keep your source assets and finished videos in your own storage.
+Treat Lumiscia storage as temporary. Uploaded and URL-imported media expire after 24 hours, and you can [delete](guides/media-sources#delete-media) them sooner. Artifacts expire 1 day after the render on the free tier and 7 days after on paid tiers, and the artifact endpoint returns an error once they do. Keep your source assets and finished renders in your own storage.
 
 URL imports can fail when the source is slow, unreachable, or too large.
 

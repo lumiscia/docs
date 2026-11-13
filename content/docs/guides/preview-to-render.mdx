@@ -54,7 +54,7 @@ export async function renderEdit(composition: LumenComposition, heroMediaId: str
 }
 ```
 
-`render()` returns the queued `Render` and throws a `LumenError` if the API rejects the composition. In a Cloudflare Worker, import from `@lumiscia/lumen-sdk` as well, and read the key from the Worker's environment.
+`render()` returns the queued `Render` and throws a `LumenError` if the API rejects the composition. To render a still of one frame instead of a video, add `output: { format: "png", frames: { start: 45 } }` to the options. See [Output](../how-it-works#output) for the formats, alpha and 10-bit video. In a Cloudflare Worker, import from `@lumiscia/lumen-sdk` as well, and read the key from the Worker's environment.
 
 </Step>
 <Step>

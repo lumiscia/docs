@@ -27,3 +27,31 @@ Malformed `data` fails the frame with an error naming the node and the position 
   }
 }
 ```
+
+## Dashes
+
+`stroke_dash` lists up to 16 lengths in untransformed pixels that the stroke alternately draws and skips, starting with a dash. An odd number of lengths repeats, as in SVG. Every dash has round caps, so a dash of length 0 draws a dot. `stroke_dash_offset` shifts the pattern along each contour, so `"=frame * 2"` marches the dashes. Dashes are measured along the whole contour, and `trim_start` and `trim_end` then clip them. An empty or all-zero pattern strokes solidly.
+
+```json
+{
+  "id": 1,
+  "type": "path",
+  "params": {
+    "data": "M 0 0 L 400 0",
+    "position": [440, 360],
+    "fill_enabled": false,
+    "stroke_enabled": true,
+    "stroke_width": 4,
+    "stroke_dash": [0, 12],
+    "stroke_dash_offset": "=frame * 2"
+  }
+}
+```
+
+## Fill offset and feather
+
+`offset` grows the fill outward by that many untransformed pixels, rounding the corners it grows around, or shrinks it when negative; a fill shrunk past its middle vanishes. `feather` fades the fill's edge over that width, centred on the edge, without a blur pass. The stroke stays on the outline in `data`. Both take expressions and render as before at 0, so an offset animated to 0 meets the plain fill.
+
+## Repeat
+
+`repeat` draws up to 1024 copies of the path in one pass, each offset in position, rotation, scale and opacity from the one before. It works as on [`shape`](shape#repeat).

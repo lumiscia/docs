@@ -5,11 +5,21 @@ description: Binds an external image or video frame as a GPU texture.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`media_in` reads an image or video from the render request's media manifest. Set `source` to a manifest alias, and set `kind` to `video` for video files so the range, speed and loop params apply.
+`media_in` reads an image or a video. `source` is a path or `media` alias, or `asset:<id>` for an asset of the host's. On Lumiscia, it is a manifest alias or `asset:<id>`; see [Media sources](../../guides/media-sources). Set `kind` to `video` for video files so the range, speed and loop params apply.
 
 `range_start` and `range_end` pick the source frames to play. `range_end` is the first frame past the range; leave it out to play to the end of the source.
 
-A `media_in` whose source is missing or can't be opened fails when the composition compiles, with the reason in the error. An expression for `kind` or `loop_mode` that gives no valid option is an error.
+`alpha` says how a video with an alpha channel stores its colour. `straight`, the default, suits most files. Use `premultiplied` for sources whose colour is already multiplied by alpha, such as many ProRes exports, which would otherwise show dark edges.
+
+## Color
+
+Images follow their embedded ICC profile, so a Display P3 or Adobe RGB photo renders with its own colours, and 16-bit PNG and TIFF images keep their depth. An image without a profile is sRGB.
+
+Video follows its primaries and transfer tags. BT.2020 and Display P3 footage converts to the working space, and PQ and HLG HDR video is tone-mapped to SDR as it is read, with HDR reference white (203 nits) at about sRGB code 229. A profile or tag the engine can't honour renders as sRGB or SDR BT.709, with a `media.color_unsupported` warning.
+
+## Errors
+
+A source that can't be used fails with one of five codes: `media.not_found` (nothing at the source), `media.wrong_kind` (a video where an image is read, for example), `media.unsupported` (a format or codec the engine identifies but doesn't read), `media.too_large` (past a size limit) or `media.decode` (corrupt or unidentified data). An expression for `kind` or `loop_mode` that gives no valid option is an error too.
 
 <NodeReference type="media_in" />
 
@@ -22,7 +32,7 @@ This plays the video from source frame 48 to its end, then repeats that range.
   "id": 1,
   "type": "media_in",
   "params": {
-    "source": "hero",
+    "source": "clip.mp4",
     "kind": "video",
     "range_start": 48,
     "loop_mode": "repeat"

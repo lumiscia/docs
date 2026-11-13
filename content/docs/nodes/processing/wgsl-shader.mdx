@@ -11,7 +11,9 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 ## Example
 
-The engine appends a prelude that binds the first input as `input0`, later inputs as `input1`, `input2` and so on in connection order (16 inputs at most), the output texture as `output`, a linear sampler as `input_sampler`, and frame globals as `lumen` (`resolution`, `time` and `frame`). Declare your own uniform struct at `@group(0) @binding(1)`. The entry point is `cs_main`, and it must declare `@workgroup_size(8, 8, 1)`. Every input is premultiplied alpha, and so is the output.
+The engine appends a prelude that binds the first input as `input0`, later inputs as `input1`, `input2` and so on in connection order (16 inputs at most), the output texture as `output`, a linear sampler as `input_sampler`, and frame globals as `lumen` (`resolution`, `time` and `frame`). Declare your own uniform struct at `@group(0) @binding(1)`. The entry point is `cs_main`, and it must declare `@workgroup_size(8, 8, 1)`.
+
+Every input holds linear light with premultiplied alpha, and the output is read the same way. Values above 1 are brighter than white and are kept. The output, and any storage texture you declare, must be `texture_storage_2d<rgba16float, write>`. The engine clamps the output's alpha to 0 to 1 and turns NaN into 0. Color uniforms arrive as linear light, premultiplied; numbers and vectors arrive as written. For a formula written for sRGB-encoded values, the prelude has `lumen_srgb_to_linear` and `lumen_linear_to_srgb`, which take and return `vec3<f32>`.
 
 This shader inverts colors by `amount`:
 

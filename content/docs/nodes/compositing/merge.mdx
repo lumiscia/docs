@@ -7,6 +7,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `merge` draws an `overlay` raster over a `base` raster, optionally through a `mask`. Use it for one foreground layer, and `raster_multimerge` for longer stacks.
 
+`normal` composites in linear light. Every other blend mode, such as `multiply` or `screen`, applies its formula to the sRGB-encoded colours, then composites the result in linear light. With a `mask`, `mask_mode` picks whether its alpha or its linear luminance masks the overlay.
+
 <NodeReference type="merge" />
 
 ## Example

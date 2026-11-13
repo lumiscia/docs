@@ -7,6 +7,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `transform` moves, scales and rotates a raster within the composition canvas. Its params are usually animated with expressions.
 
+With `sampling: "linear"`, the default, a source shown smaller than its size is filtered: each output pixel averages the source pixels it covers, so a 4K source shrunk to a thumbnail, or a zoom out, doesn't alias or shimmer. `nearest` takes the nearest pixel. `motion_blur` blurs the node's own motion over a shutter of that many degrees.
+
 Scale and rotation pivot on the source's center. To pivot elsewhere, set `custom_pivot` to `true` along with `pivot_x` and `pivot_y`. A pivot set without `custom_pivot: true` is an error.
 
 <NodeReference type="transform" />

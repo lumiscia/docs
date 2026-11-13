@@ -1,11 +1,13 @@
 ---
 title: Media Output
-description: Copies the compiled raster into the final composition output.
+description: Converts its source into the final composition output.
 ---
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `media_output` marks the raster that becomes the rendered video. A composition has exactly one, with the last node of the graph connected to its `source` input.
+
+Lumen composites in linear light with 16-bit float precision. `media_output` encodes the result to sRGB and quantises it once, to the output's format. An opaque output, such as an MP4 or a JPEG, composites the frame over black first. 8-bit output is dithered, so smooth gradients don't band, while 8-bit images and colors written in the composition keep their exact codes.
 
 <NodeReference type="media_output" />
 

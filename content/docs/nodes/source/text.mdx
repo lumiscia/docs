@@ -100,7 +100,7 @@ Each field takes a literal or an expression, but a whole decoration can't be one
 
 A stroke doesn't change the layout or the measured size. `glyph_opacity` fades a glyph's stroke and fill together. Decorations aren't stroked, and neither are color and bitmap glyphs such as emoji.
 
-A text node draws at most 2048 glyphs, counting a stroked glyph twice and each decoration box once. Whitespace isn't drawn and doesn't count. Past the limit, the render fails with an error naming the node.
+A text node draws at most 16384 glyphs by default, counting a stroked glyph twice and each decoration box once. Whitespace isn't drawn and doesn't count. The renderer sets the limit, and past it the render fails with an error naming the node and the limit.
 
 ## Fit and truncation
 
@@ -151,6 +151,6 @@ A text node draws at most 2048 glyphs, counting a stroked glyph twice and each d
 
 ## Fonts
 
-`font_family` must name a font the renderer has loaded. Lumen bundles Roboto, the default, and draws a family that isn't loaded in Roboto. Characters a font lacks, such as CJK, Hebrew or emoji, fall back only to other loaded fonts, so load a font that covers them. [Self-hosting](../../open-source/self-hosting#fonts) lists where `lumen-server` looks for fonts.
+`font_family` names a font the renderer has loaded, or `asset:<id>` for a font asset of the host's. Lumen bundles Roboto, the default, and draws a family that isn't loaded in Roboto, with a `font.fallback` warning from `check`. Characters a font lacks, such as CJK, Hebrew or emoji, fall back only to other loaded fonts, so load a font that covers them. [Self-hosting](../../open-source/self-hosting#fonts) lists where `lumen-server` looks for fonts.
 
 Fonts registered in the browser preview aren't part of a render request. See [Preview to render](../../guides/preview-to-render).

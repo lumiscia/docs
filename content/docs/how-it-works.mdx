@@ -16,38 +16,72 @@ A composition is a JSON object with four required fields:
 | `nodes`           | Graph nodes. Each has an integer `id`, a `type`, and optional `params`.  |
 | `connections`     | Edges from a node (`from_node`) to an input port (`to_node`, `to_port`). |
 
-Three optional fields extend it. `compositions` holds named templates that `clip` nodes play, `functions` holds reusable expression functions, and `audio` holds audio tracks and clips. See [Composition format](composition-format) for every field.
+The optional fields are `lumenSchemaVersion`, the Lumen version the composition was written for; `compositions`, named templates that `clip` nodes play; `functions`, reusable expression functions; `audio`, audio tracks and clips; and `metadata`, an object for your own data. See [Composition format](composition-format) for every field.
 
 ## Validation
 
-The API checks each render request when you submit it. The composition must match the [composition schema](composition-format), use only known node types and params, and stay within these limits:
+The API checks each render request when you submit it, before it queues or charges anything. The composition must match the Lumen 0.6 [composition schema](composition-format), use only known node types and params, and stay within these limits:
 
-| Limit            | Value               |
-| ---------------- | ------------------- |
-| Frame rate       | Up to 60 fps        |
-| Duration         | Up to 10,800 frames |
-| Width            | Up to 3,840 px      |
-| Height           | Up to 2,160 px      |
-| Nodes            | 1 to 250            |
-| Composition JSON | 1 MB                |
+| Limit            | Value                                             |
+| ---------------- | ------------------------------------------------- |
+| Frame rate       | Up to 60 fps                                      |
+| Duration         | Up to 10,800 frames                               |
+| Width            | Up to 3,840 px                                    |
+| Height           | Up to 2,160 px                                    |
+| Nodes            | 1 to 250                                          |
+| Composition JSON | 1 MB                                              |
+| Media            | Up to 50 distinct files, by alias or `asset:<id>` |
+
+The API accepts every Lumen 0.6 node type, including the [3D nodes](guides/3d). `lumenSchemaVersion` must be `0.6` or a 0.6 release such as `0.6.2`, and any other version is rejected with `document.schema_version`. A composition without the field is read as 0.6.
 
 Your workspace tier can lower the resolution and duration limits. Free workspaces that have never topped up render up to 1080p and 2 minutes. See [Pricing](pricing#queue-priority).
 
-A request that fails these checks gets a `400` response with an `error` message that names the field, node, or limit at fault. The SDK throws it as a `LumenError` with that `message`, so you can show it in a builder UI as is.
+A request that fails these checks gets a `400` response with the code `invalid_project_payload`, an `error` message, a `requestId`, and `diagnostics` that name what is wrong and where:
+
+```json
+{
+  "code": "invalid_project_payload",
+  "error": "composition node 3 has unknown parameter opactiy",
+  "diagnostics": [
+    {
+      "code": "node.unknown_param",
+      "message": "composition node 3 has unknown parameter opactiy",
+      "node": 3,
+      "path": "/nodes/2/params/opactiy",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+`path` is a JSON pointer into the composition, and `node` is the node's `id` when there is one. Diagnostic codes such as `node.unknown_param` are stable; messages are not, so branch on the code. The SDK throws the response as a `LumenError` with the same `code`, `message` and `diagnostics`, so you can show them in a builder UI as is. Output settings that Lumiscia doesn't render get a `422` instead (see [Output](#output)).
 
 Lumen then checks the graph itself before it renders a frame:
 
 - The graph has exactly one `media_output` node.
 - Every node id is unique.
-- Every connection points at an existing node and port.
+- Every connection points at an existing node and port, of the same kind.
 - Every required input is connected, and an input that takes one source has at most one connection.
 - The graph has no cycles.
 
 A graph that fails these checks fails the render.
 
+### Check before you render
+
+`POST https://api.lumiscia.com/v1/renders/check` runs Lumen's checks, the media checks and the API's limits on a composition without creating a render, and isn't billed. Send the `composition` and, optionally, the `media` manifest the render would use:
+
+```bash
+curl https://api.lumiscia.com/v1/renders/check \
+  -H "authorization: Bearer $LUMISCIA_API_KEY" \
+  -H "content-type: application/json" \
+  -d @check.json
+```
+
+The response has `ok`, which is `true` when no diagnostic is an error, and `diagnostics`, the errors and warnings both. A warning such as `font.fallback`, for a font family the render won't have, doesn't make `ok` false. With a test API key, the check skips the media, as test renders do.
+
 ## Ports
 
-Every node input and output has a port kind. All current nodes use `raster_frame`, which carries pixels: video, images, text, and rendered shapes. Shape, path, and text nodes output raster frames directly, so you can connect them to any processing, compositing, or output node.
+Every port carries a `raster`, which is an image, or a `scene` of 3D objects, lights and cameras. Scene nodes output scenes, `render_3d` draws a scene into a raster, and every other node takes and outputs rasters. Shape, path, and text nodes output rasters directly, so you can connect them to any processing, compositing, or output node. A connection between different kinds fails with `connection.wrong_kind`.
 
 ## Frame evaluation
 
@@ -56,7 +90,7 @@ Lumen renders on demand. For each frame, it starts at `media_output` and walks u
 - Nodes that don't connect to `media_output` never render.
 - A `switch` node renders only its selected layer.
 - A `time_remap` node requests only the source frame it maps to.
-- A static branch reuses its earlier output. A node is static when its params are literal values (no expressions) and all of its inputs are static. Media, shader, `clip`, `time_remap`, and output nodes always render.
+- A node whose params come out the same as on the frame before, and whose inputs are unchanged, reuses its earlier output, even when its params are expressions. Video `media_in` nodes, `wgsl_shader` nodes and a `model_3d` playing an animation render on every frame.
 
 Most params accept an expression, which is a string that starts with `=`. Lumen evaluates expressions every frame with these globals:
 
@@ -84,11 +118,11 @@ See [Expressions](expressions) for operators, functions, and easing.
 
 ## Media
 
-Nodes reference media through manifest aliases, never by media id. A render request carries a top-level `media` manifest that maps each alias to an uploaded file:
+Nodes reference media by a manifest alias or by `asset:<id>`, never by a bare media id or a URL. A render request carries a top-level `media` manifest that maps each alias to an uploaded file:
 
 ```json
 {
-  "media": { "hero": "lumen:media_abc123" },
+  "media": { "hero": "lumen:media_3f9a1c2b7d4e5f60" },
   "composition": {
     "timeline": { "fps": 30, "duration_frames": 150 },
     "render_settings": { "width": 1280, "height": 720 },
@@ -101,12 +135,42 @@ Nodes reference media through manifest aliases, never by media id. A render requ
 }
 ```
 
-You get a media id by uploading a file to `POST https://api.lumiscia.com/v1/media` or importing a URL with `POST https://api.lumiscia.com/v1/media/url`. Lumiscia probes each file, and a render can use it only once its status is `validated`. Uploads expire after 24 hours. The API rejects a composition that puts an `http://` or `https://` URL in a node, so import remote files first and reference them by alias.
+`"source": "asset:media_3f9a1c2b7d4e5f60"` names the same upload directly and needs no manifest entry.
+
+You get a media id by uploading a file to `POST https://api.lumiscia.com/v1/media` or importing a URL with `POST https://api.lumiscia.com/v1/media/url`. Lumiscia probes each file, and a render can use it only once its status is `validated`. Uploads expire after 24 hours. The API rejects a composition that puts an `http://` or `https://` URL in a media field, so import remote files first and reference them by alias. Uploads take images, video, audio and fonts; see [Media sources](guides/media-sources#what-you-can-upload) for the formats and what 3D and LUT sources can read.
 
 A video `media_in` node can trim the source with `range_start` and `range_end`, change `speed`, and set a `loop_mode`. `range_end` is the first source frame past the range, and leaving it out plays to the source's end. Lumen works out which source frame each output frame needs before it renders, so workers and previews decode only those frames.
 
+## Output
+
+Every Lumiscia render is an 8-bit MP4 of the whole timeline, with the composition's audio. Choose its encoding with `codec` and `quality` in the render request, or with the same keys in [`render_settings`](composition-format#render-settings). The request's value wins.
+
+| Setting   | Values                                  | Default    |
+| --------- | --------------------------------------- | ---------- |
+| `codec`   | `h264`, `hevc` or `av1`                 | `h264`     |
+| `quality` | `draft`, `standard`, `high`, `lossless` | `standard` |
+
+`lossless` can't be encoded as `av1`.
+
+Lumen and its SDK can describe other outputs, which Lumiscia doesn't render. The API rejects them with a `422` before it queues or charges anything, instead of rendering something else:
+
+| Request                                                                                                                  | Code              |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| A `codec` other than `h264`, `hevc` or `av1`, such as `prores` or `vp9`                                                  | `invalid_quality` |
+| A `quality` that isn't one of the four presets                                                                           | `invalid_quality` |
+| A request bit depth other than 8, such as the SDK's `bitDepth: 10`                                                       | `invalid_quality` |
+| `bit_depth` other than 8 in `render_settings`                                                                            | `invalid_output`  |
+| `alpha: true`, in the request or in `render_settings`                                                                    | `invalid_output`  |
+| An `output` other than `{ "format": "mp4" }`: `mov`, `webm`, `png`, `jpeg`, `png_sequence`, `jpeg_sequence`, or `frames` | `invalid_output`  |
+
+Lumiscia has no route to cancel a render, so the SDK's `cancelRender` fails with a `404` and the code `route_not_found`. A render you no longer want still runs to its end.
+
 ## Rendering
 
-The API queues each accepted render as `queued`. A GPU worker picks it up (`processing`), renders every frame with `lumen-server`, encodes an MP4, and uploads it as the render's artifact. The render then ends as `succeeded` or `failed`.
+The API queues each accepted render as `queued`. It stays `queued` until a GPU worker starts it, including while it waits for a free slot in your workspace's concurrency or, for a [batch render](pricing#batch-renders), for idle GPU time. The worker marks it `processing`, renders every frame with `lumen-server`, encodes the MP4, and uploads it as the render's artifact. The render then ends as `succeeded` or `failed`.
 
-You can wait for a render with `waitForRender(id, { onProgress })` in the SDK, which reads `GET https://api.lumiscia.com/v1/renders/{id}/progress` and uses the render's event socket only to hear about changes sooner. You can also use a [webhook](guides/webhooks), or poll `GET https://api.lumiscia.com/v1/renders/{id}`. Download the artifact from `GET https://api.lumiscia.com/v1/renders/{id}/artifact` before it expires. Artifacts last 1 day on the free tier and 7 days once your workspace has topped up or subscribed to Pro.
+A failed render has an `error` with a `code`, a `message`, and the `diagnostics` Lumen reported, when it reported any. A render that succeeded can carry `warnings` in the same shape, such as `font.fallback`.
+
+You can wait for a render with `waitForRender(id, { onProgress })` in the SDK, which reads `GET https://api.lumiscia.com/v1/renders/{id}/progress` and uses the render's event socket only to hear about changes sooner. You can also use a [webhook](guides/webhooks), or poll `GET https://api.lumiscia.com/v1/renders/{id}`.
+
+Download the artifact from `GET https://api.lumiscia.com/v1/renders/{id}/artifact` before `outputExpiresAt`. Artifacts last 1 day on the free tier and 7 days once your workspace has topped up or subscribed to Pro. Until the render succeeds, the endpoint answers `409` with `artifact_not_ready`, or with the render's failure code if it failed, and after expiry it answers `409` with `artifact_expired`.

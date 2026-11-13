@@ -17,6 +17,8 @@ Lumiscia renders video from JSON compositions on hosted GPUs. You send a composi
 
 Sign up at [lumiscia.com](https://lumiscia.com) and create a key on the API keys page of the dashboard. The Free plan adds $5 of credit each month, enough for 500 renders at the 5-second minimum.
 
+A key is live or test. A test key's renders skip the GPU, cost nothing, and finish after about 10 seconds with a sample video, so start with one while you wire up your code, then switch to a live key.
+
 ```bash
 export LUMISCIA_API_KEY="your-api-key"
 ```
@@ -74,7 +76,7 @@ const { id } = await lumen.render(composition);
 console.log("Render queued:", id);
 ```
 
-`render()` throws a `LumenError` if the API rejects the request. A validation error names the field or node that failed.
+`render()` throws a `LumenError` if the API rejects the request. A validation error carries `diagnostics` that name the field or node that failed. To check a composition without rendering it, see [Check before you render](how-it-works#check-before-you-render).
 
 </Step>
 <Step>
@@ -116,13 +118,13 @@ const { id } = await lumen.render(composition, {
 });
 ```
 
-The SDK sends the upload as a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, never the media id, and connect its `output` port like any other source:
+The SDK sends the upload as a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, and connect its `output` port like any other source:
 
 ```json
 { "id": 3, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
 ```
 
-Uploads expire after 24 hours, so upload media shortly before you render it. See [Media sources](guides/media-sources) for video, URL ingest, and large files.
+A render can use the media once its `status` is `validated`. `uploadMedia()` returns after Lumiscia has probed the file, so check `status` before you render. Uploads expire after 24 hours, so upload media shortly before you render it. See [Media sources](guides/media-sources) for video, audio, fonts, URL ingest, and large files.
 
 ## Next steps
 

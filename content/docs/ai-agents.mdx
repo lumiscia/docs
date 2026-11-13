@@ -1,6 +1,6 @@
 ---
 title: AI agents
-description: Give a coding agent the docs as Markdown, the Lumen skill, and the API and composition schemas.
+description: Give a coding agent the docs as Markdown, the API and composition schemas, and a way to check its compositions.
 ---
 
 Every docs page is also published as Markdown, so an agent reads the same content you do without parsing HTML.
@@ -13,15 +13,13 @@ Every docs page is also published as Markdown, so an agent reads the same conten
 
 Each page has a **copy page** button, and its menu opens the page in Claude or ChatGPT.
 
-## Agent skill
-
-The Lumen skill teaches your agent the composition format and the SDK:
-
-```bash
-npx skills add lumiscia/lumen-oss
-```
-
 ## Schemas
 
 - The [OpenAPI spec](https://api.lumiscia.com/v1/openapi.json) describes the Lumiscia REST API.
-- The [composition JSON schema](https://lumiscia.com/schema/composition.json) describes every field and node in a composition. Validate a composition against it before you submit a render.
+- The [composition JSON schema](https://lumiscia.com/schema/composition.json) describes every field and node in a Lumen 0.6 composition, the version Lumiscia renders.
+
+## Check compositions
+
+Have the agent check each composition before it submits a render, so it fixes its own mistakes from the diagnostics. [`lumen check`](open-source/cli#check-a-composition) from the Lumen CLI checks a file locally, and `POST https://api.lumiscia.com/v1/renders/check` also applies Lumiscia's limits and checks your workspace's media (see [Check before you render](how-it-works#check-before-you-render)). Both report diagnostics with a stable `code` and a JSON pointer `path`.
+
+Give the agent a test API key while it builds the integration. Test renders are free and finish with a sample video, so a mistake in its code costs nothing.

@@ -19,7 +19,7 @@ The Free plan includes $5 of credit a month and Pro includes $50. When the credi
 
 ## How do I get media into a render?
 
-Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest, and reference the alias from your composition. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
+Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest and reference the alias from your composition, or name the upload directly as `asset:<id>`. Uploads take images, video, audio and fonts. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
 
 ## How do I know when a render finishes?
 
@@ -31,11 +31,17 @@ Use any of these:
 
 ## Can I test without paying for GPU time?
 
-Yes. Renders created with a test API key skip the GPU and media validation and complete with a sample artifact, so you can wire up your integration for free.
+Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Test renders send no webhook, and each test key runs up to 5 at a time.
+
+To check a composition without rendering it at all, use [`POST /v1/renders/check`](../how-it-works#check-before-you-render).
 
 ## Can I preview compositions in the browser?
 
 Yes. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` render previews on the viewer's device with WebAssembly. Previews are free and need no API key. You only pay when you submit a render to the API. See [React](../sdks/react) or [Svelte](../sdks/svelte).
+
+## What can Lumiscia render?
+
+An MP4 of the whole timeline, 8 bits per channel, in `h264`, `hevc` or `av1`, from any Lumen 0.6 composition, 3D nodes included. Alpha, stills, image sequences, frame ranges, 10-bit output, ProRes and VP9 are rejected before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
 
 ## What are the render limits?
 
@@ -48,11 +54,11 @@ Every render must fit within:
 - 1 MB of composition JSON,
 - 50 distinct media sources.
 
-Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB.
+Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB.
 
 ## Why is my render queued?
 
-Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
+Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. A [batch render](../pricing#batch-renders) waits for idle GPU time, up to 12 hours. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
 
 ## Can I run Lumen myself?
 
@@ -60,4 +66,4 @@ Yes. Lumen, the engine behind Lumiscia, is open source under Apache 2.0. `lumen-
 
 ## Where do I report issues?
 
-See [Support](support). Include render ids, input hashes, SDK versions, composition JSON, and media details where they apply.
+See [Support](support). Include render ids, input hashes, error codes and request ids, SDK versions, composition JSON, and media details where they apply.

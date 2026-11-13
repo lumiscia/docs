@@ -105,7 +105,7 @@ curl https://api.lumiscia.com/v1/renders \
 
 - Every node id is unique within its graph.
 - The graph has exactly one `media_output`, connected to the stream you want.
-- Every connection names a `to_port` that exists on the target node, and only `layers` and `wgsl_shader`'s `source` take more than one connection.
+- Every connection names a `to_port` that exists on the target node and takes the source's kind, `raster` or `scene`. Only `layers`, `objects` and `wgsl_shader`'s `source` take more than one connection.
 - Enum params use string names, such as `"blend_mode": "multiply"`.
 - Keys are spelled as the [reference](../composition-format) has them. Unknown keys in `timeline`, `render_settings`, nodes and connections are errors.
-- Every `media_in.source` is an alias in the render request's `media` manifest. See [Media sources](media-sources).
+- Every `media_in.source` is an alias in the render request's `media` manifest or an `asset:<id>` reference. See [Media sources](media-sources).

@@ -1,9 +1,9 @@
 ---
 title: Animation
-description: Animate params with tweens, easing, springs, per-glyph staggers and clips.
+description: Animate params with tweens, keyframes, easing, springs, paths, noise, per-glyph staggers and clips.
 ---
 
-You animate a composition by giving params [expressions](../expressions) instead of fixed values. Lumen evaluates each expression on every frame, so a param can change over time without keyframes.
+You animate a composition by giving params [expressions](../expressions) instead of fixed values. Lumen evaluates each expression on every frame, so a param can change over time.
 
 ```json
 {
@@ -28,7 +28,7 @@ You animate a composition by giving params [expressions](../expressions) instead
 { "id": 5, "type": "opacity", "params": { "opacity": "=progress(0, 1s)" } }
 ```
 
-`tween(from, to, start, duration, ease)` moves between two values over `duration` frames from frame `start`. It works on numbers, vec2 values and colors.
+`tween(from, to, start, duration, ease)` moves between two values over `duration` frames from frame `start`. It works on numbers, vec2 and vec3 values, colors and path data.
 
 ```json
 {
@@ -42,7 +42,7 @@ You animate a composition by giving params [expressions](../expressions) instead
 }
 ```
 
-`ease` is a quoted easing name and defaults to `'linear'`. The `in_*` easings start slow, `out_*` end slow and `in_out_*` do both. The `*_back` easings pull back or overshoot. `cubic_bezier(x1, y1, x2, y2, t)` takes CSS-style curves.
+`ease` is an easing and defaults to `'linear'`. The `in_*` easings start slow, `out_*` end slow and `in_out_*` do both, in the `quad`, `cubic`, `quart`, `quint`, `sine`, `expo` and `circ` families. The `*_back` easings pull back or overshoot, `*_elastic` oscillate and `*_bounce` bounce. `cubic_bezier(vec2(x1, y1), vec2(x2, y2))` is a CSS-style curve you can pass anywhere an easing name goes. [Easings](../expressions#easings) lists them.
 
 To animate a color, tween or `lerp` between two colors. This background shifts from slate to teal over 90 frames:
 
@@ -53,6 +53,24 @@ To animate a color, tween or `lerp` between two colors. This background shifts f
   "params": { "paint": "=lerp(#1e293b, #0f766e, progress(0, 90))" }
 }
 ```
+
+## Keyframes
+
+For more than two values, use a keyframe track. `keyframes(frame, keys...)` takes one `key(at, value, ease)` per key, and each key's `ease` shapes the curve toward the next key. This title slides in, rests, and leaves:
+
+```json
+{
+  "id": 2,
+  "type": "text",
+  "params": {
+    "content": "Lumiscia",
+    "font_size": 96,
+    "position": "=keyframes(frame, key(0, vec2(-400, 300), 'out_expo'), key(20, vec2(120, 300), 'hold'), key(70, vec2(120, 300), 'in_cubic'), key(90, vec2(1400, 300)))"
+  }
+}
+```
+
+Before the first key and after the last, the value holds. A `'hold'` key keeps its value until the next key and then jumps, which also steps text: `=keyframes(frame, 'hold', key(0, 'ten'), key(30, 'hundred'))`. Two path data strings with the same commands interpolate point by point, so `keyframes` and `lerp` can morph a [`path`](../nodes/vector/path)'s `data`.
 
 ## Springs
 
@@ -70,6 +88,27 @@ To animate a color, tween or `lerp` between two colors. This background shifts f
 ```
 
 `spring(t, stiffness, damping)` takes a stiffness (default 170) and damping (default 26). Lower damping bounces more.
+
+## Paths and noise
+
+`path_point(path_data, t)` is the point `t` of the way along a path, by arc length, and `path_angle(path_data, t)` is the direction it heads there, in degrees. Together they move a layer along a curve at a steady speed and turn it to follow:
+
+```json
+{
+  "id": 3,
+  "type": "shape",
+  "params": {
+    "geometry_kind": "rectangle",
+    "width": 60,
+    "height": 30,
+    "fill_paint": "#f5b301",
+    "position": "=path_point('M 100 400 C 400 100 800 700 1180 400', progress(0, 3s))",
+    "rotation": "=path_angle('M 100 400 C 400 100 800 700 1180 400', progress(0, 3s))"
+  }
+}
+```
+
+`noise(seed, x)` is a smooth curve from -1 to 1 that varies about once per unit of `x`, so `=noise(1, time * 2) * 6` wobbles a rotation by up to 6 degrees, twice a second. `random(seed, x)` is a fixed random number from 0 up to 1, such as one per glyph with `random(glyph)`. Both give the same result on every render.
 
 ## Per-glyph text
 

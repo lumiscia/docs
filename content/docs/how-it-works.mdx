@@ -145,26 +145,27 @@ A video `media_in` node can trim the source with `range_start` and `range_end`, 
 
 A render is an 8-bit MP4 of the whole timeline, with the composition's audio, unless you ask for something else. Set `output`, `codec`, `quality`, `bit_depth` and `alpha` in the render request, or `codec`, `quality`, `bit_depth` and `alpha` in [`render_settings`](composition-format#render-settings). The request's value wins. The Node SDK writes `bit_depth` as `bitDepth` and `jpeg_quality` as `jpegQuality`; the API takes the snake_case names.
 
-| Setting               | Values                                   | Default                                                    |
-| --------------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| `output.format`       | `mp4`, `mov`, `webm`, `png` or `jpeg`    | `mp4`                                                      |
-| `output.frames`       | `{ "start": 0, "end": 90 }`              | The whole timeline, or frame 0 for a still                 |
-| `output.jpeg_quality` | 1 to 100, for `jpeg` only                | 90                                                         |
-| `codec`               | `h264`, `hevc`, `av1`, `prores` or `vp9` | `h264` in an `mp4`, `prores` in a `mov`, `vp9` in a `webm` |
-| `quality`             | `draft`, `standard`, `high`, `lossless`  | `standard`                                                 |
-| `bit_depth`           | `8` or `10`                              | `8`, and ProRes is always 10                               |
-| `alpha`               | `true` or `false`                        | `false`                                                    |
+| Setting               | Values                                  | Default                                    |
+| --------------------- | --------------------------------------- | ------------------------------------------ |
+| `output.format`       | `mp4`, `mov`, `png` or `jpeg`           | `mp4`                                      |
+| `output.frames`       | `{ "start": 0, "end": 90 }`             | The whole timeline, or frame 0 for a still |
+| `output.jpeg_quality` | 1 to 100, for `jpeg` only               | 90                                         |
+| `codec`               | `h264`, `hevc`, `av1` or `prores`       | `h264` in an `mp4`, `prores` in a `mov`    |
+| `quality`             | `draft`, `standard`, `high`, `lossless` | `standard`                                 |
+| `bit_depth`           | `8` or `10`                             | `8`, and ProRes is always 10               |
+| `alpha`               | `true` or `false`                       | `false`                                    |
 
 Each format holds these codecs and options:
 
-| Format        | Artifact               | `codec`                         | `alpha` | 10-bit                                 |
-| ------------- | ---------------------- | ------------------------------- | ------- | -------------------------------------- |
-| `mp4`         | Video                  | `h264` (default), `hevc`, `av1` | No      | `hevc` and `av1`                       |
-| `mov`         | ProRes 4444 video      | `prores`                        | Yes     | Always. `bit_depth: 8` is rejected.    |
-| `webm`        | VP9 video              | `vp9`                           | Yes     | Without alpha. With alpha it is 8-bit. |
-| `png`, `jpeg` | One frame, as an image | None                            | None    | None                                   |
+| Format        | Artifact               | `codec`                         | `alpha` | 10-bit                              |
+| ------------- | ---------------------- | ------------------------------- | ------- | ----------------------------------- |
+| `mp4`         | Video                  | `h264` (default), `hevc`, `av1` | No      | `hevc` and `av1`                    |
+| `mov`         | ProRes 4444 video      | `prores`                        | Yes     | Always. `bit_depth: 8` is rejected. |
+| `png`, `jpeg` | One frame, as an image | None                            | None    | None                                |
 
-A still takes no `codec`, `quality`, `bit_depth` or `alpha` in the request, not even `alpha: false`, and it ignores those keys in `render_settings`. The artifact downloads with the format's content type (`video/mp4`, `video/quicktime`, `video/webm`, `image/png` or `image/jpeg`) and a file name of `<render id>.<extension>`, where the extension is `mp4`, `mov`, `webm`, `png` or `jpg`.
+A still takes no `codec`, `quality`, `bit_depth` or `alpha` in the request, not even `alpha: false`, and it ignores those keys in `render_settings`. The artifact downloads with the format's content type (`video/mp4`, `video/quicktime`, `image/png` or `image/jpeg`) and a file name of `<render id>.<extension>`, where the extension is `mp4`, `mov`, `png` or `jpg`.
+
+Lumiscia doesn't render Lumen's `webm` (VP9) format, so alpha video is a `mov`. A [self-hosted `lumen-server`](open-source/self-hosting#output) renders WebM.
 
 Add the extra fields next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. An alpha video, a still and a 10-bit video:
 
@@ -182,23 +183,23 @@ Add the extra fields next to `composition` and `media` in the body of `POST http
 
 `frames` is `{ "start": 30, "end": 90 }`, which renders frames 30 to 89. `end` is not included. `start` defaults to 0 and `end` to the end of the timeline, or for a still to the frame after `start`. A still is one frame, so a range of more than one frame is an error. The 10,800-frame limit and a free workspace's 120-second limit count the frames a render covers, not the timeline's length, so a composition longer than either can still render a short range or a still.
 
-An artifact can be at most 5,000,000,000 bytes. Before it queues a `mov`, the API estimates the file's size as `width` × `height` × frames × 0.6638 bytes, and rejects the render with `output_too_large` when the estimate is past that. A 1920×1080 `mov` can have at most 3,632 frames, and a 3840×2160 one at most 908. For example, 1,000 frames at 3840×2160 come to about 5.5 GB, so the API rejects them. Render fewer frames, a smaller size or a `webm`. The estimate can be higher than the real file, and a render of any format whose finished file is past 5,000,000,000 bytes fails with `output_too_large`. A failed render costs nothing.
+An artifact can be at most 5,000,000,000 bytes. Before it queues a `mov`, the API estimates the file's size as `width` × `height` × frames × 0.6638 bytes, and rejects the render with `output_too_large` when the estimate is past that. A 1920×1080 `mov` can have at most 3,632 frames, and a 3840×2160 one at most 908. For example, 1,000 frames at 3840×2160 come to about 5.5 GB, so the API rejects them. Render fewer frames or a smaller size. The estimate can be higher than the real file, and a render of any format whose finished file is past 5,000,000,000 bytes fails with `output_too_large`. A failed render costs nothing.
 
 The API rejects what it can't render with a `422` before it queues or charges anything, instead of rendering something else:
 
 | Request                                                                                 | Code               |
 | --------------------------------------------------------------------------------------- | ------------------ |
-| `png_sequence`, `jpeg_sequence` or any other format name                                | `invalid_output`   |
+| `webm`, `png_sequence`, `jpeg_sequence` or any other format name                        | `invalid_output`   |
 | An unknown key in `output` or `output.frames`                                           | `invalid_output`   |
 | `alpha: true` in an `mp4`                                                               | `invalid_output`   |
-| A `codec` the format can't hold, such as `prores` in an `mp4` or `vp9` in a `mov`       | `invalid_output`   |
+| A `codec` the format can't hold, such as `prores` in an `mp4` or `h264` in a `mov`      | `invalid_output`   |
 | `quality`, `codec`, `bit_depth` or `alpha` in the request with a `png` or `jpeg`        | `invalid_output`   |
 | `jpeg_quality` with another format, or outside 1 to 100                                 | `invalid_output`   |
 | An empty frame range, one past the timeline, or a still of more than one frame          | `invalid_output`   |
 | A frame range that renders more than 10,800 frames or breaks your tier's length limit   | `invalid_output`   |
-| A `codec` that isn't one of the five, or a `quality` that isn't one of the four presets | `invalid_quality`  |
+| `vp9` or another `codec` that isn't one of the four, or a `quality` that isn't a preset | `invalid_quality`  |
 | A `bit_depth` in the request other than 8 or 10                                         | `invalid_quality`  |
-| 10-bit `h264`, 8-bit `prores`, or 10-bit `vp9` with `alpha`                             | `invalid_quality`  |
+| 10-bit `h264` or 8-bit `prores`                                                         | `invalid_quality`  |
 | `lossless` with `av1` or `prores`                                                       | `invalid_quality`  |
 | A `mov` the size estimate puts past 5,000,000,000 bytes                                 | `output_too_large` |
 

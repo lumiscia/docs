@@ -61,7 +61,7 @@ The other keys choose how the video is encoded. A render request can set each of
 | `bit_depth` | `8`, the default, or `10` for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                                       |
 | `alpha`     | `true` keeps transparency as an alpha channel, which only `prores` in a MOV and `vp9` in a WebM hold. The default renders over black. |
 
-Asking for something the format can't hold, such as alpha in an MP4, is an error, never a different video. On Lumiscia the format comes from the render request's `output`, not from the composition, so `prores` or `vp9` in `render_settings` needs `output.format` set to `mov` or `webm`. Lumiscia encodes all five codecs with the four built-in presets, except `lossless` with `av1` or `prores`. A still ignores these keys. See [Output](how-it-works#output) for the accepted combinations.
+Asking for something the format can't hold, such as alpha in an MP4, is an error, never a different video. On Lumiscia the format comes from the render request's `output`, not from the composition, so `prores` in `render_settings` needs `output.format` set to `mov`. Lumiscia doesn't render `vp9`, and encodes the other four codecs with the four built-in presets, except `lossless` with `av1` or `prores`. A still ignores these keys. See [Output](how-it-works#output) for the accepted combinations.
 
 ```json
 { "render_settings": { "width": 1920, "height": 1080, "codec": "hevc", "quality": "high" } }

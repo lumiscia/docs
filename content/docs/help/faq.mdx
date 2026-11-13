@@ -41,7 +41,7 @@ Yes. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` render previews on the
 
 ## What can Lumiscia render?
 
-By default, an 8-bit MP4 of the whole timeline in `h264`. You can also ask for `hevc` or `av1` in an MP4, also at 10 bits per channel, a ProRes 4444 `mov` or a VP9 `webm` with or without alpha, a `png` or `jpeg` still, or a range of frames, from any Lumen 0.6 composition, 3D nodes included. Image sequences, and any combination a format can't hold, are rejected with a `422` before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
+By default, an 8-bit MP4 of the whole timeline in `h264`. You can also ask for `hevc` or `av1` in an MP4, also at 10 bits per channel, a ProRes 4444 `mov` with or without alpha, a `png` or `jpeg` still, or a range of frames, from any Lumen 0.6 composition, 3D nodes included. WebM, image sequences, and any combination a format can't hold, are rejected with a `422` before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
 
 ## What are the render limits?
 

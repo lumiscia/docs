@@ -1,0 +1,193 @@
+---
+title: Lumen CLI
+description: Check and render compositions on your own GPU with the lumen command.
+---
+
+The `lumen` command checks a composition JSON file and renders it on a local GPU, to a video, a still image or an image sequence. Use it to test compositions while you write them. To serve renders over HTTP, run [`lumen-server`](self-hosting) instead.
+
+```bash
+npm install -g @lumiscia/lumen-cli
+lumen --version
+```
+
+`@lumiscia/lumen-cli` installs a prebuilt binary for Linux on x64 and arm64 (glibc 2.28 or later) and for macOS 13 or later on Apple silicon. FFmpeg is linked into the binary, so there is nothing else to install. Rendering needs a GPU, with Vulkan on Linux and Metal on macOS. `lumen check` needs no GPU.
+
+The launcher package is Apache-2.0. The binary it installs contains FFmpeg with x264 and x265, so it is distributed under GPL-3.0-or-later.
+
+## Check a composition
+
+`lumen check` reads a composition and prints what is wrong with it, without rendering anything.
+
+```bash
+lumen check title.json
+```
+
+```text
+title.json: 0 errors, 0 warnings
+```
+
+Each problem is a line with its severity, a stable code, a JSON pointer into the composition, and a message:
+
+```text
+error node.unknown_param at /nodes/0/params/opacityy: unknown param `opacityy` on node 1
+broken.json: 1 errors, 0 warnings
+```
+
+It exits 1 when there are errors. Warnings alone exit 0. Fonts resolve as a render resolves them (see [Fonts](#fonts)), so text in a family none of them has is a `font.fallback` warning:
+
+```text
+warning font.fallback at /nodes/1/params/font_family: text node 2: font family `Brand` is not available, so its text falls back to `Roboto`
+```
+
+`lumen check` doesn't open media files, so a missing file passes and only fails the render. The [Node reference](../nodes) and [Composition format](../composition-format) explain what each code points at.
+
+### `lumen check`
+
+| Flag                    | Environment      | Meaning                                                                                                                                                            |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<composition>`         |                  | Composition JSON file. Required.                                                                                                                                   |
+| `--format <text\|json>` |                  | `text` (the default) prints a line per problem and a count. `json` prints `{ "ok", "diagnostics" }`, the body `lumen-server`'s `POST /renders/check` answers with. |
+| `--media-root <dir>`    |                  | Directory media sources must stay inside. Defaults to the current directory.                                                                                       |
+| `--font-dir <dir>`      | `LUMEN_FONT_DIR` | Directory of fonts to look in first. It must exist.                                                                                                                |
+
+```bash
+lumen check title.json --format json
+```
+
+```json
+{ "diagnostics": [], "ok": true }
+```
+
+## Render a composition
+
+`lumen render` takes the composition and an output path. The output's extension picks what is written.
+
+```bash
+lumen render title.json -o title.mp4
+```
+
+| Output                     | Written                                                   |
+| -------------------------- | --------------------------------------------------------- |
+| `.mp4`                     | H.264 (the default), HEVC or AV1 video, with AAC audio.   |
+| `.mov`                     | ProRes 4444 video, with AAC audio.                        |
+| `.webm`                    | VP9 video, with Opus audio.                               |
+| `.png`                     | One image. It keeps transparency.                         |
+| `.jpg` or `.jpeg`          | One image, opaque, with transparent pixels over black.    |
+| A name with `%d` or `%0Nd` | One image per frame, PNG or JPEG by the name's extension. |
+
+A video is written beside the output and moved into place when the render succeeds, so a failed render leaves an earlier file alone. Progress and a summary line go to stdout. Warnings and errors go to stderr, and a failed render prints a line that starts with `lumen failed`, followed by the engine's code when it has one:
+
+```text
+lumen failed (media.not_found): render failed at frame 0: image `missing.png` (node 1 `source`) not found: ...
+```
+
+### Stills
+
+`--frame` picks the frame for a single image. It defaults to 0. `--jpeg-quality` sets JPEG quality from 1 to 100, and defaults to 90.
+
+```bash
+lumen render title.json -o poster.png --frame 45
+lumen render title.json -o poster.jpg --frame 45 --jpeg-quality 80
+```
+
+### Frame ranges
+
+`--frames START..END` renders those frames of the timeline. `END` isn't included, and either side can be left out, as in `30..` or `..60`. A video starts at time 0 and holds exactly those frames, with its audio cut to the same span. A range that is empty or reaches past the timeline fails before rendering.
+
+```bash
+lumen render title.json -o clip.mp4 --frames 30..60
+```
+
+### Image sequences
+
+An output name with `%d` writes one file per frame and replaces `%d` with the frame number, padded to at least four digits. `%0Nd` pads to at least `N`. Missing directories are created, and a render that fails keeps the frames it wrote.
+
+```bash
+lumen render title.json -o frames/shot_%d.png --frames 28..33
+```
+
+This writes `frames/shot_0028.png` to `frames/shot_0032.png`.
+
+### Alpha video
+
+`--alpha` keeps the frame's transparency as an alpha channel. It works in `.mov` (ProRes 4444) and `.webm` (VP9). The colour is straight, as a PNG holds it. Alpha in an `.mp4` is an error rather than an opaque video, and `--alpha false` renders opaque over a composition whose `render_settings` ask for alpha.
+
+```bash
+lumen render title.json -o title.mov --alpha
+lumen render title.json -o title.webm --alpha --quality high
+```
+
+### Codec, depth and quality
+
+```bash
+lumen render title.json -o title.mp4 --codec hevc --bit-depth 10 --quality high
+```
+
+`--quality`, `--codec`, `--bit-depth` and `--alpha` win over the composition's `render_settings`. The video flags with an image output are an error.
+
+### `lumen render`
+
+| Flag                    | Environment             | Meaning                                                                                                                                  |
+| ----------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `<composition>`         |                         | Composition JSON file. Required.                                                                                                         |
+| `-o`, `--output <path>` |                         | `.mp4`, `.mov`, `.webm`, `.png`, `.jpg`, or a `%d` name for an image sequence. Required.                                                 |
+| `--frames <start..end>` |                         | Frames to render, `end` not included. Defaults to the whole timeline.                                                                    |
+| `--media-root <dir>`    |                         | Directory media sources must stay inside. Defaults to the current directory.                                                             |
+| `--font-dir <dir>`      | `LUMEN_FONT_DIR`        | Directory of fonts to look in first. It must exist.                                                                                      |
+| `--max-text-glyphs <n>` | `LUMEN_MAX_TEXT_GLYPHS` | Most glyph, stroke and decoration instances one text node may draw, from 1 to 1048576. Defaults to 16384. Text over it fails the render. |
+
+Video options:
+
+| Flag                      | Environment            | Meaning                                                                                                            |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--codec <codec>`         |                        | `h264` (the default), `hevc` or `av1` in `.mp4`, `prores` in `.mov`, `vp9` in `.webm`.                             |
+| `--quality <name>`        |                        | Quality preset: `draft`, `standard` (the default), `high`, `lossless`, or one from `--quality-config`.             |
+| `--quality-config <path>` | `LUMEN_QUALITY_CONFIG` | JSON file of quality presets and encoder orders, the same file [`lumen-server`](self-hosting#configuration) takes. |
+| `--bit-depth <8\|10>`     |                        | 8 (the default) or 10, for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                       |
+| `--alpha [true\|false]`   |                        | Keeps transparency as an alpha channel, in `.mov` or `.webm` only.                                                 |
+| `--encoder <name>`        | `LUMEN_VIDEO_ENCODER`  | Pins one encoder, with no fallback. It opens or the render fails.                                                  |
+| `--bitrate <bps\|Nk\|NM>` |                        | Target bits per second, as `14000000`, `14000k` or `14M`.                                                          |
+| `--crf <n>`               |                        | Constant rate factor.                                                                                              |
+| `--qp <n>`                |                        | Constant quantizer.                                                                                                |
+| `--preset <name>`         |                        | The encoder's own speed preset.                                                                                    |
+
+At most one of `--bitrate`, `--crf` and `--qp` can be given. They and `--preset` replace the quality preset's settings, so none of them can go with `--quality`.
+
+Image options:
+
+| Flag                 | Meaning                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--frame <n>`        | The frame to render as one image. Defaults to 0. Can't go with `--frames`. |
+| `--jpeg-quality <n>` | JPEG quality from 1 to 100, for one image or a sequence. Defaults to 90.   |
+
+Other environment variables:
+
+| Variable                | Meaning                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `LUMEN_HARDWARE_DECODE` | `1`, `true`, `yes` or `on` decodes video on the GPU when the hardware supports it. |
+| `RUST_LOG`              | Log filter. Defaults to `lumen_engine=warn,lumen_server=warn`.                     |
+
+## Encoders
+
+Each codec tries its encoders in order and moves on, with a warning, from one that won't open. On Linux that is the Vulkan encoder first, then `libx264`, `libx265` or `libsvtav1` on the CPU. On a host with NVIDIA's encode library, AV1 tries `av1_nvenc` in place of `av1_vulkan`. macOS tries VideoToolbox first, then the same CPU encoders. A preset with no settings for an encoder skips it, so `lossless` uses `libx264`, `libx265` or `libvpx-vp9`. See [Platform support](platform-support#encoding).
+
+`--bitrate`, `--crf`, `--qp` and `--preset` apply to every encoder tried, and one that doesn't take the flag is skipped:
+
+| Flag        | Encoders that take it                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--bitrate` | Every encoder but `prores_ks`.                                                                                             |
+| `--crf`     | `libx264`, `libx265`, `libsvtav1`, `libvpx-vp9` and NVENC.                                                                 |
+| `--qp`      | `libx264`, `libx265`, `libsvtav1`, NVENC, the Vulkan encoders and `prores_ks`.                                             |
+| `--preset`  | `libx264` and `libx265` (`ultrafast` to `placebo`), NVENC (`p1` to `p7`), `libsvtav1` (0 to 13) and `libvpx-vp9` (0 to 5). |
+
+`--preset` alone, with no rate control, targets 14 Mb/s.
+
+## Media
+
+Media sources are paths under the media root, which is the current directory unless you pass `--media-root`. A `media_in` with `"source": "media/hero.png"` reads `media/hero.png` there. A source written as a URL, or one that leaves the media root, is `media.not_found`.
+
+`lumen` has no asset store, so an `asset:<id>` reference is a `media.not_found` error in both `lumen check` and `lumen render`. Reference the file by its path instead.
+
+## Fonts
+
+Fonts come from `--font-dir` first, then `<media-root>/assets/fonts`, then the system fonts, matched by the family name inside each font file. A family none of them has renders in Roboto, the font Lumen bundles, with a `font.fallback` warning.

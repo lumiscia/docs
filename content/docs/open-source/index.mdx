@@ -14,6 +14,11 @@ Lumen is in heavy beta. Expect breaking changes in crate APIs, schema shapes, no
     description="What each npm package and Rust crate does."
   />
   <Card
+    title="Lumen CLI"
+    href="/open-source/cli"
+    description="Check and render compositions on your own GPU from the command line."
+  />
+  <Card
     title="Self-hosting"
     href="/open-source/self-hosting"
     description="Render compositions on your own GPU with lumen-server."
@@ -41,8 +46,9 @@ Browser previews skip this pipeline. `@lumiscia/lumen-react` and `@lumiscia/lume
 | --------------------------------------------------------------------------- | ---------------------------------------------- |
 | Rendering engine, GPU, FFmpeg, and text crates                              | The Lumiscia API and render scheduling         |
 | `lumen-server`, with a render library and a local HTTP binary               | The GPU worker that wraps `lumen-server`       |
-| Composition schema and node definitions                                     | Media upload, URL ingest, and media validation |
+| Composition schema and node definitions                                     | Hosted media storage and validation            |
 | TypeScript packages: SDK, composition builder, types, preview, and bindings | Dashboard, editor, accounts, API keys, billing |
+| The `lumen` CLI                                                             |                                                |
 
 `@lumiscia/lumen-sdk` is open source too. It mainly calls the hosted API, and it also works against a local `lumen-server`.
 

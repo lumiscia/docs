@@ -5,18 +5,18 @@ description: Which operating systems, GPU backends, and encoders Lumen supports 
 
 Lumen needs a GPU for its main render paths. The supported native targets are Linux with Vulkan and macOS with Metal. This page follows the [support matrix](https://github.com/lumiscia/lumen-oss/blob/main/docs/support-matrix.md) in lumen-oss.
 
-It applies to running Lumen yourself. Hosted renders run on Lumiscia's GPU workers, and browser previews depend on the browser's WebGPU or WebGL support.
+It applies to running Lumen yourself. Hosted renders run on Lumiscia's GPU workers, and browser previews depend on the browser's WebGPU support.
 
-| Area                       | Status                 | Notes                                                                                                                   |
-| -------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Linux / Vulkan             | Supported              | Primary native render path. CI runs on Ubuntu with software Vulkan (lavapipe).                                          |
-| macOS / Metal              | Supported              | Metal rendering and VideoToolbox encoding. CI compiles it but runs nothing.                                             |
-| Windows                    | Basic development only | TypeScript packages and pure Rust crates build. Native rendering, FFmpeg, and `lumen-server` do not.                    |
-| NVIDIA / CUDA              | Experimental fast path | CUDA/NVENC encode interop on Linux.                                                                                     |
-| AMD / Intel Vulkan         | Experimental           | Uses the Vulkan renderer without CUDA interop. Not covered by CI.                                                       |
-| Software Vulkan / lavapipe | CI-covered baseline    | Runs the SDK and server integration tests. Validates behavior, not performance.                                         |
-| CPU encoding               | Supported baseline     | `libx264`. The Linux default falls back to it when `h264_vulkan` won't open.                                            |
-| Hardware encoding          | Experimental           | `h264_vulkan` on Linux and VideoToolbox on macOS by default, NVENC by name. Depends on OS, driver, FFmpeg, and adapter. |
+| Area                       | Status                 | Notes                                                                                                                             |
+| -------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Linux / Vulkan             | Supported              | Primary native render path. CI runs on Ubuntu with software Vulkan (lavapipe).                                                    |
+| macOS / Metal              | Supported              | Metal rendering and VideoToolbox encoding. CI compiles it but runs nothing.                                                       |
+| Windows                    | Basic development only | TypeScript packages and pure Rust crates build. Native rendering, FFmpeg, and `lumen-server` do not.                              |
+| NVIDIA / CUDA              | Experimental fast path | CUDA/NVENC encode interop on Linux.                                                                                               |
+| AMD / Intel Vulkan         | Experimental           | Uses the Vulkan renderer without CUDA interop. Not covered by CI.                                                                 |
+| Software Vulkan / lavapipe | CI-covered baseline    | Runs the SDK and server integration tests. Validates behavior, not performance.                                                   |
+| CPU encoding               | Supported baseline     | `libx264`, `libx265`, `libsvtav1`, and `prores_ks` and `libvpx-vp9` for ProRes and VP9. Every hardware encoder falls back to one. |
+| Hardware encoding          | Experimental           | Vulkan Video on Linux and VideoToolbox on macOS by default, NVENC by name. Depends on OS, driver, FFmpeg, and adapter.            |
 
 ## Linux
 
@@ -26,32 +26,43 @@ The Debian and Ubuntu packages CI installs are listed under [Self-hosting](self-
 
 ## macOS
 
-macOS renders through Metal and encodes with VideoToolbox where available. CI only compiles the `metal` build of `lumen-server` and `lumen-local`, so runtime behavior relies on local development and release validation.
+macOS renders through Metal and encodes with VideoToolbox where available. CI only compiles the `metal` build of `lumen-server` and `lumen`, so runtime behavior relies on local development and release validation.
 
 ## Windows
 
-Windows CI builds the TypeScript packages (except the generated WASM bindings) and checks the pure Rust crates: `lumen-engine`, `lumen-engine-gpu`, `lumen-generators`, `lumen-engine-macros`, and `lumen-engine-text`.
+Windows CI builds the TypeScript packages (except the generated WASM bindings) and checks the pure Rust crates: `lumen-engine`, `lumen-engine-gpu`, `lumen-generators`, `lumen-engine-macros`, `lumen-engine-text`, and `lumen-engine-3d`.
 
 Native rendering, FFmpeg-backed media, `lumen-server`, the WASM and type generation scripts, and hardware encoding are unsupported. See [Windows development](https://github.com/lumiscia/lumen-oss/blob/main/docs/windows.md) for setup.
 
 ## Encoding
 
-`lumen-server` and `lumen-local` take the encoder from `LUMEN_VIDEO_ENCODER` (or `--encoder` in `lumen-local`), then the platform default:
+A render asks for a codec and a quality preset. The codec is `h264` (the default), `hevc` or `av1` in an MP4, `prores` in a MOV, or `vp9` in a WebM. The preset is `draft`, `standard` (the default), `high` or `lossless`. Each codec tries its encoders in order, and the first that opens wins, with one warning and the reason for each that didn't:
 
-| Platform | Default             | If it won't open                                       |
-| -------- | ------------------- | ------------------------------------------------------ |
-| Linux    | `h264_vulkan`       | One warning with the reason, then `libx264` on the CPU |
-| macOS    | `h264_videotoolbox` | The render fails                                       |
+| Platform | `h264`                              | `hevc`                              | `av1`                          |
+| -------- | ----------------------------------- | ----------------------------------- | ------------------------------ |
+| Linux    | `h264_vulkan`, then `libx264`       | `hevc_vulkan`, then `libx265`       | `av1_vulkan`, then `libsvtav1` |
+| macOS    | `h264_videotoolbox`, then `libx264` | `hevc_videotoolbox`, then `libx265` | `libsvtav1`                    |
+| Other    | `libx264`                           | `libx265`                           | `libsvtav1`                    |
 
-Encoder names are FFmpeg's own, such as `libx264`, `hevc_nvenc`, `av1_nvenc`, `libsvtav1`, or `av1_vulkan`, and are checked against your FFmpeg build before rendering starts. Short names such as `h264`, `hevc`, `h265`, and `av1` are refused, and so are `*_vaapi` encoders. Only the automatic default falls back. An encoder you name either opens or fails the render. `av1_vulkan` needs FFmpeg 8.0 or newer.
+On a Linux host with NVIDIA's encode library (`libnvidia-encode.so.1`), `av1` tries `av1_nvenc` before `libsvtav1` in place of `av1_vulkan`, which encodes wrong frames on NVIDIA. `av1_nvenc` needs an RTX 40-series card or newer. ProRes (`prores_ks`) and VP9 (`libvpx-vp9`) are software encoders on every platform.
+
+10-bit output works with `hevc` and `av1`. `libx265` and `libsvtav1` always write it, and `hevc_vulkan`, `av1_vulkan` and NVENC write it where the device can. An encoder that can't is skipped, never used at 8 bits. H.264 and VideoToolbox are always 8-bit, and ProRes always 10-bit.
+
+Alpha video is ProRes 4444 in a MOV or VP9 in a WebM. No hardware encoder writes alpha, so alpha video always encodes in software.
+
+A [quality config](self-hosting#configuration) can change the order and each preset's settings. A preset only tries the encoders it has settings for, so `lossless` uses `libx264`, `libx265`, `libvpx-vp9` or NVENC. `LUMEN_VIDEO_ENCODER`, or `--encoder` in the [Lumen CLI](cli), pins one encoder, which either opens or fails the render.
+
+Encoder names are FFmpeg's own, such as `libx264`, `hevc_nvenc`, or `av1_vulkan`, and are checked against your FFmpeg build before rendering starts. `*_vaapi` encoders aren't supported, and `av1_vulkan` needs FFmpeg 8.0 or newer. The output container must hold the codec.
 
 `h264_vulkan` renders and encodes on one Vulkan device, so frames never leave the GPU. NVENC keeps frames on the GPU in builds with the `cuda` feature, and uploads them from the CPU otherwise.
 
 ## Hardware decode
 
-Video decodes on the CPU by default. Set `LUMEN_HARDWARE_DECODE=1` to decode on the renderer's Vulkan device on Linux, in builds with the `vulkan` feature. It covers H.264, HEVC, and AV1 at 8-bit 4:2:0, and needs FFmpeg 8.0 or newer.
+Video decodes on the CPU by default. Set `LUMEN_HARDWARE_DECODE=1` to decode on the renderer's Vulkan device on Linux, in builds with the `vulkan` feature. It covers H.264, HEVC, and AV1 in every profile the driver reports it can decode, such as 10-bit HEVC and AV1, and needs FFmpeg 8.0 or newer.
 
-Anything else decodes on the CPU, with one warning per source. That includes older FFmpeg, VP9, 10-bit video, hardware without the codec, and sources that are rotated or have an alpha channel. A source whose hardware decoder fails before any of its frames are drawn also moves to the CPU. After that, a failure stops the render, because moving to the CPU would change the source's pixels partway through.
+Anything else decodes on the CPU, with one warning per source. That includes older FFmpeg, VP9, profiles the device can't decode, hardware without the codec, and sources with an alpha channel. A source whose hardware decoder fails before any of its frames are drawn also moves to the CPU. After that, a failure stops the render, because moving to the CPU would change the source's pixels partway through.
+
+Every decode path follows the stream's colour tags: BT.2020 and Display P3 video converts to BT.709, and PQ and HLG (HDR) video is tone-mapped to SDR.
 
 ## CI coverage
 

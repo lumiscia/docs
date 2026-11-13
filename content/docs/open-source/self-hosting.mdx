@@ -8,7 +8,7 @@ description: Render compositions on your own GPU with lumen-server.
 - the `lumen_server` library, a render library for building your own render platform,
 - the `lumen-server` binary, a small HTTP server for local rendering.
 
-The binary renders on one machine and keeps artifacts in memory. Queueing, storage, auth, and deployment are yours to build. For production workloads, Lumiscia is the supported path.
+The binary renders on one machine and keeps recent artifacts in memory. Durable queueing, storage, accounts, and deployment are yours to build. For production workloads, Lumiscia is the supported path. To render a file from the command line instead, use the [Lumen CLI](cli).
 
 ## Requirements
 
@@ -61,7 +61,7 @@ LUMEN_VIDEO_ENCODER=h264_nvenc \
   cargo run -p lumen-server --features cli,vulkan,cuda --bin lumen-server -- --bind 127.0.0.1:8080
 ```
 
-`cuda` passes frames to NVENC through CUDA. It needs no CUDA toolkit to build, and loads the driver's CUDA library at runtime. Without `LUMEN_VIDEO_ENCODER`, the server encodes with the Linux default, `h264_vulkan` (see [Encoding](platform-support#encoding)).
+`cuda` passes frames to NVENC through CUDA. It needs no CUDA toolkit to build, and loads the driver's CUDA library at runtime. Without `LUMEN_VIDEO_ENCODER`, H.264 encodes with `h264_vulkan`, then `libx264` (see [Encoding](platform-support#encoding)).
 
 </Tab>
 <Tab value="macOS">
@@ -89,11 +89,12 @@ curl http://127.0.0.1:8080/health
 
 ### Submit a render
 
-`POST /renders` takes the same payload shape as the hosted API: a `composition` and an optional `media` manifest.
+`POST /renders` takes the same payload shape as the hosted API: a `composition`, an optional `media` manifest, and optional [output settings](#output).
 
 ```json title="render.json"
 {
   "composition": {
+    "lumenSchemaVersion": "0.6",
     "timeline": { "fps": 30, "duration_frames": 90 },
     "render_settings": { "width": 1280, "height": 720 },
     "nodes": [
@@ -111,14 +112,30 @@ curl -X POST http://127.0.0.1:8080/renders \
   -d @render.json
 ```
 
-The server responds with `202` and the render, whose `id` starts with `r_` and whose `status` is `queued`.
+The server checks the request, then responds with `202` and the render. Its `id` starts with `r_`, and the server always generates it.
+
+```json
+{
+  "cached": false,
+  "render": {
+    "costMicros": 0,
+    "createdAt": "2026-11-13T05:52:50Z",
+    "id": "r_ec5165a4439f44389d38f9fc92988f73",
+    "inputHash": "2c6b9da1ef742996",
+    "organizationId": "self-hosted",
+    "status": "queued"
+  }
+}
+```
+
+A request that fails the checks gets an [error response](#errors) and never starts.
 
 </Step>
 <Step>
 
 ### Download the artifact
 
-Poll the render until `status` is `succeeded` or `failed`, then download the MP4:
+Poll the render until `status` is `succeeded`, `failed` or `cancelled`, then download the artifact:
 
 ```bash
 curl http://127.0.0.1:8080/renders/<id>
@@ -130,41 +147,139 @@ curl -o render.mp4 http://127.0.0.1:8080/renders/<id>/artifact
 
 ## HTTP routes
 
-| Route                       | Returns                                                                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /health`               | `{"ok":true,"service":"lumen-server"}`. Never requires a token.                                                                                  |
-| `POST /renders`             | `202` with `{ cached, render }`. The render waits for a free slot, then runs in a background task.                                               |
-| `GET /renders/:id`          | `{ render }` with its `status`: `queued`, `processing`, `succeeded`, or `failed`. A succeeded render has the artifact's URL as `outputUrl`.      |
-| `GET /renders/:id/progress` | `{ progress, render }`, where `progress` has `state`, `stage`, and `progress` from `0` to `1`, plus `errorCode` and `retryable` after a failure. |
-| `GET /renders/:id/socket`   | A WebSocket that sends `render.queued`, `render.started`, `render.progress`, `render.completed`, and `render.failed` events.                     |
-| `GET /renders/:id/artifact` | The MP4 file, or `409` until the render succeeds.                                                                                                |
+| Route                       | Returns                                                                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`               | `{"ok":true,"service":"lumen-server"}`. Never requires a token.                                                                                                  |
+| `POST /renders`             | `202` with `{ cached, render }`. The render waits for a [render slot](#queueing-and-retention).                                                                  |
+| `POST /renders/check`       | `200` with `{ ok, diagnostics }`. See [Check a composition](#check-a-composition).                                                                               |
+| `GET /renders/:id`          | `{ render }` with its `status`: `queued`, `processing`, `succeeded`, `failed` or `cancelled`. A succeeded render has the artifact's relative URL as `outputUrl`. |
+| `POST /renders/:id/cancel`  | The render, after [cancelling](#cancel-a-render) it.                                                                                                             |
+| `GET /renders/:id/progress` | `{ progress, render }`, where `progress` has `state`, `stage`, and `progress` from `0` to `1`, plus `error`, `errorCode` and `retryable` after a failure.        |
+| `GET /renders/:id/socket`   | A WebSocket that sends `render.queued`, `render.started`, `render.progress`, `render.completed`, `render.failed` and `render.cancelled` events.                  |
+| `GET /renders/:id/artifact` | The artifact, with its `Content-Type` and a `Content-Disposition` filename of `<id>.<extension>`, or `409` until the render succeeds.                            |
+| `/media` routes             | Media uploads. See [Upload media](#upload-media).                                                                                                                |
 
-The socket sends the render's current status when it connects, then each change, and closes after `render.completed` or `render.failed`. Its events are flat objects with `type`, `renderId`, `progress`, `url`, and `error` fields. The hosted API sends `{ type, state }` instead. The SDK's `waitForRender` reads both.
+Every `:id` route returns `404` with `render_not_found` for an unknown render and for one the server has [dropped](#queueing-and-retention).
+
+The socket sends the render's current status when it connects, then each change, and closes after the render succeeds, fails or is cancelled. Its events are flat objects with `type`, `renderId`, `progress`, `url`, and `error` fields. The hosted API sends `{ type, state }` instead. The SDK's `waitForRender` reads both.
 
 ## Errors
 
-A failed request answers with its HTTP status and `{ "code", "error" }`:
+A failed request answers with its HTTP status and `{ "code", "error" }`, where `error` is the message:
 
-| Status | `code`                                                                       | When                                                                            |
-| ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `400`  | `webhooks_unsupported`                                                       | The body sets `webhookUrl`.                                                     |
-| `401`  | `unauthorized`                                                               | The token is missing or wrong.                                                  |
-| `404`  | `render_not_found`                                                           | No render has that id, or it was dropped (see [Configuration](#configuration)). |
-| `409`  | `artifact_not_ready`, or the render's own error code                         | The render has not succeeded.                                                   |
-| `413`  | `request_too_large`                                                          | The body is over 2 MiB.                                                         |
-| `422`  | `invalid_project_payload`, `invalid_media_alias`, `media_manifest_too_large` | The composition or manifest is invalid. Nothing has been downloaded yet.        |
+| Status | `code`                                                  | When                                                                                    |
+| ------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `400`  | `webhooks_unsupported`                                  | The body sets `webhookUrl`. `lumen-server` doesn't deliver webhooks.                    |
+| `400`  | `invalid_request_body`                                  | The body isn't the expected JSON. Without `content-type: application/json` it is `415`. |
+| `401`  | `unauthorized`                                          | The server has a token, and the request's token is missing or wrong.                    |
+| `404`  | `render_not_found`                                      | No render has that id, or it was dropped.                                               |
+| `409`  | `artifact_not_ready`, or the render's own error code    | The render has not succeeded.                                                           |
+| `413`  | `request_too_large`                                     | The body is over 2 MiB.                                                                 |
+| `422`  | `invalid_project_payload`                               | The composition doesn't parse, or names an `asset:` it can't use.                       |
+| `422`  | `invalid_media_alias`, `media_manifest_too_large`       | The manifest breaks the [alias rules](#media-from-urls).                                |
+| `422`  | `invalid_output`, `invalid_quality`, `output_too_large` | The [output settings](#output) can't be rendered on this host.                          |
+| `503`  | `render_queue_full`                                     | Every render slot is busy and the queue is full.                                        |
 
-A body that isn't the expected JSON answers with the matching `4xx` and `invalid_request_body`.
+`invalid_project_payload` carries a `diagnostics` array of everything wrong with the composition, at most 50. Each has a `severity`, a stable `code`, a JSON pointer `path`, the `node` id when there is one, and a `message`:
 
-A render that fails after it was accepted keeps its error. `GET /renders/:id` returns it as `render.error`, `{ code, message, retryable }`. `progress` carries the message as `error`, with `errorCode` and `retryable`, and the `render.failed` event carries it as `error`. Messages keep up to 1,024 characters.
+```json
+{
+  "code": "invalid_project_payload",
+  "error": "unknown param `paintt` on node 1",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "node.unknown_param",
+      "path": "/nodes/0/params/paintt",
+      "node": 1,
+      "message": "unknown param `paintt` on node 1"
+    }
+  ]
+}
+```
+
+A render that fails after it was accepted keeps its error. `GET /renders/:id` returns it as `render.error`, `{ code, message, retryable }`, and `progress` carries it as `error`, `errorCode` and `retryable`. The code is the engine's diagnostic code, such as `media.not_found`, `media.decode`, `render.gpu` or `render.limit`, one of the [library's codes](#build-your-own-platform), or a media download code such as `media_download_failed`. Messages keep up to 1,024 characters.
+
+## Check a composition
+
+`POST /renders/check` takes the same body as `POST /renders` and checks the composition without rendering it or downloading its media. It answers `200` with `{ "ok", "diagnostics" }`, where `ok` is `false` only when there is an error. Warnings, such as `font.fallback`, leave it `true`.
+
+```json
+{
+  "ok": false,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "document.schema_version",
+      "path": "/lumenSchemaVersion",
+      "message": "this composition declares schema version 0.1.0; this engine reads 0.6, so it was written for a different Lumen version"
+    }
+  ]
+}
+```
+
+`asset:` references are checked against the uploaded media. An invalid manifest returns `422`, as it does for `POST /renders`. Output and quality settings aren't checked. [`lumen check --format json`](cli#lumen-check) prints the same body.
+
+## Cancel a render
+
+`POST /renders/:id/cancel` cancels a queued or running render.
+
+- A queued render ends as `cancelled` before the response, gives its place in the queue back and never starts. It answers `200`.
+- A running render answers `202` with its current status and stops at its next frame, then closes its encoder, deletes its temporary output, releases its media and frees its slot. Poll it or watch its socket for `cancelled`.
+- A render that has already ended answers `200` unchanged, so repeating the request is harmless. A render whose output is complete when the request arrives may still end as `succeeded`.
+
+A cancelled render has `status` `cancelled` and the error `{ "code": "render_cancelled", "message": "the render was cancelled", "retryable": false }`. Its artifact answers `409` with `render_cancelled`, and the socket sends `render.cancelled` and closes.
+
+## Queueing and retention
+
+`--max-concurrent-renders` sets how many renders run at once. The default is 1. Other renders stay `queued` until a slot frees, in submission order. Raise it only if your GPU has the memory for parallel renders.
+
+`--max-queued-renders` sets how many renders may wait for a slot. The default is 32. A `POST /renders` past that is refused at once with `503` and `render_queue_full`, before its composition is checked. There is no `Retry-After`. `0` queues nothing, so a render is refused unless a slot is free.
+
+`--retained-renders` sets how many finished renders the server keeps. The default is 16, and failed and cancelled renders count. Past that, the server drops the oldest finished render and its artifact, and every route for it returns `404`. Queued and running renders are never dropped. Each retained artifact stays in memory, so download it before later renders push it out. A restart loses every render.
+
+## Output
+
+Without output settings, the artifact is an MP4 of the whole timeline. `output` picks another format or part of the timeline, and `quality`, `codec`, `bit_depth` and `alpha` set how a video is encoded:
+
+```json
+{ "composition": { "...": "..." }, "output": { "format": "png", "frames": { "start": 45 } } }
+{ "composition": { "...": "..." }, "output": { "format": "mp4", "frames": { "start": 30, "end": 90 } } }
+{ "composition": { "...": "..." }, "output": { "format": "jpeg_sequence", "jpeg_quality": 80 } }
+{ "composition": { "...": "..." }, "alpha": true, "output": { "format": "webm" } }
+{ "composition": { "...": "..." }, "quality": "high", "codec": "hevc", "bit_depth": 10 }
+```
+
+| `format`                        | `Content-Type`    | Artifact                                                                                         |
+| ------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------ |
+| `mp4` (the default)             | `video/mp4`       | H.264, HEVC or AV1 video of the frames, starting at time 0, with AAC audio cut to the same span. |
+| `mov`                           | `video/quicktime` | The same video in ProRes 4444, with AAC audio.                                                   |
+| `webm`                          | `video/webm`      | The same video in VP9, with Opus audio.                                                          |
+| `png`                           | `image/png`       | The frame at `frames.start` (0 by default), with transparency.                                   |
+| `jpeg`                          | `image/jpeg`      | The same frame, opaque, with transparent pixels over black.                                      |
+| `png_sequence`, `jpeg_sequence` | `application/zip` | A ZIP with a `frame_0000.png` or `.jpg` per frame, numbered with the timeline's frames.          |
+
+- `frames` is `{ start, end }` of the timeline, with `end` not included and either side optional. An empty range, or one past the timeline, is `422` with `invalid_output`.
+- `jpeg_quality` is 1 to 100 for the JPEG formats, and defaults to 90.
+- `quality` names a preset: `draft`, `standard` (the default), `high` and `lossless` exist on every host, and the [quality config](#configuration) can add others. A preset the host doesn't define is `422` with `invalid_quality`.
+- `codec` is `h264` (the default), `hevc` or `av1` in an `mp4`, `prores` in a `mov`, or `vp9` in a `webm`. A `mov` or `webm` without a codec gets its format's.
+- `bit_depth` is `8` (the default) or `10`, for `hevc` and `av1`. H.264 is always 8-bit, and 10 bits with it is `422` with `invalid_quality`. ProRes is always 10-bit.
+- `alpha: true` keeps the frame's transparency as an alpha channel, with straight colour, in a `mov` or `webm`. Alpha in an `mp4` is `422` with `invalid_output`, never an opaque video. Hardware encoders write no alpha, so alpha video uses the software encoder.
+- `quality`, `codec`, `bit_depth` and `alpha` apply to videos only, and with another format they are `422` with `invalid_output`. Each wins over the composition's `render_settings`.
+- A sequence has at most `--max-sequence-frames` frames (3600 by default), or the request is `422` with `output_too_large`. One whose images add up to more than `--max-sequence-bytes` (512 MiB by default) fails with `output_too_large`.
 
 ## Media
 
-In the hosted API, manifest values are uploaded media references like `lumen:<media_id>`. In `lumen-server`, they are direct `http` or `https` URLs, which the server downloads into a directory of its own for each render. Composition nodes still reference media by manifest alias.
+A composition names media in two ways: by a manifest alias, whose URL the server downloads for that render, or as `asset:<id>`, naming a file uploaded to the server. It never names a URL directly.
+
+### Media from URLs
+
+In `lumen-server`, manifest values are direct `http` or `https` URLs, which the server downloads into a directory of its own for each render. Composition nodes reference the files by alias.
 
 ```json title="render.json"
 {
   "composition": {
+    "lumenSchemaVersion": "0.6",
     "timeline": { "fps": 30, "duration_frames": 90 },
     "render_settings": { "width": 1280, "height": 720 },
     "nodes": [
@@ -179,36 +294,106 @@ In the hosted API, manifest values are uploaded media references like `lumen:<me
 }
 ```
 
-A render reads media only from its manifest. A `source` that is not a manifest alias fails the render, including relative paths, absolute paths, and `file://` URLs.
+A render reads URL media only from its manifest. A `source` that is neither a manifest alias nor an `asset:` fails the render with `media.not_found`, including relative paths, absolute paths, `file://` URLs, and URLs written directly in the composition.
 
-The server rejects the request with `422` when the manifest has more than 256 entries, or when an alias is longer than 128 characters, uses characters other than letters, digits, `.`, `_`, and `-`, or is only dots.
+An alias can have up to 128 letters, digits, `.`, `_`, and `-`, and can't be only dots. The manifest has at most 256 entries. The server doesn't check a download's content type. Decoding decides whether a file is usable.
 
-The render fails when:
+A render fails when:
 
-- a URL's host resolves to a private, loopback, link-local, or other non-public address, on any connection or redirect (up to 5 redirects are followed),
-- a file is larger than 512 MiB, or the render's media add up to more than 2 GiB,
-- a file can't be decoded.
+- a download fails, takes longer than 2 minutes, or can't connect within 10 seconds,
+- a file is larger than 512 MiB (64 MiB for a `.cube` LUT), or the render's files add up to more than 2 GiB,
+- a host has no public address and isn't [allowed](#internal-media-hosts). The error code is `media_download_failed`.
 
-The response `Content-Type` is not checked. Video and audio are read only from formats that keep their data inside the file, such as MP4, MOV, WebM, MKV, MPEG-TS, and the common image and audio formats. HLS, DASH, concat lists, image sequences, and SDP are refused, in `lumen-local` too.
+### Internal media hosts
 
-<Callout type="info" title="Media on your network">
-  Downloads from `localhost` and your LAN are refused by default. To allow an internal host, pass it
-  as it appears in the URL with `--allow-media-host`, such as `--allow-media-host localhost`.
-</Callout>
+Downloads refuse private, loopback, link-local, and other non-public addresses on every connection, so DNS rebinding and redirects can't reach them. The server follows up to 5 redirects and checks each one. It ignores proxy settings in the environment.
+
+To download from an internal host, list it with `--allow-media-host`, once per host:
+
+```bash
+lumen-server --bind 127.0.0.1:8080 \
+  --allow-media-host localhost \
+  --allow-media-host 10.0.0.5
+```
+
+Write each host as it appears in the URL, without a port, and with brackets for IPv6 (`[fd00::1]`). Matching is exact, so a redirect from an allowed host to another internal host still fails.
+
+### Upload media
+
+Upload a file once, then name it in any number of compositions as `asset:<id>`: in a `media_in` or `model_3d` `source`, an audio clip's `source_id`, or a text node's `font_family`. The SDK's [`uploadMedia` and `createUrlMedia`](../sdks/node#upload-media) work against these routes unchanged.
+
+| Route                                                  | Body                                         | Answers                                     |
+| ------------------------------------------------------ | -------------------------------------------- | ------------------------------------------- |
+| `POST /media`                                          | `{ "contentType", "fileName", "sizeBytes" }` | `201` `{ "media", "uploadUrl" }`, `pending` |
+| `PUT /media/:id/content`                               | the file's bytes                             | `200` `{ "media" }`, checked                |
+| `POST /media/:id/multipart`                            | none                                         | `201` `{ "uploadId" }`                      |
+| `PUT /media/:id/multipart/:uploadId/parts/:partNumber` | one part's bytes                             | `200` `{ "etag", "partNumber" }`            |
+| `POST /media/:id/multipart/:uploadId/complete`         | `{ "parts": [{ "etag", "partNumber" }] }`    | `200` `{ "media" }`, checked                |
+| `POST /media/url`                                      | `{ "url", "fileName"? }`                     | `201` `{ "media" }`, checked                |
+| `GET /media/:id`                                       |                                              | `200` `{ "media" }`                         |
+| `GET /media/:id/content`                               |                                              | `200` the validated bytes                   |
+| `DELETE /media/:id`                                    |                                              | `204`                                       |
+
+Each file is checked once its bytes are complete, by opening it with the decoders renders use. A file that opens becomes `validated` with its `kind` (`image`, `video`, `audio`, `font`, `model` or `environment`) and `metadata`. One that doesn't becomes `rejected` with a `rejectionReason`. The file name and declared content type play no part. A `.cube` LUT can't be uploaded, so pass it in the manifest.
+
+Only `validated` media resolves. An id that is unknown, expired, deleted, `pending` or `rejected` is `media.not_found`, and media of another kind than the field reads is `media.wrong_kind`. Both make `POST /renders` answer `422`.
+
+`POST /media/url` downloads the file once, through the same address checks and `--allow-media-host` list as manifest downloads. Files are at most `--media-max-bytes` (2 GiB by default), and at most `--media-max-pending` uploads (100 by default) wait for their content at once. Past that, `POST /media` answers `503` with `media_upload_limit`.
+
+Media is kept in `--media-dir`, survives a restart, and expires `--media-ttl` after it was created (24 hours by default). The default directory is under the system temp directory, which can be cleared, so set it to persistent storage when you use a long TTL. A render keeps each asset it uses until it ends, even if the asset expires or is deleted meanwhile.
+
+### Supported formats
+
+Images on `media_in` nodes with `kind: "image"` are decoded from their bytes, without FFmpeg. Video and audio are read only from formats that keep their data inside the file:
+
+| Type         | Formats                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| Video        | MP4, MOV, Matroska (MKV), WebM, MPEG-TS, MPEG-PS, AVI, FLV, ASF (WMV), Ogg, MXF, IVF            |
+| Animated     | GIF, APNG                                                                                       |
+| Still images | PNG, JPEG, WebP, BMP, TIFF, which hold one frame for the whole clip (prefer `kind: "image"`)    |
+| Audio        | MP3, AAC, WAV, W64, FLAC, AIFF, CAF, AC-3, E-AC-3, DTS, AMR, WavPack, and the containers' audio |
+
+Raw H.264 and HEVC streams carry no duration, so they fail to open. Put them in a container first. Formats that point at other files or hosts are refused, including HLS, DASH, concat lists, image sequences, and SDP, because they could read outside the render's directory. The [Lumen CLI](cli) refuses them too. Convert a playlist to a single file before you render it, on a machine where you trust the playlist:
+
+```bash
+ffmpeg -i stream.m3u8 -c copy stream.mp4
+```
 
 ## Fonts
 
 A text node's `font_family` is matched by the family name inside each font file, not by file name. The server looks in this order:
 
-1. a font file in the manifest, when `font_family` is its alias,
-2. the directory `LUMEN_FONT_DIR` names,
+1. a font in the manifest, when `font_family` is its alias, or an uploaded font, when it is `asset:<id>`,
+2. the directory `--font-dir` or `LUMEN_FONT_DIR` names,
 3. the fonts installed on the machine.
 
-Text in a family none of them has renders in the bundled Roboto, and the server logs a warning. `Roboto` is always the bundled font unless `LUMEN_FONT_DIR` has one. The server refuses to start when `LUMEN_FONT_DIR` isn't a directory.
+Text in a family none of them has renders in the bundled Roboto, the render still succeeds, and the server logs a warning. `Roboto` is always the bundled font unless the font directory has one. The server refuses to start when the font directory isn't a directory. A composition can only read fonts from these places, never other files on the server.
+
+```json title="render.json"
+{
+  "composition": {
+    "lumenSchemaVersion": "0.6",
+    "timeline": { "fps": 30, "duration_frames": 90 },
+    "render_settings": { "width": 1280, "height": 720 },
+    "nodes": [
+      {
+        "id": 1,
+        "type": "text",
+        "params": { "content": "Hello", "font_family": "Inter.ttf", "font_size": 96 }
+      },
+      { "id": 2, "type": "media_output" }
+    ],
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
+  },
+  "media": {
+    "Inter.ttf": "https://example.com/Inter.ttf"
+  }
+}
+```
 
 ## Use the SDK
 
-Point `baseUrl` at the server and pass the token as `apiKey`. Media upload and URL ingest do not exist on `lumen-server`, so put URLs in the manifest instead of calling `uploadMedia` or `createUrlMedia`.
+Point `baseUrl` at the server and pass the token as `apiKey`. `uploadMedia`, `createUrlMedia` and `cancelRender` work against `lumen-server`, and `webhookUrl` returns `400`.
 
 ```ts
 import { readFile, writeFile } from "node:fs/promises";
@@ -226,27 +411,61 @@ const response = await lumen.download(done);
 await writeFile("render.mp4", Buffer.from(await response.arrayBuffer()));
 ```
 
-Without `--token`, the server ignores the key, so any string works.
+On a loopback address without `--token`, the server ignores the key, so any string works.
 
 ## Configuration
 
 Each flag also reads from an environment variable.
 
-| Flag                       | Environment variable                  | Default          | Effect                                                                                                                            |
-| -------------------------- | ------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `--bind`                   | `LUMEN_SERVER_BIND`                   | `127.0.0.1:8080` | Address to listen on. A non-loopback address requires a token.                                                                    |
-| `--token`                  | `LUMEN_SERVER_TOKEN`                  | none             | Requires `Authorization: Bearer <token>` on every route except `/health`.                                                         |
-| `--max-concurrent-renders` | `LUMEN_SERVER_MAX_CONCURRENT_RENDERS` | `1`              | Renders that run at once.                                                                                                         |
-| `--retained-renders`       | `LUMEN_SERVER_RETAINED_RENDERS`       | `16`             | Finished renders kept in memory, with their artifacts.                                                                            |
-| `--allow-media-host`       | `LUMEN_SERVER_ALLOW_MEDIA_HOSTS`      | none             | Host allowed to resolve to a non-public address. Repeat the flag, or comma-separate hosts in the variable.                        |
-| `--progress-min-delta`     | `LUMEN_SERVER_PROGRESS_MIN_DELTA`     | `0.02`           | Minimum progress increase, from `0` to `1`, before another progress event. State changes are always sent. `0` sends every update. |
-|                            | `LUMEN_FONT_DIR`                      | none             | Font directory, searched before the installed fonts. Must exist.                                                                  |
-|                            | `LUMEN_VIDEO_ENCODER`                 | platform default | Video encoder, by its FFmpeg name. See [Encoding](platform-support#encoding).                                                     |
-|                            | `LUMEN_HARDWARE_DECODE`               | off              | `1`, `true`, `yes`, or `on` turns on GPU video decode. See [Hardware decode](platform-support#hardware-decode).                   |
+| Flag                       | Environment variable                  | Default                     | Effect                                                                                                                            |
+| -------------------------- | ------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `--bind`                   | `LUMEN_SERVER_BIND`                   | `127.0.0.1:8080`            | Address to listen on. A non-loopback address requires a token.                                                                    |
+| `--token`                  | `LUMEN_SERVER_TOKEN`                  | none                        | Requires `Authorization: Bearer <token>` on every route except `/health`, including the WebSocket.                                |
+| `--max-concurrent-renders` | `LUMEN_SERVER_MAX_CONCURRENT_RENDERS` | `1`                         | Renders that run at once.                                                                                                         |
+| `--max-queued-renders`     | `LUMEN_SERVER_MAX_QUEUED_RENDERS`     | `32`                        | Renders that may wait for a slot. More are refused with `503`.                                                                    |
+| `--retained-renders`       | `LUMEN_SERVER_RETAINED_RENDERS`       | `16`                        | Finished renders kept in memory.                                                                                                  |
+| `--allow-media-host`       | `LUMEN_SERVER_ALLOW_MEDIA_HOSTS`      | none                        | Host exempt from the public address check. Repeat the flag, or separate hosts with commas in the variable.                        |
+| `--progress-min-delta`     | `LUMEN_SERVER_PROGRESS_MIN_DELTA`     | `0.02`                      | Minimum progress increase, from `0` to `1`, before another progress event. State changes are always sent. `0` sends every update. |
+| `--max-text-glyphs`        | `LUMEN_SERVER_MAX_TEXT_GLYPHS`        | `16384`                     | Most glyph, stroke and decoration instances one text node may draw, from 1 to 1048576. Text over it fails its render.             |
+| `--max-sequence-frames`    | `LUMEN_SERVER_MAX_SEQUENCE_FRAMES`    | `3600`                      | Most frames an image sequence may have, from 1 to 65535.                                                                          |
+| `--max-sequence-bytes`     | `LUMEN_SERVER_MAX_SEQUENCE_BYTES`     | `536870912`                 | Most bytes a sequence's images may add up to, up to 3 GiB.                                                                        |
+| `--quality-config`         | `LUMEN_QUALITY_CONFIG`                | none                        | JSON file of quality presets and encoder orders, checked at startup.                                                              |
+| `--media-dir`              | `LUMEN_SERVER_MEDIA_DIR`              | `<temp>/lumen-server-media` | Directory uploaded media is kept in, created if missing.                                                                          |
+| `--media-ttl`              | `LUMEN_SERVER_MEDIA_TTL`              | `24h`                       | How long uploaded media is kept: seconds, or a number with `s`, `m`, `h` or `d`.                                                  |
+| `--media-max-bytes`        | `LUMEN_SERVER_MEDIA_MAX_BYTES`        | `2147483648`                | Largest uploaded or imported file.                                                                                                |
+| `--media-max-pending`      | `LUMEN_SERVER_MEDIA_MAX_PENDING`      | `100`                       | Most uploads waiting for their content at once.                                                                                   |
+| `--font-dir`               | `LUMEN_FONT_DIR`                      | none                        | Font directory, searched before the installed fonts. Must exist.                                                                  |
+|                            | `LUMEN_VIDEO_ENCODER`                 | platform default            | Pins one video encoder, by its FFmpeg name, with no fallback. See [Encoding](platform-support#encoding).                          |
+|                            | `LUMEN_HARDWARE_DECODE`               | off                         | `1`, `true`, `yes`, or `on` turns on GPU video decode. See [Hardware decode](platform-support#hardware-decode).                   |
 
-The server refuses to start on a non-loopback address without a token, and an empty token counts as none. The token is checked before the request body is read, WebSocket included.
+The server refuses to start on a non-loopback address without a token, and an empty token counts as none:
 
-Renders run in submission order, `--max-concurrent-renders` at a time, and later renders stay `queued` until a slot frees. Raise it only if the GPU has the memory for parallel renders. Beyond `--retained-renders`, the oldest finished render and its artifact are dropped and return `404`.
+```console
+$ lumen-server --bind 0.0.0.0:8080
+Error: refusing to serve 0.0.0.0:8080 without a token: set --token or LUMEN_SERVER_TOKEN, or bind a loopback address
+```
+
+The token is checked before the request body is read. On a loopback address without a token, anything on the machine can submit renders.
+
+The quality config sets the default preset and codec, the encoders each codec tries, and each preset's settings per encoder. The server fails to start on unknown fields or codecs, or an encoder this FFmpeg doesn't have. The [crate README](https://github.com/lumiscia/lumen-oss/tree/main/crates/server#quality-config) describes the format.
+
+```json title="quality.json"
+{
+  "default_preset": "standard",
+  "codecs": {
+    "hevc": { "encoders": ["hevc_nvenc", "hevc_vulkan", "libx265"] }
+  },
+  "presets": {
+    "archive": {
+      "codec": "hevc",
+      "encoders": {
+        "hevc_nvenc": { "crf": 17, "preset": "p7" },
+        "libx265": { "crf": 16, "preset": "slower" }
+      }
+    }
+  }
+}
+```
 
 Logs go to stderr. Set `RUST_LOG` to override the default filter (`lumen_server=info,warn`). `RUST_LOG=lumen_server=debug` logs per-frame progress and CUDA and Vulkan device diagnostics.
 
@@ -264,20 +483,71 @@ cargo run -p lumen-server --features cli,vulkan --bin lumen-server
 
 The server logs the selected adapter, backend, and driver when each render starts.
 
+## Limits
+
+| Limit                        | Value      |
+| ---------------------------- | ---------- |
+| Request body                 | 2 MiB      |
+| Manifest entries             | 256        |
+| Alias length                 | 128        |
+| One manifest file            | 512 MiB    |
+| One manifest `.cube` LUT     | 64 MiB     |
+| Manifest files in one render | 2 GiB      |
+| Redirects per download       | 5          |
+| Time to connect              | 10 seconds |
+| Time for one download        | 2 minutes  |
+| Diagnostics per response     | 50         |
+
 ## Limitations
 
 The HTTP server does not provide:
 
-- media upload or URL ingest APIs,
-- durable queueing (renders run in local background tasks),
-- durable artifact storage (finished renders stay in memory until `--retained-renders` drops them or the process exits),
-- webhooks (`webhookUrl` returns `400 webhooks_unsupported`),
+- durable queueing (a restart loses queued and running renders),
+- durable artifact storage (finished renders stay in memory, up to `--retained-renders`, until the process exits),
+- webhooks (`webhookUrl` returns `400`),
 - accounts, API keys, or billing.
 
-Use it for local development and single-process testing. For more than that, you provide GPU machines, FFmpeg setup, queueing, artifact storage, auth, deployment, and monitoring.
+Use it for local development and single-process testing. For more than that, you provide GPU machines, queueing, artifact storage, auth, deployment, and monitoring.
 
 ## Build your own platform
 
-The `lumen_server::render` module renders a composition to an MP4 on the current machine. `parse_composition` reads the composition JSON, and `render_project_mp4` renders it to MP4 bytes, reading media from `RenderOptions::media_root` and reporting progress to a callback. `Mp4Render` opens the encoder and compiles the composition as a separate step, and `LocalMediaStore` serves a render's media and fonts from one directory.
+The `lumen_server::render` module renders a composition on the current machine. The library reads no environment variables: a `RenderConfig` holds what renders take from the host (`font_dir`, `hardware_decode`, `gpu` and `temp_dir`), and the binaries build it from their flags and environment. `render_project` renders a composition with `RenderOptions`, which carry the config, the `media_root` sources resolve under, the `output` to write, and a `CancelToken`, and returns a `RenderedOutput` with the file's `bytes` and `format`.
+
+```rust
+use lumen_server::render::{ErrorCode, RenderConfig, RenderOptions, render_project};
+
+let options = RenderOptions {
+    config: RenderConfig {
+        font_dir: Some("/srv/fonts".into()),
+        hardware_decode: true,
+        ..RenderConfig::default()
+    },
+    media_root: Some(job_dir),
+    ..RenderOptions::default()
+};
+match render_project(&composition, &options, &mut |_| {}) {
+    Ok(output) => store(output.bytes, output.format.content_type()),
+    Err(error) if error.code() == ErrorCode::Engine("media.not_found") => missing_media(error),
+    Err(error) if error.retryable() => retry_later(),
+    Err(error) => fail(error.code().as_str(), error),
+}
+```
+
+A failed render is a `ServerRenderError`. Its `code()` is an `ErrorCode`, and `as_str()` gives the string the HTTP binary returns. A failure in the engine has the engine's diagnostic code, such as `media.not_found` or `render.gpu`. The other codes are the library's:
+
+| Code                      | Meaning                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `invalid_project_payload` | The payload is not a composition.                                                                      |
+| `invalid_quality`         | The quality preset, codec, bit depth or alpha resolves to no encoder.                                  |
+| `invalid_output`          | The output can't be rendered, such as an empty range or a format that can't hold the codec or alpha.   |
+| `output_too_large`        | An image sequence has more frames, or adds up to more bytes, than its limits allow.                    |
+| `invalid_render_profile`  | An encoder that doesn't exist, or a frame rate the encoder can't take.                                 |
+| `invalid_config`          | The config names a media root or font directory that isn't there.                                      |
+| `render_failed`           | The GPU work around the engine failed, such as reading a frame back. Retryable.                        |
+| `encode_failed`           | The encoder failed to open, encode or finish. Retryable when it ran out of memory or encoder sessions. |
+| `output_io`               | The output file couldn't be created, written or read back.                                             |
+| `render_cancelled`        | The render's `CancelToken` was cancelled. Not retryable.                                               |
+
+To stop a render, pass a `CancelToken` in `RenderOptions::cancel` and call `cancel()` on a clone of it. The render stops within a frame, removes its temporary output, and ends with `render_cancelled`.
 
 Build your own API, queue, and storage around this module. The binary's request and response types are internal to it. The library API is experimental and may change. See the [crate README](https://github.com/lumiscia/lumen-oss/blob/main/crates/server/README.md) for details.

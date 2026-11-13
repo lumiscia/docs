@@ -1,0 +1,91 @@
+---
+title: Model 3D
+description: A glTF model with its materials, skins, morph targets and animation clips.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`model_3d` draws the default scene of a binary glTF (`.glb`) file, with its materials, and can play one of its animation clips. `source` names the file; it must hold its buffers and images inside it. `position`, `rotation` and `scale` place the model like any other scene node. glTF is in metres, but many models are built at other scales, so set `scale` to fit.
+
+## Animation
+
+`animation` names the clip to play, by its name or else its index. Empty plays none. The clip is at `time × animation_speed + animation_offset` seconds, so a negative `animation_speed` plays it backwards. `animation_loop`, on by default, plays the clip again from its start once it ends; off, the model holds the clip's last pose.
+
+A clip, material or camera the model lacks fails the render with `render.node_evaluation`, and the message lists the names it has. `modelInfo` in `@lumiscia/lumen-bindings` lists a model's animations, materials and cameras ahead of time.
+
+A model that plays no clip, or plays one at `animation_speed` 0, is drawn once and kept across frames like a still shape. So is a model whose clip doesn't loop, once the clip has ended.
+
+## A raster on a material
+
+A raster wired into `texture` replaces the material that `texture_material` names, shown unlit with its colours as in 2D. That puts a video on a screen, a poster on a wall or a label on a product.
+
+## The model's own lights and camera
+
+`lights: true` adds the model's `KHR_lights_punctual` lights where its nodes place them. Their intensities are used as `light_3d` intensities: a directional light's lux and a point or spot light's candela as they are. They cast no shadows, and a scene they light gets no default lights.
+
+`camera` views the scene from one of the model's cameras, by name or else index. It counts as a [`camera_3d`](camera-3d) at the model, so the first camera in the scene still wins, and it takes the aspect ratio of the output.
+
+## What is read
+
+The node reads triangle meshes with normals, two sets of texture coordinates and vertex colours; metallic-roughness materials with their base colour, metallic-roughness, normal, emissive and occlusion maps, alpha modes, `KHR_texture_transform`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; skins; morph targets; and clips of node transforms and morph weights. Draco meshes, meshopt buffers, and KTX2 (Basis Universal) and WebP textures are read too. The Lumen CLI and `lumen-server` read all four compressions, and the browser preview's default build reads meshopt only.
+
+Points, lines, and triangle strips and fans are left out, with a `scene.model_primitives_skipped` warning. A `.gltf` JSON file, a file that refers to data outside itself, and a model that requires an extension Lumen doesn't read fail with `media.unsupported`. A model past a size limit fails with `media.too_large`.
+
+<NodeReference type="model_3d" />
+
+## Example
+
+The glTF sample fox, walking, seen from a camera aimed at its middle:
+
+```json
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "model_3d",
+      "params": {
+        "source": "fox.glb",
+        "animation": "Walk",
+        "scale": [0.02, 0.02, 0.02],
+        "rotation": [0, 90, 0]
+      }
+    },
+    {
+      "id": 2,
+      "type": "camera_3d",
+      "params": { "position": [0, 1.4, 4.2], "look_at": true, "target": [0, 0.7, 0] }
+    },
+    { "id": 3, "type": "merge_3d" },
+    { "id": 4, "type": "render_3d" },
+    { "id": 5, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 3, "to_port": "objects" },
+    { "from_node": 2, "to_node": 3, "to_port": "objects" },
+    { "from_node": 3, "to_node": 4, "to_port": "scene" },
+    { "from_node": 4, "to_node": 5, "to_port": "source" }
+  ]
+}
+```
+
+A video on the material named `grid` of a flat sheet model:
+
+```json
+{
+  "nodes": [
+    { "id": 1, "type": "media_in", "params": { "kind": "video", "source": "clip.mp4" } },
+    {
+      "id": 2,
+      "type": "model_3d",
+      "params": { "source": "sheet.glb", "texture_material": "grid", "position": [0, -1, 0] }
+    },
+    { "id": 3, "type": "render_3d" },
+    { "id": 4, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 2, "to_port": "texture" },
+    { "from_node": 2, "to_node": 3, "to_port": "scene" },
+    { "from_node": 3, "to_node": 4, "to_port": "source" }
+  ]
+}
+```

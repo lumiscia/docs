@@ -1,0 +1,15 @@
+{
+  "title": "Scene",
+  "defaultOpen": false,
+  "pages": [
+    "camera-3d",
+    "image-plane-3d",
+    "instance-3d",
+    "light-3d",
+    "merge-3d",
+    "model-3d",
+    "render-3d",
+    "shape-3d",
+    "text-3d"
+  ]
+}

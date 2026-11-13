@@ -1,0 +1,18 @@
+---
+title: Scene
+description: Nodes that build 3D scenes and draw them into a raster.
+---
+
+Scene nodes build a 3D scene of objects, lights and cameras. Every scene node outputs a `scene`, which only scene inputs take, and [`render_3d`](render-3d) draws a scene into a raster that composites like any other layer. The [3D guide](../../guides/3d) builds a scene step by step.
+
+World units are metres. X points right, Y points up, and a camera looks down its own -Z, so +Z points toward the viewer. `position`, `rotation` and `scale` are `[x, y, z]` values, and `rotation` is in degrees, applied as yaw about Y, then pitch about the turned X, then roll about the turned Z.
+
+- [Camera 3D](camera-3d) (`camera_3d`): the viewpoint `render_3d` draws from.
+- [Image Plane 3D](image-plane-3d) (`image_plane_3d`): shows a raster, such as text or video, on a flat rectangle.
+- [Instance 3D](instance-3d) (`instance_3d`): draws its input scene many times, each copy placed by expressions.
+- [Light 3D](light-3d) (`light_3d`): a directional, point, spot or ambient light.
+- [Merge 3D](merge-3d) (`merge_3d`): groups scenes into one, placed together by its transform.
+- [Model 3D](model-3d) (`model_3d`): a glTF model with its materials and animation clips.
+- [Render 3D](render-3d) (`render_3d`): draws a scene into a raster, or its depth or normals.
+- [Shape 3D](shape-3d) (`shape_3d`): a box, sphere, plane, cylinder, torus or cone.
+- [Text 3D](text-3d) (`text_3d`): text extruded into a solid.

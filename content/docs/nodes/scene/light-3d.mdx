@@ -1,0 +1,45 @@
+---
+title: Light 3D
+description: A directional, point, spot or ambient light.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`light_3d` lights the scene it is wired into. `light` picks the kind:
+
+| `light`       | Shines                                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `directional` | In parallel along the light's -Z, like the sun. Its `position` has no effect.                                               |
+| `point`       | Every way from its `position`, out to `range` (0 is unlimited).                                                             |
+| `spot`        | In a cone along the light's -Z from its `position`. `spot_angle` is the cone's full angle, and `spot_softness` the fraction of it, from the edge, that fades out. |
+| `ambient`     | Evenly on every surface from all around. Its `position` and `rotation` have no effect.                                      |
+
+`intensity` is a unitless multiplier, and point and spot lights fall off with the square of the distance. The default `rotation`, `[-45, 30, 0]`, points a directional or spot light 45° down.
+
+A scene with no lights gets a default key light and ambient fill. [`render_3d`](render-3d) also lights every surface from all around with its `environment`, a built-in studio unless it sets an `environment_map`.
+
+## Shadows
+
+Turn on `cast_shadows` on a directional, spot or point light, and objects between it and others block its light. `shadow_softness` is how wide shadow edges blur, in world units. A directional light's shadows cover what the camera sees out to `shadow_distance`, measured from the camera along its view and fading out over its last tenth, so a larger distance trades sharpness for reach. A spot light's shadows cover its cone, up to 170° across, and a point light's reach every direction.
+
+A `render_3d` draws shadows for the first 8 lights that cast them, in the order its scene inputs are wired. The rest light the scene without shadows, with a `scene.shadow_limit` warning.
+
+<NodeReference type="light_3d" />
+
+## Example
+
+A low sun that casts soft shadows:
+
+```json
+{
+  "id": 3,
+  "type": "light_3d",
+  "params": {
+    "light": "directional",
+    "intensity": 3,
+    "rotation": [-55, -40, 0],
+    "cast_shadows": true,
+    "shadow_softness": 0.04
+  }
+}
+```

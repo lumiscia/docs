@@ -1,0 +1,31 @@
+---
+title: Camera 3D
+description: The viewpoint render_3d draws a scene from.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`camera_3d` is the viewpoint [`render_3d`](render-3d) draws from, looking down its own -Z. Wire it into the [`merge_3d`](merge-3d) that holds the objects it should see.
+
+`projection` is `perspective`, with a vertical `fov` in degrees, or `orthographic`, which shows a view `ortho_height` world units tall and keeps things the same size at any distance. The width of the view follows the aspect ratio of the `render_3d` output. `near` and `far` bound the distances drawn.
+
+Aim the camera with `rotation`, or turn on `look_at` to aim it at `target`, which then ignores `rotation`. With `look_at`, the camera's up direction is +Y, or +Z when it aims almost straight up or down.
+
+The first camera in a scene, in the order its objects are wired, is the one used. A scene with no camera is seen from `[0, 0, 5]` with a 40° field of view. A glTF model's own camera, chosen with [`model_3d`](model-3d)'s `camera`, counts as a camera at the model.
+
+<NodeReference type="camera_3d" />
+
+## Example
+
+An orbit around the origin, once every 2π seconds:
+
+```json
+{
+  "id": 2,
+  "type": "camera_3d",
+  "params": {
+    "position": "=vec3(sin(time) * 4, 1.5, cos(time) * 4)",
+    "look_at": true
+  }
+}
+```

@@ -3,7 +3,7 @@ title: Pricing
 description: Plans, render-time rates, workspace limits, and how Lumiscia bills cloud renders.
 ---
 
-Lumiscia bills for the time a GPU spends rendering your composition, plus a small fee for media you upload. Browser previews run on the viewer's device and are free. The same plans and rates are on [lumiscia.com/pricing](https://lumiscia.com/pricing).
+Lumiscia bills a flat fee for each successful render and for the time a GPU spends rendering it, plus a small fee for media you upload. Browser previews run on the viewer's device and are free. The same plans and rates are on [lumiscia.com/pricing](https://lumiscia.com/pricing).
 
 ## Plans
 
@@ -12,7 +12,7 @@ Lumiscia bills for the time a GPU spends rendering your composition, plus a smal
 | Free | $0            |             $5 |
 | Pro  | $50 per month |            $50 |
 
-Pro also adds high queue priority, 10 renders at a time, 4K output, and shared workspace billing.
+Pro also lowers the render-time rate and adds high queue priority, 10 renders at a time, 4K output, and shared workspace billing.
 
 Charges come out of the monthly credit first, then your workspace balance. Unused credit expires at the end of the month. You top up the balance in the dashboard, $10 minimum per top-up.
 
@@ -20,15 +20,16 @@ Charges come out of the monthly credit first, then your workspace balance. Unuse
 
 | Item              | Rate                                                            |
 | ----------------- | --------------------------------------------------------------- |
-| Render time       | $0.002 per second, 5 second minimum per render ($0.01)          |
+| Render            | $0.01 per successful render                                     |
+| Render time       | $0.0075 per second, or $0.005 per second on Pro                 |
 | Batch render time | Half the render-time rate. See [Batch renders](#batch-renders). |
 | Media             | $0.005 per GB uploaded or imported from a URL                   |
 
-The GPU worker measures render time to the millisecond. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing.
+The GPU worker measures render time to the millisecond, and there is no minimum. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing.
 
 Media is charged when its bytes arrive, so a file that is later rejected or deleted is still billed, and so is media whose render fails. Renders and uploads made with a test API key are free.
 
-To start a render, your monthly credit and balance together must cover the $0.01 minimum, and an upload needs enough to cover its own charge. Otherwise the API rejects the request with a `400` and the code `insufficient_balance`.
+To start a render, your monthly credit and balance together must cover the $0.01 render fee, and an upload needs enough to cover its own charge. Otherwise the API rejects the request with a `400` and the code `insufficient_balance`.
 
 ## Queue priority
 
@@ -44,7 +45,7 @@ The resolution limit counts pixels, so 1080p allows 1920×1080 or 1080×1920. Re
 
 ## Batch renders
 
-A batch render waits for idle GPU time and costs half the per-second rate. To make one, add `"priority": "batch"` next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. The render stays `queued` until it starts, within 12 hours, and its `priority` reads `batch`. Batch renders don't count against your renders at a time or your new renders a minute. The SDK's `render()` doesn't take `priority`, so send this request yourself.
+A batch render waits for idle GPU time and costs half the per-second rate: $0.00375 per second, or $0.0025 on Pro. The $0.01 fee per render stays the same. To make one, add `"priority": "batch"` next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. The render stays `queued` until it starts, within 12 hours, and its `priority` reads `batch`. Batch renders don't count against your renders at a time or your new renders a minute. The SDK's `render()` doesn't take `priority`, so send this request yourself.
 
 A batch request that breaks one of these rules is rejected with its code:
 
@@ -81,21 +82,21 @@ These are rough figures. 4K output takes longer, and every render reports its ex
 ```ts
 function estimateRenderCost(durationSeconds: number, fps: number, framesPerSecond: number) {
   const frames = durationSeconds * fps;
-  const renderSeconds = Math.max(frames / framesPerSecond, 5);
-  return { frames, renderSeconds, dollars: renderSeconds * 0.002 };
+  const renderSeconds = frames / framesPerSecond;
+  return { frames, renderSeconds, dollars: 0.01 + renderSeconds * 0.0075 };
 }
 
 console.log(estimateRenderCost(30, 30, 180));
-// { frames: 900, renderSeconds: 5, dollars: 0.01 }
+// { frames: 900, renderSeconds: 5, dollars: 0.0475 }
 ```
 
-| Scenario                 | Frames | Render time |  Cost |
-| ------------------------ | -----: | ----------: | ----: |
-| 10 s at 30 fps, simple   |    300 |   5 s (min) | $0.01 |
-| 30 s at 30 fps, standard |    900 |         5 s | $0.01 |
-| 60 s at 30 fps, heavy    |  1,800 |        30 s | $0.06 |
+| Scenario                 | Frames | Render time |    Cost |
+| ------------------------ | -----: | ----------: | ------: |
+| 12 s at 30 fps, simple   |    360 |         1 s | $0.0175 |
+| 30 s at 30 fps, standard |    900 |         5 s | $0.0475 |
+| 60 s at 30 fps, heavy    |  1,800 |        30 s |  $0.235 |
 
-At these rates, 400 standard 30-second renders use 2,000 seconds of render time ($4.00), which fits in the Free plan's $5 credit. For a closer estimate, render a short representative range and scale its render time by the full frame count.
+These costs use the standard rate. At $0.0475 each, the Free plan's $5 credit covers 105 standard 30-second renders. For a closer estimate, render a short representative range and scale its render time by the full frame count.
 
 ## Billing in the API
 
@@ -121,7 +122,7 @@ Yes. After $1,000 in total top-ups, your workspace can run 25 renders at a time 
 
 ### Is there a monthly minimum?
 
-No. The Free plan has no monthly fee. You pay only for render time and uploads beyond your monthly credit.
+No. The Free plan has no monthly fee. You pay only for renders and uploads beyond your monthly credit.
 
 ### Are node types priced differently?
 

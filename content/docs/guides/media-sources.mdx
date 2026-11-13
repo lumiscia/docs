@@ -82,12 +82,12 @@ const intro = await lumen.createUrlMedia({
 
 Lumiscia probes every file after it arrives. A render accepts only media whose `status` is `validated`. Media is `pending` until its bytes arrive and `uploaded` while the probe hasn't finished, and `GET /v1/media/<id>` returns the current status. A file that fails the probe is `rejected`, with the reason in `rejectionReason`.
 
-| Rule             | Value                                                                       |
-| ---------------- | --------------------------------------------------------------------------- |
-| Expiry           | 24 hours after you create the media (`expiresAt`)                           |
-| Media per render | Up to 50 manifest entries, and up to 50 distinct files with `asset:<id>`    |
-| Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit. |
-| Manifest values  | `lumen:<media_id>`                                                          |
+| Rule             | Value                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Expiry           | 24 hours after you create the media (`expiresAt`)                                       |
+| Media per render | Up to 50 manifest entries, and up to 50 distinct files counting `asset:<id>` references |
+| Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit.             |
+| Manifest values  | `lumen:<media_id>`                                                                      |
 
 A render that names media that isn't ready is rejected with a `422` before it's queued, with a code such as `media_not_validated`, `media_expired` or `media_not_found`. A manifest value that isn't `lumen:<media_id>` is `invalid_media_reference`, and a URL in a media field fails validation.
 

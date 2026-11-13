@@ -52,7 +52,7 @@ Every render must fit within:
 - 10,800 frames,
 - 250 nodes,
 - 1 MB of composition JSON,
-- 50 manifest entries, and 50 distinct media files with `asset:<id>` references.
+- 50 manifest entries, and 50 distinct media files counting `asset:<id>` references.
 
 Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB, but a file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`.
 

@@ -266,13 +266,13 @@ Every clip's `track_id` must name a track in `tracks`, and track and clip ids mu
 
 The Lumiscia API checks each render request against these limits before it queues the render:
 
-| Limit                  | Value                 |
-| ---------------------- | --------------------- |
-| Frame rate             | Up to 60 fps          |
-| `duration_frames`      | 1 to 10,800           |
-| Output size            | Up to 3840×2160       |
-| Nodes in `nodes`       | 1 to 250              |
-| Composition JSON       | Up to 1,000,000 bytes |
-| Media manifest entries | Up to 50              |
+| Limit             | Value                                                        |
+| ----------------- | ------------------------------------------------------------ |
+| Frame rate        | Up to 60 fps                                                 |
+| `duration_frames` | 1 to 10,800                                                  |
+| Output size       | Up to 3840×2160                                              |
+| Nodes in `nodes`  | 1 to 250                                                     |
+| Composition JSON  | Up to 1,000,000 bytes                                        |
+| Media per render  | Up to 50 distinct files, in the manifest and as `asset:<id>` |
 
 Your plan can set lower limits on resolution and output length. See [Pricing](pricing).

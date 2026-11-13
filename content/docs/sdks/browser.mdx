@@ -174,4 +174,6 @@ export async function createRender(form: FormData) {
 }
 ```
 
+Lumiscia renders take uploaded images, video, audio and fonts. A `.glb` model, an environment map or a LUT can't be uploaded, so a composition that previews one can't render on Lumiscia (see [What you can upload](../guides/media-sources#what-you-can-upload)).
+
 Before you submit a composition that came from the browser, check it against your own rules (allowed node types, size, duration), since the render is billed to your workspace. The [Preview to render](../guides/preview-to-render) guide covers the full workflow.

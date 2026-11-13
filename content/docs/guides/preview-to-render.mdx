@@ -30,7 +30,7 @@ export function Editor({ composition, file }: { composition: LumenComposition; f
 
 Upload each file to Lumiscia while the user edits, and keep the returned media id next to its source name. Uploads need your API key, so run them on your backend with `lumen.uploadMedia({ body: file })`. See [Media sources](media-sources) for upload and URL ingest.
 
-A composition can also name an upload directly as `asset:<id>`. Pass the same file to the preview under that name, as in `media={{ "asset:m_123": file }}`, and the render needs no manifest entry for it. See [Media references](../composition-format#media-references).
+A composition can also name an upload directly as `asset:<id>`. Pass the same file to the preview under that name, as in `media={{ "asset:media_3f9a1c2b7d4e5f60": file }}`, and the render needs no manifest entry for it. See [Media references](../composition-format#media-references).
 
 </Step>
 <Step>

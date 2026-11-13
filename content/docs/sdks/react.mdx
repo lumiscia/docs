@@ -117,7 +117,7 @@ Pass media in `media`, a map from each source name the composition uses to a fil
 />
 ```
 
-A source can be a URL string or `URL`, a `File` or `Blob`, or raw bytes. Only the entries the composition names are fetched, and each is released when the composition stops naming it. The preview takes each source's kind from the node that reads it. When an expression computes a source, give the entry a `kind` unless its blob's type says it: `{ kind: "video", source }`. The kinds are `image`, `video`, `audio`, `model`, `environment` and `lut`.
+A source can be a URL string or `URL`, a `File` or `Blob`, or raw bytes. Only the entries the composition names are fetched, and each is released when the composition stops naming it. The preview takes each source's kind from the node that reads it. When an expression computes a source, give the entry a `kind` unless its blob's type says it: `{ kind: "video", source }`. The kinds are `image`, `video`, `audio`, `model`, `environment` and `lut`. The preview reads every kind. Lumiscia renders can't use models, environment maps or LUTs, which can't be uploaded there (see [What you can upload](../guides/media-sources#what-you-can-upload)).
 
 A source is found by its exact name, and the preview follows `lumen-server`'s rules: a source written as a URL (`https://...`), or with a `..` part, is `media.not_found` even when `media` has an entry under it. Name the source, such as `intro.mp4`, and put the URL in `media` under that name. See [Media sources](../guides/media-sources).
 

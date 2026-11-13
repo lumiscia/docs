@@ -39,7 +39,7 @@ const hero = await lumen.uploadMedia({
 });
 ```
 
-`body` takes a `Blob` or `File`, a `Buffer` or other `BufferSource`, or a web `ReadableStream`. A `File` or a `Blob` with a type needs nothing else. A buffer also needs a `contentType`, or a `fileName` with a known extension such as `.png`, `.mp4`, `.wav` or `.glb`, and a stream also needs `sizeBytes`. If no content type can be found, `uploadMedia` throws `invalid_upload` before it sends a request.
+`body` takes a `Blob` or `File`, a `Buffer` or other `BufferSource`, or a web `ReadableStream`. A `File` or a `Blob` with a type needs nothing else. A buffer also needs a `contentType`, or a `fileName` with a known extension such as `.png`, `.mp4`, `.wav` or `.glb`, and a stream also needs `sizeBytes`. If no content type can be found, `uploadMedia` throws `invalid_upload` before it sends a request. Lumiscia takes images, video, audio and TrueType or OpenType fonts, and rejects models, environment maps and LUTs (see [What you can upload](../guides/media-sources#what-you-can-upload)).
 
 Bodies over 64 MiB and every stream go up in 8 MiB parts, and anything smaller in one request. For a large file, `openAsBlob` from `node:fs` gives a `Blob` that is read as it uploads:
 
@@ -63,7 +63,7 @@ const plate = await lumen.createUrlMedia({
 
 Both return the media record. A render can only use media whose `status` is `"validated"`, and only until its `expiresAt` time. Uploads and URL ingest both run validation before they return, but if the validator is unavailable or a probe fails with a retriable error, `status` stays `"uploaded"`. Check `status` before you render.
 
-Once a file has been opened, the record also has its `kind` (`image`, `video`, `audio`, `font`, `model` or `environment`) and a `metadata` object with what was found: `width` and `height` for images, video and environment maps, `durationMs`, `fps`, `codec` and the rest for video and audio, `families` and `faces` for fonts, and for a glTF model the `animations`, `materials` and `cameras` that a [`model_3d`](../nodes/scene/model-3d) selects by name or index.
+Once a file has been opened, the record also has its `kind` (`image`, `video`, `audio`, `font`, `model` or `environment`) and a `metadata` object with what was found: `width` and `height` for images, video and environment maps, `durationMs`, `fps`, `codec` and the rest for video and audio, `families` and `faces` for fonts, and for a glTF model the `animations`, `materials` and `cameras` that a [`model_3d`](../nodes/scene/model-3d) selects by name or index. Lumiscia's media records have no `kind` or `metadata`.
 
 See [Media sources](../guides/media-sources) for how renders reference media.
 
@@ -106,11 +106,19 @@ console.log("Render created:", render.id, render.cached ? "(cached)" : "");
 | `bitDepth`       | `8` or `10`. 10 bits work with `hevc` and `av1`, and ProRes is always 10-bit.                                                                                   |
 | `alpha`          | `true` keeps transparency as an alpha channel, in a `mov` (ProRes 4444) or a `webm` (VP9).                                                                      |
 | `signal`         | `AbortSignal` for the request.                                                                                                                                  |
-| `idempotencyKey` | Sent as an `idempotency-key` header. The API currently ignores it.                                                                                              |
+| `idempotencyKey` | Sent as an `idempotency-key` header, so a retry with the same key never creates a second render. See [Billing in the API](../pricing#billing-in-the-api).       |
 
 `quality`, `codec`, `bitDepth` and `alpha` win over the same settings in the composition's [`render_settings`](../composition-format#render-settings), and apply to video outputs only. A host that can't serve one rejects the render instead of rendering something else, so alpha in an MP4, or 10 bits with `h264`, is an error.
 
-If you send the same composition, media manifest, and `webhookUrl` within 5 minutes, the API returns the existing render with `cached: true` and doesn't start a new one.
+<Callout type="info" title="On Lumiscia">
+  Lumiscia renders an 8-bit MP4 of the whole timeline in `h264`, `hevc` or `av1`. It rejects
+  `alpha`, `bitDepth: 10`, the `prores` and `vp9` codecs, and every `output` format and `frames`
+  range other than that MP4 with a `422`, before the render is queued or charged. The other outputs
+  below work with a [self-hosted `lumen-server`](../open-source/self-hosting#output). See
+  [Output](../how-it-works#output).
+</Callout>
+
+If you send the same request body (composition, media manifest, `webhookUrl` and encoding options) within 5 minutes, the API returns the existing render with `cached: true` and doesn't start a new one.
 
 ## Choose the output
 
@@ -176,7 +184,7 @@ try {
 }
 ```
 
-A render that has already ended is returned as it is, and one that finishes while the request is in flight can still end `succeeded`.
+A render that has already ended is returned as it is, and one that finishes while the request is in flight can still end `succeeded`. Lumiscia has no cancel route, so there `cancelRender` throws a `LumenError` with the status `404` and the code `route_not_found`.
 
 ## Read a render
 

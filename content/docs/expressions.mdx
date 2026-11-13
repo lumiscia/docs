@@ -71,7 +71,7 @@ There is no global for the timeline length. Write the frame count as a number wh
 
 Two vec2 values, or two vec3 values, add, subtract, multiply and divide component by component, and a number scales a vector with `*` or `/` on either side. Mixing a vec2 with a vec3 is an error. `-` negates a vector. Colors have no arithmetic; mix them with `lerp`. `+` is numeric only, so join text with `concat`. Division or modulo by exactly zero is an error.
 
-`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch. A condition is false when it is `false`, exactly `0`, NaN or an empty string, or a vec2 or color whose components are all 0. Any other value is true, however small.
+`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch. A condition is false when it is `false`, exactly `0`, NaN, an empty string, or a vec2, vec3 or color whose components are all zero or NaN. Any other value is true, however small.
 
 ```txt
 =if(frame < 45, 0, 1)

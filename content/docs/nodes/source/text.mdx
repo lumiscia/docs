@@ -9,7 +9,7 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 <NodeReference type="text" />
 
-`position` is the top-left corner of the text, and `alignment_horizontal` aligns lines within `max_width`. To center text on a 1280-pixel canvas, set `position` to `[0, y]` and `max_width` to `1280`.
+`position.x` is the left edge of the layout box. `alignment_vertical` anchors its top, middle or bottom at `position.y`, with `top` as the default. `alignment_horizontal` aligns lines within `max_width`. To center text horizontally on a 1280-pixel canvas, set `position` to `[0, y]`, `max_width` to `1280`, and `alignment_horizontal` to `"center"`.
 
 ## Example
 

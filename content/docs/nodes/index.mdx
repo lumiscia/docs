@@ -3,18 +3,21 @@ title: Nodes
 description: Reference for every node type in a composition.
 ---
 
-Nodes are the operations in a composition graph. Each node object has a numeric `id`, a `type`, and an optional `params` object. Connections link one node's output port to another node's input port.
+Nodes are the operations in a composition graph. Each node object has a numeric `id`, a `type`, and an optional `params` object. Every node has one output, `output`, and a connection links it to an input port of another node.
+
+Every port carries one of two kinds of data. A `raster` is an image, which 2D nodes produce and take. A `scene` is 3D objects, lights and cameras, which the [scene](scene) nodes produce and take, and `render_3d` draws a scene into a raster. A connection between ports of different kinds fails with `connection.wrong_kind`.
 
 ```json
 { "id": 1, "type": "blur", "params": { "radius": 8 } }
 ```
 
-Every param is optional and falls back to the default listed on its node's page. Params marked `expression` also accept an [expression](../expressions), a string starting with `=` that is evaluated on every frame. Params marked `literal only` take a fixed value.
+Every param is optional and falls back to the default listed on its node's page. A param the node doesn't have is an error. Params marked `expression` also accept an [expression](../expressions), a string starting with `=` that is evaluated on every frame. Params marked `expression fields`, `expression values` or `expression items` take expressions inside their object fields, map values or array items, but not as a whole. Params marked `literal only` take a fixed value.
 
 ## Rules
 
 - A composition has exactly one `media_output`.
 - Required input ports must be connected.
+- An input port accepts one connection. Variadic ports, such as `layers` and `objects`, take several, in connection order.
 
 ## Categories
 
@@ -22,4 +25,5 @@ Every param is optional and falls back to the default listed on its node's page.
 - [Processing](processing): nodes that adjust, move and retime a raster.
 - [Compositing](compositing): nodes that combine several rasters into one.
 - [Vector](vector): nodes that draw shapes and paths.
+- [Scene](scene): nodes that build 3D scenes and draw them into a raster.
 - [Output](output): the node that marks the rendered result.

@@ -4,6 +4,7 @@ import { Code } from "@/src/components/mdx/code-block";
 import { Heading, Paragraph, Table, TableCell, TableHeaderCell } from "@/src/components/mdx/prose";
 import {
   describeConstraints,
+  describeMedia,
   describePortConnection,
   formatValue,
   getNodeSchema,
@@ -84,6 +85,7 @@ function PortRow({ port, direction }: { port: NodePort; direction: "input" | "ou
 
 function ParamRow({ name, param }: { name: string; param: NodeParam }) {
   const options = param["x-lumen-enumOptions"]?.map((option) => option.name);
+  const media = describeMedia(param);
 
   return (
     <tr>
@@ -93,9 +95,10 @@ function ParamRow({ name, param }: { name: string; param: NodeParam }) {
       <TableCell>
         <Code>{param["x-lumen-kind"]}</Code>
         <span {...stylex.props(styles.detail)}>{describeConstraints(param)}</span>
+        {media && <span {...stylex.props(styles.detail)}>Media: {media}</span>}
       </TableCell>
       <TableCell>
-        <Code>{formatValue(param.default)}</Code>
+        {param.default === undefined ? "Unset" : <Code>{formatValue(param.default)}</Code>}
       </TableCell>
       <TableCell>
         <InlineMarkdown text={param.description} />

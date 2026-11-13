@@ -1,15 +1,15 @@
 ---
 title: Composition builder
-description: Build compositions in TypeScript with Composition, typed params and expression helpers.
+description: Build compositions in TypeScript with Composition, node values, typed params and expression helpers.
 ---
 
-`Composition` from `@lumiscia/lumen-shared` builds composition JSON in TypeScript. Node types and params are typed from the generated schema, so a wrong param name or enum value is a type error.
+`Composition` from `@lumiscia/lumen-shared` builds composition JSON in TypeScript. Node types, params and ports are typed from the generated schema, so a wrong param name, an enum value that doesn't exist, or a scene wired into an image input is a type error.
 
 ```bash
 npm install @lumiscia/lumen-shared
 ```
 
-`@lumiscia/lumen-sdk` and `@lumiscia/lumen-sdk/cloudflare` re-export `Composition` and `AudioTrack`. The expression helpers, `defineComposition`, `prop`, `fn` and `wgslShader` come only from `@lumiscia/lumen-shared`.
+`@lumiscia/lumen-sdk` re-exports everything in `@lumiscia/lumen-shared`, so if you use the SDK, import `Composition`, `nodes`, the expression helpers, `defineComposition`, `prop`, `fn` and `wgslShader` from `@lumiscia/lumen-sdk` instead.
 
 ## Create a composition
 
@@ -23,59 +23,123 @@ const composition = new Composition({
 });
 ```
 
-`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. `setSize()`, `setFps()`, `setDurationFrames()`, `setDurationSeconds()`, `setBackgroundColor()` and `setMetadata()` change these later.
+`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. Pass every setting to the constructor, since a composition has no setters. To fill the frame with a color, add a `background` node. `toJSON()` always writes the current [`lumenSchemaVersion`](../composition-format#schema-version).
 
-## Add and connect nodes
+## Build the graph
 
-`addNode()` takes the node's `type` and `params`, with the same snake_case names as the JSON, and returns the node. Ids count up from 0 unless you pass an `id`.
+`nodes` has one function per node type, named after it, which takes the node's params and input ports in one object. Params use the same snake_case names as the JSON. The function returns a node value, and a value adds nothing until a node that reads it is added. `addOutput()` adds a `media_output` that shows its source, and adds every value it reads on the way.
+
+```ts
+import { Composition, nodes as n } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 4 },
+}).addOutput(
+  n.raster_multimerge({
+    layers: [
+      n.background({ paint: [18, 24, 32, 255] }),
+      n.text({ content: "Lumiscia", font_size: 96, position: [120, 300] }),
+    ],
+  }),
+);
+```
+
+A variadic port such as `layers` takes an array. `raster_multimerge` stacks its `layers` in order, so the title draws over the background. A value read by two nodes becomes one node with two readers, so you can keep a value in a variable and use it twice.
+
+Each port takes a `raster` (an image) or a `scene` (3D objects, lights and cameras), and the types follow: a scene value in a `raster` port is a type error, as it is a `connection.wrong_kind` error in [`lumen check`](../open-source/cli#lumen-check). [Connections](../composition-format#connections) lists each node's port names.
+
+### Add nodes one at a time
+
+`addNode()` takes the node's `type` and `params`, plus optional `inputs`, adds it at once and returns it. Use it when you need the node's `id`, or to add to the graph after building it. Ids count up from 0 unless you pass an `id`.
 
 ```ts
 const background = composition.addNode({
   type: "background",
   params: { paint: [18, 24, 32, 255] },
 });
-
 const title = composition.addNode({
   type: "text",
-  params: {
-    content: "Lumiscia",
-    font_size: 96,
-    position: [120, 300],
-  },
+  params: { content: "Lumiscia", font_size: 96, position: [120, 300] },
 });
-
-const stack = composition.addNode({ type: "raster_multimerge" });
-const output = composition.addNode({ type: "media_output" });
-
-composition
-  .connect(background, stack, { toPort: "layers" })
-  .connect(title, stack, { toPort: "layers" })
-  .connect(stack, output, { toPort: "source" });
+const stack = composition.addNode({
+  type: "raster_multimerge",
+  inputs: { layers: [background, title] },
+});
+composition.addNode({ type: "media_output", inputs: { source: stack } });
 ```
 
-`raster_multimerge` stacks its `layers` in connection order, so the title draws over the background.
+The two styles mix: a node `addNode` returned can be a value's input, and a value can be one of `addNode`'s `inputs`.
 
-`connect(from, to, options)` takes nodes or ids. Pass `toPort` on every call: the default, `"input"`, isn't a port on any current node. `fromPort` defaults to `output`. See [Connections](../composition-format#connections) for each node's port names.
+`connect(from, to, { toPort })` adds a connection after both nodes exist. It takes nodes or ids, and `toPort` is required. The connection always leaves the `output` port. `inputs` and `connect` throw for a node from another composition.
 
 ## Animate params
 
-A param that takes an expression string such as `"=progress(0, 30)"` also takes an `Expr` from the expression helpers, type-checked against the param. This version of the title fades in over 1 second and rises 40 pixels:
+A param that takes an expression string such as `"=progress(0, 30)"` also takes an `Expr` from the expression helpers, type-checked against the param. This title fades in over 1 second and rises 40 pixels:
 
 ```ts
-import { ease, progress, sec, tween } from "@lumiscia/lumen-shared";
+import { ease, nodes as n, progress, sec, tween } from "@lumiscia/lumen-shared";
 
-const title = composition.addNode({
-  type: "text",
-  params: {
-    content: "Lumiscia",
-    font_size: 96,
-    opacity: progress(0, sec(1)),
-    position: tween([120, 340], [120, 300], 0, sec(0.6), ease.outCubic),
-  },
+const title = n.text({
+  content: "Lumiscia",
+  font_size: 96,
+  opacity: progress(0, sec(1)),
+  position: tween([120, 340], [120, 300], 0, sec(0.6), ease.outCubic),
 });
 ```
 
-`toJSON()` writes these as `"=progress(0, 1s)"` and `"=tween(vec2(120, 340), vec2(120, 300), 0, 0.6s, 'out_cubic')"`.
+`toJSON()` writes these as `"=progress(0, 1s)"` and `"=tween(vec2(120, 340), vec2(120, 300), 0, 0.6s, 'out_cubic')"`. Every built-in has a helper named in camelCase, such as `keyframes`, `spring` or `textWidth`, and the globals are values such as `frame`, `time` and `width`.
+
+### Conditions
+
+`Expr<number>` has comparison methods (`gt`, `gte`, `lt`, `lte`, `eq`, `neq`) that return a condition, and conditions combine with `and`, `or` and `not`. `when(condition, then, otherwise)` picks a value, and writes `if(..)`:
+
+```ts
+import { frame, hex, nodes as n, when } from "@lumiscia/lumen-shared";
+
+const label = n.text({
+  content: "Live",
+  color: when(frame.gte(30).and(frame.lt(90)), hex("#ff4d4d"), hex("#ffffff")),
+});
+```
+
+### Text from values
+
+`format(value, decimals, width, fill)` turns a number into text, and `concat(...)` joins strings and numbers. Together they make a frame counter:
+
+```ts
+import { concat, format, frame, nodes as n } from "@lumiscia/lumen-shared";
+
+const counter = n.text({ content: concat("frame ", format(frame, 0, 4, "0")) });
+```
+
+### Other nodes' params
+
+`node(ref, "param")` reads another node's param, taking a node `addNode` returned. This subtitle is half the title's size:
+
+```ts
+import { node } from "@lumiscia/lumen-shared";
+
+const subtitle = composition.addNode({
+  type: "text",
+  params: { content: "Subtitle", font_size: node<number>(title, "font_size").mul(0.5) },
+});
+```
+
+### Raw expressions
+
+For a form the helpers don't cover, write the expression text, without its `=`, in `expr`. As a template tag, it formats each interpolated value as a built-in argument, so built expressions need no `=` stripped:
+
+```ts
+import { expr, sec, tween, type Vec2 } from "@lumiscia/lumen-shared";
+
+const lift = tween(40, 0, 0, sec(0.6));
+const position = expr<Vec2>`vec2(120, 300 + ${lift})`;
+```
+
+To pass text that starts with `=` as literal text, wrap it in `literal()`, which escapes the `=` as `==`.
+
+### Functions
 
 `fn()` defines a reusable expression function, and `addFunction()` adds it to the composition's `functions`:
 
@@ -86,53 +150,117 @@ const rise = fn("rise(start)", (start: Num) => tween(0, 1, start, 12, "out_cubic
 composition.addFunction(rise);
 ```
 
-`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
+`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`.
+
+Params nested in rich text, such as the fields of a text node's spans and decorations, also take an `Expr`. Type such a value built on its own with `ExpressionInput`, as in `ExpressionInput<TextSpan>`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
+
+## 3D scenes
+
+Scene nodes are built the same way. A scene input takes scene values, and `render_3d` turns a scene into a raster that composites like any other layer. vec3 params such as `position` and `rotation` take `[x, y, z]` literals. In an expression, write `vec3(x, y, z)`, since a three-number tuple passed to a helper means `rgb(..)`.
+
+```ts title="ring.ts"
+import {
+  Composition,
+  expr,
+  frame,
+  instance,
+  instanceCount,
+  nodes as n,
+  vec3,
+} from "@lumiscia/lumen-shared";
+
+const turn = instance.div(instanceCount).mul(6.2832);
+
+const composition = new Composition({
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 4 },
+}).addOutput(
+  n.merge({
+    base: n.background({ paint: [18, 22, 32, 255] }),
+    overlay: n.render_3d({
+      tone_mapping: "agx",
+      scene: n.merge_3d({
+        rotation: vec3(0, frame.mul(2), 0),
+        objects: [
+          n.instance_3d({
+            count: 12,
+            position: vec3(expr`sin(${turn}) * 2`, 0, expr`cos(${turn}) * 2`),
+            scene: n.shape_3d({ shape: "sphere", color: "#e6b45a", scale: [0.3, 0.3, 0.3] }),
+          }),
+          n.camera_3d({ position: [0, 2.5, 5], look_at: true }),
+        ],
+      }),
+    }),
+  }),
+);
+```
+
+`instance` and `instanceCount` are only valid in an `instance_3d`'s `position`, `rotation` and `scale`. The [3D guide](3d) covers cameras, lights, materials, glTF models and the rest.
 
 ## Reuse a template
 
-`defineComposition()` builds a template that `clip` nodes play. `build` adds the template's nodes and returns the node it outputs, and the builder adds the template's `media_output`. Props declared with `prop.string()`, `prop.number()`, `prop.color()` or `prop.vec2()` arrive in `build` as typed expressions.
+`defineComposition()` builds a template that `clip` nodes play. `build` returns the node the template outputs, as a node value or a node it added, and the builder adds the template's `media_output`. Props declared with `prop.string()`, `prop.number()`, `prop.color()`, `prop.vec2()` or `prop.vec3()` arrive in `build` as typed expressions.
 
 ```ts
-import { defineComposition, prop } from "@lumiscia/lumen-shared";
+import { Composition, defineComposition, nodes as n, prop } from "@lumiscia/lumen-shared";
 
 const lowerThird = defineComposition({
   name: "lower_third",
   size: { width: 800, height: 160 },
   duration: 90,
   props: { name: prop.string("Untitled"), accent: prop.color([255, 196, 0, 255]) },
-  build: (c, { name, accent }) =>
-    c.addNode({
-      type: "text",
-      params: { content: name, color: accent, font_size: 56 },
-    }),
+  build: (_, { name, accent }) => n.text({ content: name, color: accent, font_size: 56 }),
 });
 
-const card = composition.addNode(lowerThird.clip({ start: 15, props: { name: "Ada Lovelace" } }));
-const placed = composition.addNode({
-  type: "transform",
-  params: { translate_x: 80, translate_y: 520 },
-});
-
-composition
-  .connect(card, placed, { toPort: "source" })
-  .connect(placed, stack, { toPort: "layers" });
+const composition = new Composition({
+  renderSettings: { width: 1280, height: 720 },
+  timeline: { fps: 30, durationSeconds: 4 },
+}).addOutput(
+  n.raster_multimerge({
+    layers: [
+      n.background({ paint: [18, 24, 32, 255] }),
+      n.transform({
+        translate_x: 80,
+        translate_y: 520,
+        source: lowerThird.clip({ start: 15, props: { name: "Ada Lovelace" } }),
+      }),
+    ],
+  }),
+);
 ```
 
 Adding a clip registers its template in `compositions`. A clip draws at the template's size from the top-left corner of the canvas, so the `transform` moves it into place. `clip()` also takes `duration`, `offset`, `speed` and `end`; see [Templates](../composition-format#templates).
 
 ## Add audio
 
-`AudioTrack` holds the clips on one track. Clip times are in seconds or milliseconds, and clips on a track can't overlap.
+`addAudio()` adds a clip, with every time in seconds: `start` on the timeline, `duration`, and `offset` into the source. `fadeIn` and `fadeOut` fade the clip from and to silence on an equal-power curve.
 
 ```ts
-import { AudioTrack } from "@lumiscia/lumen-shared";
-
-const music = new AudioTrack({ id: "music", volume: 0.8 });
-music.addClip({ sourceId: "song", startSeconds: 0, durationSeconds: 4 });
-composition.addAudioTrack(music);
+composition.addAudioTrack({ id: "music", gain: 0.8 }).addAudio({
+  source: "song",
+  start: 0,
+  duration: 4,
+  offset: 1.5,
+  trackId: "music",
+  fadeIn: 1,
+  fadeOut: 1,
+});
 ```
 
-`sourceId` is the manifest alias of an uploaded audio file.
+`source` is the name the host resolves to an audio file, such as a `media` alias or an `asset:<id>`. `trackId` defaults to `main`, a track that isn't declared yet becomes a plain track, and clips may overlap. To set a track's `name`, `muted`, `solo` or `gain`, call `addAudioTrack()` before the track's first clip. Clips take a `gain` too. Times are written to the JSON as whole milliseconds.
+
+`gain` takes a number or an `Expr<number>`, evaluated in the composition's time, so music can duck under a voice-over:
+
+```ts
+import { time, when } from "@lumiscia/lumen-shared";
+
+composition
+  .addAudioTrack({ id: "bed", gain: when(time.gte(2).and(time.lt(6)), 0.25, 1) })
+  .addAudio({ source: "music.mp3", start: 0, duration: 10, trackId: "bed" })
+  .addAudio({ source: "voice.wav", start: 2, duration: 4, trackId: "voice" });
+```
+
+A template can have its own audio. It plays wherever a `clip` plays the template, following the clip's start, trim, speed and end.
 
 ## Serialize and render
 
@@ -146,7 +274,7 @@ const lumen = new Lumen({
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const { id, error } = await lumen.render(composition);
+const { id } = await lumen.render(composition);
 ```
 
-A composition that uses media, like the `song` alias above, also needs a `media` manifest. See [Media sources](media-sources).
+A composition that uses media, like the `song` source above, also needs a `media` manifest. See [Media sources](media-sources). To check the JSON before you render it, write it to a file and run [`lumen check`](../open-source/cli#lumen-check).

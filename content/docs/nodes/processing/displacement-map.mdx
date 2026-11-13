@@ -1,0 +1,46 @@
+---
+title: Displacement Map
+description: Moves each pixel of a raster by the pixel of a map raster over it.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`displacement_map` moves each pixel of its `source` input by the pixel of its `map` input over it, in one pass. Use a [`fractal_noise`](../source/fractal-noise) map for heat haze, water or a wobble, and animate the noise's `evolution` to move it.
+
+`channel_x` and `channel_y` pick the map channel that drives each axis: `red`, `green`, `blue` or `luma`. `amount_x` and `amount_y` are the most pixels a pixel moves. A channel byte of 0 moves it the full amount left or up, 255 nearly as far right or down, and 128 leaves it in place. Negative amounts reverse the direction.
+
+A channel byte is the sRGB code of the map's colour. Its move is scaled by the map's alpha, so transparent areas of the map, and everything outside it, leave the source where it is. `edge` sets what the source reads as beyond its edges, and `sampling` is `linear` or `nearest`. The output is the source grown by the amounts where the map overlaps it.
+
+<NodeReference type="displacement_map" />
+
+## Example
+
+Text that ripples through moving noise:
+
+```json
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "text",
+      "params": { "content": "Heat", "font_size": 160, "position": [460, 260] }
+    },
+    {
+      "id": 2,
+      "type": "fractal_noise",
+      "params": { "scale": 90, "octaves": 2, "evolution": "=time / 2" }
+    },
+    {
+      "id": 3,
+      "type": "displacement_map",
+      "params": { "amount_x": 12, "amount_y": 12, "channel_y": "luma" }
+    },
+    { "id": 4, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 3, "to_port": "source" },
+    { "from_node": 2, "to_node": 3, "to_port": "map" },
+    { "from_node": 3, "to_node": 4, "to_port": "source" }
+  ]
+}
+```

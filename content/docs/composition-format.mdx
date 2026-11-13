@@ -7,13 +7,14 @@ A composition is a JSON document that describes a video as a graph of nodes. You
 
 ```json
 {
+  "lumenSchemaVersion": "0.6",
   "timeline": { "fps": 30, "duration_frames": 90 },
   "render_settings": { "width": 1280, "height": 720 },
   "nodes": [
     { "id": 1, "type": "background", "params": { "paint": [18, 24, 32, 255] } },
     { "id": 2, "type": "media_output" }
   ],
-  "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+  "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
 }
 ```
 
@@ -21,18 +22,23 @@ This renders 3 seconds of a dark [`background`](nodes/source/background) at 1280
 
 ## Top-level fields
 
-| Field             | Required | Description                                                          |
-| ----------------- | -------- | -------------------------------------------------------------------- |
-| `timeline`        | Yes      | Frame rate and length.                                               |
-| `render_settings` | Yes      | Output size.                                                         |
-| `nodes`           | Yes      | The nodes in the graph.                                              |
-| `connections`     | Yes      | Edges from node outputs to node inputs.                              |
-| `compositions`    | No       | Named templates that `clip` nodes play. See [Templates](#templates). |
-| `functions`       | No       | Expression functions. See [Expressions](expressions#functions).      |
-| `audio`           | No       | Audio tracks and clips. See [Audio](#audio).                         |
-| `metadata`        | No       | Your own data. Lumen reads `metadata.name`.                          |
+| Field                | Required | Description                                                                               |
+| -------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `lumenSchemaVersion` | No       | The Lumen version the composition was written for. See [Schema version](#schema-version). |
+| `timeline`           | Yes      | Frame rate and length.                                                                    |
+| `render_settings`    | Yes      | Output size and encoding.                                                                 |
+| `nodes`              | Yes      | The nodes in the graph.                                                                   |
+| `connections`        | Yes      | Edges from node outputs to node inputs.                                                   |
+| `compositions`       | No       | Named templates that `clip` nodes play. See [Templates](#templates).                      |
+| `functions`          | No       | Expression functions. See [Expressions](expressions#functions).                           |
+| `audio`              | No       | Audio tracks and clips. See [Audio](#audio).                                              |
+| `metadata`           | No       | An object for your own data. `name`, if set, must be a string.                            |
 
-Other top-level fields are allowed, so an editor can store its own state in the document. Nodes are strict, so an unknown node type or param fails validation.
+Other top-level fields are ignored, so an editor can store its own state in the document. Everything else is strict. An unknown key in `timeline`, `render_settings`, a template, a node or a connection fails validation, as does an unknown node type or param. Lumen's errors name the JSON path at fault, such as `timeline.fps`.
+
+## Schema version
+
+`lumenSchemaVersion` is the Lumen `major.minor` the composition was written for, `"0.6"` for Lumen 0.6. An engine reads only its own line: it accepts its `major.minor`, or a full version of that line such as `"0.6.3"`, and rejects any other with `document.schema_version`. Each 0.x minor release can break compositions, so there is no migration between lines. [Upgrade to 0.6](upgrade-0-6) lists what changed from 0.5. A composition without the field is read as the engine's own version. The TypeScript builder always writes the current version.
 
 ## Timeline
 
@@ -44,17 +50,26 @@ Other top-level fields are allowed, so an editor can store its own state in the 
 
 ## Render settings
 
-`width` and `height` set the output size in pixels. `background_color` is optional.
+`width` and `height` set the output size in pixels and are required. To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node; `background_color` is an error.
+
+The other keys choose how the video is encoded. A render request can set each of them too, and the request's value wins. Previews ignore them.
+
+| Key         | Values                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `codec`     | `h264`, `hevc` or `av1` in an MP4, `prores` (ProRes 4444) in a MOV, or `vp9` in a WebM.                                               |
+| `quality`   | A quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`.                                                 |
+| `bit_depth` | `8`, the default, or `10` for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                                       |
+| `alpha`     | `true` keeps transparency as an alpha channel, which only `prores` in a MOV and `vp9` in a WebM hold. The default renders over black. |
+
+Asking for something the format can't hold, such as alpha in an MP4, is an error, never a different video. On Lumiscia the format comes from the render request's `output`, not from the composition, so `prores` in `render_settings` needs `output.format` set to `mov`. Lumiscia doesn't render `vp9`, and encodes the other four codecs with the four built-in presets, except `lossless` with `av1` or `prores`. A still ignores these keys. See [Output](how-it-works#output) for the accepted combinations.
 
 ```json
-{ "render_settings": { "width": 1920, "height": 1080 } }
+{ "render_settings": { "width": 1920, "height": 1080, "codec": "hevc", "quality": "high" } }
 ```
-
-A color is an array of 3 or 4 integers from 0 to 255 (`[255, 128, 0]`, `[255, 128, 0, 255]`) or a hex string (`"#ff8000"`, `"#ff800080"`). To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node.
 
 ## Nodes
 
-Each node has an integer `id` that is unique within its graph, a `type`, and optional `params`. Params you leave out take their defaults.
+Each node has an integer `id` that is unique within its graph, a `type`, and optional `params`. A repeated id fails validation. Params you leave out take their defaults.
 
 ```json
 {
@@ -69,32 +84,87 @@ Each node has an integer `id` that is unique within its graph, a `type`, and opt
 
 Param names are snake_case. Enum params take string names, such as `"blend_mode": "screen"`. A string that starts with `=` is an [expression](expressions), evaluated on every frame. To store a literal string that starts with `=`, write `==`: `"==total"` is the text `=total`.
 
+A color is an array of 3 or 4 integers from 0 to 255 (`[255, 128, 0]`, `[255, 128, 0, 255]`) or a hex string (`"#ff8000"`, `"#ff800080"`). Colors are sRGB-encoded, as in CSS. Lumen composites in linear light with 16-bit float precision, so fades, blurs and antialiased edges mix light rather than sRGB codes, and a color you write renders as the code it names.
+
+A vec2 is `[x, y]` and a vec3 is `[x, y, z]`, such as the `position` of a 3D node.
+
+### Gradients
+
+Paint params, such as `fill_paint`, `background.paint` and `text.color`, take a color or a gradient object:
+
+```json
+{
+  "type": "radial_gradient",
+  "stops": [
+    [0, "#ffd60a"],
+    [1, "#d00000"]
+  ],
+  "center": [0.5, 0.5],
+  "radius": 0.6,
+  "focal": [0.35, 0.35]
+}
+```
+
+| Field           | Default               | Description                                                                                                                        |
+| --------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `type`          | Required              | `linear_gradient`, `radial_gradient` or `conic_gradient`.                                                                          |
+| `stops`         | Required              | One to eight stops, each `[offset, color]` or `{ "offset", "color" }`, with `offset` from 0 to 1.                                  |
+| `start`, `end`  | `[0, 0]`, `[1, 0]`    | The line of a linear gradient.                                                                                                     |
+| `center`        | `[0.5, 0.5]`          | The centre of a radial or conic gradient.                                                                                          |
+| `radius`        | `[0.5, 0.5]`          | A radial gradient's horizontal and vertical radius. A number sets both.                                                            |
+| `focal`         | `center`              | Where a radial gradient's first stop sits, for an off-centre highlight. It is moved inside the circle if it lies on or outside it. |
+| `angle`         | `0`                   | The start angle of a conic gradient, in degrees.                                                                                   |
+| `spread`        | `pad`                 | How the gradient continues past its ends: `pad`, `repeat` or `reflect`.                                                            |
+| `units`         | `object_bounding_box` | Whether points and radii are fractions of the shape's bounding box or pixels (`user_space`).                                       |
+| `interpolation` | `srgb`                | `srgb` blends the sRGB-encoded stops, and `linear_srgb` blends them in linear light.                                               |
+
+A gradient's fields take literals only. An expression in a paint param gives a solid color.
+
 The [node reference](nodes) lists every node type with its params, defaults and ports.
 
 ## Connections
 
-A connection wires one node's output port to another node's input port.
+A connection wires one node's output to another node's input port.
 
 ```json
-{ "from_node": 1, "from_port": "output", "to_node": 3, "to_port": "base" }
+{ "from_node": 1, "to_node": 3, "to_port": "base" }
 ```
 
-`to_port` is required. `from_port` defaults to `output`, the only output port current nodes have. Input port names depend on the node:
+`to_port` is required. Every node has one output, so `from_port` is optional and can only be `output`. Input port names depend on the node:
 
-| Port                      | Nodes                                            |
-| ------------------------- | ------------------------------------------------ |
-| `source`                  | `media_output`, `clip` and every processing node |
-| `base`, `overlay`, `mask` | `merge` (`mask` is optional)                     |
-| `a`, `b`                  | `boolean`                                        |
-| `layers`                  | `switch`, `raster_multimerge`                    |
+| Port                      | Kind     | Nodes                                                              |
+| ------------------------- | -------- | ------------------------------------------------------------------ |
+| `source`                  | `raster` | `media_output`, `clip`, `image_plane_3d` and every processing node |
+| `base`, `overlay`, `mask` | `raster` | `merge` (`mask` is optional)                                       |
+| `a`, `b`                  | `raster` | `boolean`                                                          |
+| `layers`                  | `raster` | `switch`, `raster_multimerge`                                      |
+| `map`                     | `raster` | `displacement_map`                                                 |
+| `texture`                 | `raster` | `model_3d` (optional)                                              |
+| `objects`                 | `scene`  | `merge_3d`                                                         |
+| `scene`                   | `scene`  | `render_3d`, `instance_3d`                                         |
 
-`layers` and the `source` port of `wgsl_shader` accept several connections. Layers stack in the order their connections appear, first at the bottom. Every port carries `raster_frame` data.
+Each port carries a `raster`, an image, or a `scene` of 3D objects, lights and cameras. Scene nodes output a scene and `render_3d` outputs a raster; every other node outputs a raster. A connection between different kinds fails with `connection.wrong_kind`.
+
+`layers`, `objects` and the `source` port of `wgsl_shader` accept several connections. Layers stack in the order their connections appear, first at the bottom. Every other input takes one connection, and a second connection to it is an error.
 
 A graph must contain exactly one `media_output` node, connected to the stream you want to render.
 
 ## Media references
 
-`media_in.source` holds a manifest alias, not a file, URL or media id.
+These params name a media file:
+
+| Param                       | Reads                               |
+| --------------------------- | ----------------------------------- |
+| `media_in.source`           | An image or a video                 |
+| `text.font_family`          | A font                              |
+| `color_grade.lut_source`    | A 3D `.cube` LUT                    |
+| `model_3d.source`           | A binary glTF (`.glb`) model        |
+| `render_3d.environment_map` | An `.hdr` or `.exr` environment map |
+| An audio clip's `source_id` | An audio file                       |
+
+In Lumen, each is a path or `media` alias, or `asset:<id>` for an asset in the host's asset store. A source that can't be used fails with a `media.*` code naming the source and where it is used: `media.not_found`, `media.wrong_kind`, `media.unsupported`, `media.too_large` or `media.decode`.
+
+On Lumiscia, `media_in.source` holds a manifest alias or `asset:<id>`, not a file path, URL or bare media id.
 
 ```json
 { "id": 4, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
@@ -141,9 +211,9 @@ The API rejects compositions that put an `http://` or `https://` URL where an al
 }
 ```
 
-A template has its own `nodes` and `connections`, with node ids scoped to the template, and its own `media_output`. Without `render_settings` it takes the parent's size. Without `timeline` it takes the parent's timeline, and a `timeline` without `fps` takes the parent's frame rate. Templates can contain clips of other templates, but not in a cycle.
+A template has its own `nodes` and `connections`, with node ids scoped to the template, and its own `media_output`. Its `render_settings` hold only `width` and `height`; without them it takes the parent's size. Without `timeline` it takes the parent's timeline, and a `timeline` without `fps` takes the parent's frame rate. A template can have its own `audio`. Templates can contain clips of other templates, but not in a cycle. A template's name is at most 256 bytes.
 
-`props` declares the values a template reads with `prop('name')`. Each prop has a `type` (`string`, `number`, `color` or `vec2`) and an optional `default`. A prop without a default is empty, 0, transparent or `[0, 0]`.
+`props` declares the values a template reads with `prop('name')`. Each prop has a `type` (`string`, `number`, `color`, `vec2` or `vec3`) and an optional `default`. A prop without a default is empty, 0, transparent, `[0, 0]` or `[0, 0, 0]`.
 
 The clip's params control playback:
 
@@ -180,19 +250,29 @@ A template draws at its own size from the top-left corner of the parent's canvas
 }
 ```
 
-Clips take their timing in milliseconds (`start_ms`, `duration_ms`, `source_start_ms`) or frames (`start_frame`, `duration_frames`). Tracks and clips take a `volume`, and tracks also take `muted` and `solo`.
+Clips take their timing in whole milliseconds. `start_ms` and `duration_ms` are required, and `source_start_ms` skips into the source. Frame and second timings (`start_frame`, `duration_frames`, `source_start_seconds`) are errors. `fade_in_ms` and `fade_out_ms` fade a clip from and to silence at its start and end, on an equal-power curve. Tracks also take `muted` and `solo`.
+
+Tracks and clips take a `volume`, 1 by default: a number of 0 or more, or an expression. A volume expression is evaluated in the time of the composition the audio is in and can read `frame`, `time`, `fps`, `width`, `height` and, inside a template, props. Gains move smoothly between evaluations, every 512 samples, so an animated volume never steps.
+
+```json
+{ "id": "music", "volume": "=if(time >= 2 && time < 6, 0.25, 1)" }
+```
+
+A template's `audio` plays wherever a `clip` that reaches the output plays the template, following the clip's start, duration, offset, speed and end. Speed resamples it, so the pitch follows. A `switch` plays only its selected layer's audio, and a `time_remap` plays its source's audio at the remapped time.
+
+Every clip's `track_id` must name a track in `tracks`, and track and clip ids must be unique. The root and each template hold at most 512 tracks and 8192 clips.
 
 ## Render limits
 
 The Lumiscia API checks each render request against these limits before it queues the render:
 
-| Limit                  | Value                 |
-| ---------------------- | --------------------- |
-| Frame rate             | Up to 60 fps          |
-| `duration_frames`      | 1 to 10,800           |
-| Output size            | Up to 3840×2160       |
-| Nodes in `nodes`       | 1 to 250              |
-| Composition JSON       | Up to 1,000,000 bytes |
-| Media manifest entries | Up to 50              |
+| Limit             | Value                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| Frame rate        | Up to 60 fps                                                                            |
+| `duration_frames` | 1 to 10,800                                                                             |
+| Output size       | Up to 3840×2160                                                                         |
+| Nodes in `nodes`  | 1 to 250                                                                                |
+| Composition JSON  | Up to 1,000,000 bytes                                                                   |
+| Media per render  | Up to 50 manifest entries, and up to 50 distinct files counting `asset:<id>` references |
 
 Your plan can set lower limits on resolution and output length. See [Pricing](pricing).

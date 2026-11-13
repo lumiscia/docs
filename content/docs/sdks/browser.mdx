@@ -11,11 +11,12 @@ Browser code builds and previews compositions. Your backend uploads media and cr
   directly. Send files to your backend and call `uploadMedia` there.
 </Callout>
 
-| Task                                    | Package                                                                              | Runs in |
-| --------------------------------------- | ------------------------------------------------------------------------------------ | ------- |
-| Build composition JSON                  | `@lumiscia/lumen-shared`                                                             | Browser |
-| Preview a composition                   | `@lumiscia/lumen-react` or `@lumiscia/lumen-svelte`, plus `@lumiscia/lumen-bindings` | Browser |
-| Upload media, create and follow renders | `@lumiscia/lumen-sdk`                                                                | Server  |
+| Task                                    | Package                                                                                               | Runs in            |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
+| Build composition JSON                  | `@lumiscia/lumen-shared`                                                                              | Browser            |
+| Preview a composition                   | `@lumiscia/lumen-react` or `@lumiscia/lumen-svelte`, or `@lumiscia/lumen-preview` without a framework | Browser            |
+| Check a composition                     | `@lumiscia/lumen-bindings`                                                                            | Browser or Node.js |
+| Upload media, create and follow renders | `@lumiscia/lumen-sdk`                                                                                 | Server             |
 
 ## Build a composition
 
@@ -26,36 +27,119 @@ npm install @lumiscia/lumen-shared
 ```
 
 ```ts
-import { Composition } from "@lumiscia/lumen-shared";
+import { Composition, nodes as n } from "@lumiscia/lumen-shared";
 
 const composition = new Composition({
   renderSettings: { width: 1280, height: 720 },
   timeline: { fps: 30, durationSeconds: 3 },
-});
-
-const background = composition.addNode({
-  type: "background",
-  params: { paint: [18, 24, 32, 255] },
-});
-const hero = composition.addNode({
-  type: "media_in",
-  params: { kind: "image", source: "hero" },
-});
-const merge = composition.addNode({ type: "merge", params: { blend_mode: "normal" } });
-const output = composition.addNode({ type: "media_output" });
-
-composition.connect(background, merge, { toPort: "base" });
-composition.connect(hero, merge, { toPort: "overlay" });
-composition.connect(merge, output, { toPort: "source" });
+}).addOutput(
+  n.merge({
+    base: n.background({ paint: [18, 24, 32, 255] }),
+    overlay: n.media_in({ kind: "image", source: "hero" }),
+  }),
+);
 ```
 
-The `media_in` node reads the alias `hero`. In preview, you register a local file under that alias. At render time, the backend maps the same alias to uploaded media.
+The `media_in` node reads the source `hero`. In preview, you pass a local file under that name. At render time, the backend maps the same name to uploaded media.
 
 ## Preview
 
-The [React](react) and [Svelte](svelte) packages render the composition into a `<canvas>` with the Lumen engine compiled to WebAssembly. Pass local files to the canvas's `mediaSources` prop, using the alias as the `id`, for example `{ kind: "image", id: "hero", source: file }`.
+The [React](react) and [Svelte](svelte) packages play the composition in a worker, with the Lumen engine compiled to WebAssembly. Pass local files to the player's `media` prop, keyed by source name, for example `{ hero: file }`. A source can be a `File` or `Blob`, a URL string or `URL`, or raw bytes, so you can preview a file before it is uploaded.
 
-`source` accepts a `File` or `Blob`, a URL string or `URL`, a `Request`, or raw bytes, so you can preview a file before it is uploaded.
+The preview needs a browser with WebGPU and `OffscreenCanvas`. WebGPU also needs HTTPS or localhost.
+
+### Without a framework
+
+`@lumiscia/lumen-preview` is the preview the framework packages wrap. `mountPreview` puts a canvas in an element and plays the composition there.
+
+```bash
+npm install @lumiscia/lumen-preview @lumiscia/lumen-bindings @lumiscia/lumen-shared
+```
+
+```ts
+import { createLumenPreview, mountPreview } from "@lumiscia/lumen-preview";
+import { wasmUrl, workerUrl } from "@lumiscia/lumen-bindings/urls";
+
+const preview = createLumenPreview();
+const session = mountPreview(document.querySelector("#player")!, {
+  preview,
+  composition,
+  media: { hero: file },
+  wasmUrl,
+  workerUrl,
+  loop: true,
+});
+
+preview.subscribe(() => {
+  const { isLoaded, frame, totalFrames } = preview.getSnapshot();
+  console.log(isLoaded, frame, totalFrames);
+});
+```
+
+`mountPreview` takes the same inputs and playback options as the React and Svelte `Player`. `session.update()` changes them while it plays. It replaces every input, so pass the ones that should stay. `session.dispose()` stops the preview and removes the canvas.
+
+`@lumiscia/lumen-preview` exports `createLumenPreview`, `mountPreview`, `LumenPreviewContext`, `LumenPreviewSession` and the types of their state, errors, options and callbacks. Media decoding and audio are internal.
+
+## Runtime files
+
+The preview renders in a worker that loads a wasm module, and plays audio through a second worker and an audio worklet. The framework packages find all four with Vite or plain ESM. To host them yourself, from your own path or a CDN, copy them into one directory and pass its URL as `runtimeUrl`:
+
+| File                 | Copy of                                            |
+| -------------------- | -------------------------------------------------- |
+| `worker.js`          | `@lumiscia/lumen-bindings/dist/browser/worker.js`  |
+| `lumen_wasm_bg.wasm` | `@lumiscia/lumen-bindings/wasm/lumen_wasm_bg.wasm` |
+| `audio-worker.js`    | `@lumiscia/lumen-preview/dist/audio-worker.js`     |
+| `audio-worklet.js`   | `@lumiscia/lumen-preview/dist/audio-worklet.js`    |
+
+```tsx
+<Player preview={preview} composition={composition} runtimeUrl="/lumen-runtime/" />
+```
+
+`runtimeUrl` names a directory whether or not it ends with `/`, and a query on it is kept on each file. `workerUrl` and `wasmUrl` name one file each and win over `runtimeUrl`.
+
+The files can be on another origin that sends CORS headers. A worker on another origin starts from a `blob:` URL that imports it, so a Content Security Policy must allow `blob:` and that origin in `worker-src`, and `script-src` needs `'wasm-unsafe-eval'`.
+
+With Vite 6 or 7 and no `runtimeUrl`, keep the two packages out of the dev server's dependency pre-bundling, or the worker and wasm 404. Vite 8 and `vite build` need nothing.
+
+```js title="vite.config.js"
+export default defineConfig({
+  optimizeDeps: { exclude: ["@lumiscia/lumen-bindings", "@lumiscia/lumen-preview"] },
+});
+```
+
+## Check a composition
+
+`@lumiscia/lumen-bindings` loads the engine on the calling thread to inspect compositions without rendering them. Import it from the entry point that fits where the code runs:
+
+| Entry point                     | Use                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------- |
+| `@lumiscia/lumen-bindings/urls` | Names the preview worker and its wasm without loading either, for `mountPreview`.  |
+| `@lumiscia/lumen-bindings`      | Browsers, with or without a bundler. `/browser` and `/bundler` are the same entry. |
+| `@lumiscia/lumen-bindings/node` | Node.js.                                                                           |
+
+`check` returns the same diagnostics as [`lumen check`](../open-source/cli#lumen-check), each with a `severity`, a `code`, a JSON pointer `path`, the `node` it's about when there is one, and a `message`. Pass the font families the page provides, and it also warns of text in any other family, which renders in the default font:
+
+```ts
+import { createLumenBindings } from "@lumiscia/lumen-bindings";
+
+const { check } = await createLumenBindings().preview();
+
+const diagnostics = check(JSON.stringify(composition), ["Inter"]);
+const ok = diagnostics.every((diagnostic) => diagnostic.severity !== "error");
+```
+
+`check` doesn't fetch media, so a missing file isn't one of its errors. Handle codes you don't know by their `severity`, because new codes can appear in a patch release.
+
+`mediaDependencies(json)` lists what a composition needs before it renders: `{ media, dynamic, fonts }`. Each `media` entry has the `source` as written, the `kinds` it is read as, and its `uses`. Sources that an expression computes are in `dynamic`, and the font families its text names are in `fonts`.
+
+`modelInfo(bytes)` lists the animation clips, materials and cameras of a binary glTF (`.glb`), which a `model_3d` selects with `animation`, `texture_material` and `camera`:
+
+```ts
+const { modelInfo } = await createLumenBindings().preview();
+const { animations, materials, cameras } = modelInfo(new Uint8Array(await file.arrayBuffer()));
+```
+
+`mediaDependencies` and `modelInfo` throw on input they can't read. A composition the engine rejects throws an `Error` that carries its `diagnostics`.
 
 ## Render through your backend
 
@@ -70,10 +154,10 @@ const response = await fetch("/api/renders", { method: "POST", body: form });
 const { id } = await response.json();
 ```
 
-On the server, upload the file and create the render. This example uses Node.js; see [Cloudflare Workers](cloudflare) for the Worker entry point.
+On the server, upload the file and create the render. This example uses Node.js. On [Cloudflare Workers](cloudflare), import from the same package and read the key from the Worker's environment.
 
 ```ts title="server.ts"
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+import { Lumen } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
@@ -84,17 +168,12 @@ export async function createRender(form: FormData) {
   const composition = JSON.parse(String(form.get("composition")));
   const file = form.get("hero") as File;
 
-  const hero = await lumen.uploadMedia({
-    body: file,
-    contentType: file.type,
-    fileName: file.name,
-    sizeBytes: file.size,
-  });
+  const hero = await lumen.uploadMedia({ body: file });
 
-  return lumen.render(composition, {
-    media: { hero: mediaReference(hero) },
-  });
+  return lumen.render(composition, { media: { hero } });
 }
 ```
+
+Lumiscia renders take uploaded images, video, audio and fonts. A `.glb` model, an environment map or a LUT can't be uploaded, so a composition that previews one can't render on Lumiscia (see [What you can upload](../guides/media-sources#what-you-can-upload)).
 
 Before you submit a composition that came from the browser, check it against your own rules (allowed node types, size, duration), since the render is billed to your workspace. The [Preview to render](../guides/preview-to-render) guide covers the full workflow.

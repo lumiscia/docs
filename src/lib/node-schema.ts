@@ -6,17 +6,21 @@ type ValueSchema = {
   enum?: string[];
   pattern?: string;
   anyOf?: ValueSchema[];
+  items?: ValueSchema | boolean;
+  prefixItems?: ValueSchema[];
+  properties?: Record<string, ValueSchema>;
+  additionalProperties?: ValueSchema | boolean;
 };
 
 export type NodePort = { name: string; kind: string; optional?: boolean; variadic?: boolean };
 
 export type NodeParam = ValueSchema & {
   description: string;
-  default: unknown;
-  additionalProperties?: ValueSchema;
+  default?: unknown;
   "x-lumen-kind": string;
   "x-lumen-constraints"?: { min?: number; max?: number; step?: number; format?: string };
   "x-lumen-enumOptions"?: { name: string }[];
+  "x-lumen-media"?: { kinds: string[]; selectedBy?: string };
 };
 
 type NodeSchema = {
@@ -41,19 +45,38 @@ export function getNodeSchema(type: string) {
 
 const expressionRef = "#/$defs/expression";
 
-export type ExpressionSupport = "value" | "entries" | "none";
+export type ExpressionSupport = "value" | "entries" | "fields" | "items" | "none";
 
-// "entries" means the param is an object whose values accept expressions.
+// As with nodes, the inferred JSON type is too specific to narrow directly.
+const defs = $defs as unknown as Record<string, ValueSchema>;
+
+function resolve(schema: ValueSchema | boolean | undefined) {
+  if (typeof schema !== "object") return undefined;
+  if (!schema.$ref || schema.$ref === expressionRef) return schema;
+  return defs[schema.$ref.replace("#/$defs/", "")];
+}
+
+const acceptsExpression = (schema: ValueSchema) =>
+  schema.anyOf?.some((option) => option.$ref === expressionRef) ?? false;
+
+// "entries" means the param is an object whose values accept expressions,
+// "fields" an object with named fields that accept expressions,
+// "items" an array whose items accept expressions.
 export function getExpressionSupport(param: NodeParam): ExpressionSupport {
-  if (param.anyOf?.some((option) => option.$ref === expressionRef)) return "value";
+  const schema = resolve(param);
+  if (!schema) return "none";
+  if (acceptsExpression(schema)) return "value";
 
-  const entry = param.additionalProperties;
-  const entryName = entry?.$ref?.replace("#/$defs/", "");
-  const entrySchema = entryName ? ($defs as Record<string, ValueSchema>)[entryName] : entry;
+  const entry = resolve(schema.additionalProperties);
   const acceptsString = (option: ValueSchema) =>
     option.$ref === expressionRef || (option.type === "string" && !option.pattern && !option.enum);
+  if (entry?.anyOf?.some(acceptsString)) return "entries";
 
-  return entrySchema?.anyOf?.some(acceptsString) ? "entries" : "none";
+  if (Object.values(schema.properties ?? {}).some(acceptsExpression)) return "fields";
+
+  const items = [resolve(schema.items), ...(schema.prefixItems ?? [])];
+  if (items.some((item) => item && acceptsExpression(item))) return "items";
+  return "none";
 }
 
 export function describePortConnection(port: NodePort, direction: "input" | "output") {
@@ -81,8 +104,19 @@ export function describeConstraints(param: NodeParam) {
 const expressionLabels = {
   value: "expression",
   entries: "expression values",
+  fields: "expression fields",
+  items: "expression items",
   none: "literal only",
 };
+
+// Media kinds a source param reads, such as "image or video, by kind".
+export function describeMedia(param: NodeParam) {
+  const media = param["x-lumen-media"];
+  if (!media) return undefined;
+
+  const kinds = new Intl.ListFormat("en", { type: "disjunction" }).format(media.kinds);
+  return media.selectedBy ? `${kinds}, by ${media.selectedBy}` : kinds;
+}
 
 export function formatValue(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;

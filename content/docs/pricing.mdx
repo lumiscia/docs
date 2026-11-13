@@ -3,7 +3,7 @@ title: Pricing
 description: Plans, render-time rates, workspace limits, and how Lumiscia bills cloud renders.
 ---
 
-Lumiscia bills for the time a GPU spends rendering your composition, plus a small fee for media you upload. Browser previews run on the viewer's device and are free. The same plans and rates are on [lumiscia.com/pricing](https://lumiscia.com/pricing).
+Lumiscia bills a flat fee for each successful render and for the time a GPU spends rendering it, plus a small fee for media you upload. Browser previews run on the viewer's device and are free. The same plans and rates are on [lumiscia.com/pricing](https://lumiscia.com/pricing).
 
 ## Plans
 
@@ -12,32 +12,48 @@ Lumiscia bills for the time a GPU spends rendering your composition, plus a smal
 | Free | $0            |             $5 |
 | Pro  | $50 per month |            $50 |
 
-Pro also adds high queue priority, 10 renders at a time, 4K output, and shared workspace billing.
+Pro also lowers the render-time rate and adds high queue priority, 10 renders at a time, 4K output, and shared workspace billing.
 
 Charges come out of the monthly credit first, then your workspace balance. Unused credit expires at the end of the month. You top up the balance in the dashboard, $10 minimum per top-up.
 
 ## Rates
 
-| Item        | Rate                                                   |
-| ----------- | ------------------------------------------------------ |
-| Render time | $0.002 per second, 5 second minimum per render ($0.01) |
-| Media       | $0.005 per GB uploaded or imported from a URL          |
+| Item              | Rate                                                            |
+| ----------------- | --------------------------------------------------------------- |
+| Render            | $0.01 per successful render                                     |
+| Render time       | $0.0075 per second, or $0.005 per second on Pro                 |
+| Batch render time | Half the render-time rate. See [Batch renders](#batch-renders). |
+| Media             | $0.005 per GB uploaded or imported from a URL                   |
 
-The GPU worker measures render time to the millisecond. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing.
+The GPU worker measures render time to the millisecond, and there is no minimum. It counts only rendering, so queue time, worker cold starts, media downloads, and the artifact upload are free. Failed renders cost nothing. Every output format is billed at the same rates, the render fee plus render time.
 
-To start a render, your monthly credit and balance together must cover the $0.01 minimum. Otherwise the API rejects the request with a `400`.
+Media is charged when its bytes arrive, so a file that is later rejected or deleted is still billed, and so is media whose render fails. Renders and uploads made with a test API key are free.
+
+To start a render, your monthly credit and balance together must cover the $0.01 render fee, and an upload needs enough to cover its own charge. Otherwise the API rejects the request with a `400` and the code `insufficient_balance`.
 
 ## Queue priority
 
 Your workspace tier sets its queue priority, concurrency, and output limits:
 
-| Workspace                     | Queue priority  | Renders at a time | Max resolution | Max length | Artifacts kept |
-| ----------------------------- | --------------- | ----------------: | -------------- | ---------- | -------------- |
-| Free, never topped up         | After paid work |                 1 | 1080p          | 2 minutes  | 1 day          |
-| Any top-up                    | Standard        |                 3 | 4K             | No limit   | 7 days         |
-| Pro, or $100 in total top-ups | High            |                10 | 4K             | No limit   | 7 days         |
+| Workspace                     | Queue priority  | Renders at a time | New renders a minute | Max resolution | Max length | Artifacts kept |
+| ----------------------------- | --------------- | ----------------: | -------------------: | -------------- | ---------- | -------------- |
+| Free, never topped up         | After paid work |                 1 |                   20 | 1080p          | 2 minutes  | 1 day          |
+| Any top-up                    | Standard        |                 3 |                   60 | 4K             | No limit   | 7 days         |
+| Pro, or $100 in total top-ups | High            |                10 |                  300 | 4K             | No limit   | 7 days         |
 
-The resolution limit counts pixels, so 1080p allows 1920×1080 or 1080×1920. Renders past your concurrency limit wait in `queued` until a slot frees up. All tiers share the [API limits](how-it-works#validation), such as 60 fps and 10,800 frames.
+The resolution limit counts pixels, so 1080p allows 1920×1080 or 1080×1920. Renders past your concurrency limit wait in `queued` until a slot frees up. Creating more new renders in a minute than your tier allows answers `429` with `render_rate_limited`. Live and test keys count separately, and a [cached](#billing-in-the-api) response doesn't count. All tiers share the [API limits](how-it-works#validation), such as 60 fps and 10,800 frames.
+
+## Batch renders
+
+A batch render waits for idle GPU time and costs half the per-second rate: $0.00375 per second, or $0.0025 on Pro. The $0.01 fee per render stays the same. To make one, add `"priority": "batch"` next to `composition` and `media` in the body of `POST https://api.lumiscia.com/v1/renders`. The render stays `queued` until idle capacity picks it up, and its `priority` reads `batch`. After 12 hours it is queued like a standard render. One that has not started after 14 hours fails with `dispatch_lost`. Batch renders don't count against your renders at a time or your new renders a minute. The SDK's `render()` doesn't take `priority`, so send this request yourself.
+
+A batch request that breaks one of these rules is rejected with its code:
+
+| Rule                                                                           | Code                                |
+| ------------------------------------------------------------------------------ | ----------------------------------- |
+| Your workspace has topped up or subscribed to Pro.                             | `batch_requires_paid_plan`          |
+| Every media file the render uses has at least 14 hours left before it expires. | `media_expires_before_batch_window` |
+| The workspace has fewer than 1,000 batch renders queued or processing.         | `batch_queue_full`                  |
 
 ## Render time
 
@@ -66,45 +82,47 @@ These are rough figures. 4K output takes longer, and every render reports its ex
 ```ts
 function estimateRenderCost(durationSeconds: number, fps: number, framesPerSecond: number) {
   const frames = durationSeconds * fps;
-  const renderSeconds = Math.max(frames / framesPerSecond, 5);
-  return { frames, renderSeconds, dollars: renderSeconds * 0.002 };
+  const renderSeconds = frames / framesPerSecond;
+  return { frames, renderSeconds, dollars: 0.01 + renderSeconds * 0.0075 };
 }
 
 console.log(estimateRenderCost(30, 30, 180));
-// { frames: 900, renderSeconds: 5, dollars: 0.01 }
+// { frames: 900, renderSeconds: 5, dollars: 0.0475 }
 ```
 
-| Scenario                 | Frames | Render time |  Cost |
-| ------------------------ | -----: | ----------: | ----: |
-| 10 s at 30 fps, simple   |    300 |   5 s (min) | $0.01 |
-| 30 s at 30 fps, standard |    900 |         5 s | $0.01 |
-| 60 s at 30 fps, heavy    |  1,800 |        30 s | $0.06 |
+| Scenario                 | Frames | Render time |    Cost |
+| ------------------------ | -----: | ----------: | ------: |
+| 12 s at 30 fps, simple   |    360 |         1 s | $0.0175 |
+| 30 s at 30 fps, standard |    900 |         5 s | $0.0475 |
+| 60 s at 30 fps, heavy    |  1,800 |        30 s |  $0.235 |
 
-At these rates, 400 standard 30-second renders use 2,000 seconds of render time ($4.00), which fits in the Free plan's $5 credit. For a closer estimate, render a short representative range and scale its render time by the full frame count.
+These costs use the standard rate. At $0.0475 each, the Free plan's $5 credit covers 105 standard 30-second renders. For a closer estimate, render a short representative range with `output.frames` and scale its render time by the full frame count.
 
 ## Billing in the API
 
-`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request (same composition, media manifest, and webhook URL) in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
+`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request body (same composition, media manifest, webhook URL, `codec`, `quality`, `bit_depth`, `alpha`, `output` and `priority`) with the same kind of key, live or test, in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
 
-The response's `render` object includes `status` (`queued`, `processing`, `succeeded`, or `failed`), `inputHash`, and `costMicros`, the cost in millionths of a dollar. `costMicros` stays 0 until the render succeeds.
+To retry safely after a timeout, send an `Idempotency-Key` header of 1 to 255 printable ASCII characters without spaces, such as a UUID, or pass `idempotencyKey` to the SDK's `render()`. For 24 hours, a request with the same key gets the first response again, with an `idempotent-replayed: true` header, and creates no second render. Reusing a key with a different body answers `422` with `idempotency_key_reused`, and a retry that arrives while the first request is still running answers `409` with `idempotency_key_in_progress`. If the first request failed, a retry with its key runs again.
+
+The response's `render` object includes `status` (`queued`, `processing`, `succeeded`, or `failed`), `priority`, `inputHash`, and `costMicros`, the cost in millionths of a dollar. `costMicros` stays 0 until the render succeeds.
 
 ## Lowering cost
 
-- Render a short representative range before a full batch.
+- Render a short representative range of frames, with `output.frames` or a still, before a full batch.
 - Edit at a lower resolution and render the final version at full size.
 - Use the lowest frame rate your content needs.
 - Trim video sources with `range_start` and `range_end` on `media_in`.
-- Wrap an expensive branch in `memo` so it renders again only when its `key` changes.
+- Keep params constant where they don't need to change. A [branch whose values don't change](how-it-works#frame-evaluation) renders once and is reused on later frames.
 
 ## FAQ
 
 ### Can I run more than 10 renders at a time?
 
-Yes. After $1,000 in total top-ups, your workspace can run 25 renders at a time with the highest queue priority. Other limits match the Pro row in [Queue priority](#queue-priority). A Pro subscription alone doesn't unlock this tier.
+Yes. After $1,000 in total top-ups, your workspace can run 25 renders at a time and create 1,200 new renders a minute, with the highest queue priority. Other limits match the Pro row in [Queue priority](#queue-priority). A Pro subscription alone doesn't unlock this tier. [Batch renders](#batch-renders) don't count against the limit at all.
 
 ### Is there a monthly minimum?
 
-No. The Free plan has no monthly fee. You pay only for render time and uploads beyond your monthly credit.
+No. The Free plan has no monthly fee. You pay only for renders and uploads beyond your monthly credit.
 
 ### Are node types priced differently?
 

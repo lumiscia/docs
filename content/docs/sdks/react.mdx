@@ -3,73 +3,48 @@ title: React
 description: Preview compositions in React with the Lumen WebAssembly engine.
 ---
 
-`@lumiscia/lumen-react` plays a composition in a `<canvas>` using the Lumen engine compiled to WebAssembly. It needs React 18 or later. Preview runs entirely in the browser and needs no API key. To produce a video file, send the same composition to your backend and [render it there](browser#render-through-your-backend).
+`@lumiscia/lumen-react` plays a composition in a `<canvas>` using the Lumen engine compiled to WebAssembly. It needs React 18 or later and a browser with WebGPU. Preview runs entirely in the browser and needs no API key. To produce a video file, send the same composition to your backend and [render it there](browser#render-through-your-backend).
 
 ```bash
-npm install @lumiscia/lumen-react @lumiscia/lumen-shared @lumiscia/lumen-bindings
-npm install -D vite-plugin-wasm vite-plugin-top-level-await
+npm install @lumiscia/lumen-react @lumiscia/lumen-shared
 ```
 
-`@lumiscia/lumen-bindings` holds the WebAssembly build. Its `/bundler` entry point loads the preview worker with Vite's `?worker&url` import, so these docs assume Vite.
-
-## Configure Vite
-
-```ts title="vite.config.ts"
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-import topLevelAwait from "vite-plugin-top-level-await";
-import wasm from "vite-plugin-wasm";
-
-export default defineConfig({
-  build: { target: "esnext" },
-  plugins: [wasm(), topLevelAwait(), react()],
-});
-```
+The preview renders in a worker that loads the WebAssembly engine. Both come from `@lumiscia/lumen-bindings`, which `@lumiscia/lumen-react` depends on and finds by itself with Vite or plain ESM. To serve them from elsewhere, see [Runtime files](browser#runtime-files).
 
 ## Render a preview
 
-Create the preview controller and bindings once, outside your components. `LumenCanvas` starts a new engine session whenever `preview` or `bindings` changes, and updates the running session when other props change.
+Create the preview controller once, outside your components. `Player` starts a new engine session whenever `preview` or a runtime URL changes, and updates the running session when other props change. It reloads only when the composition, media or fonts change, so you can pass new objects with the same content on every render.
 
 ```tsx title="Preview.tsx"
-import { Composition } from "@lumiscia/lumen-shared";
-import { LumenCanvas, createLumenPreview, useLumenPreview } from "@lumiscia/lumen-react";
-import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
+import { Composition, nodes as n } from "@lumiscia/lumen-shared";
+import { Player, createLumenPreview, useLumenPreview } from "@lumiscia/lumen-react";
 
 const composition = new Composition({
   renderSettings: { width: 1280, height: 720 },
   timeline: { fps: 30, durationSeconds: 4 },
-});
-
-const background = composition.addNode({
-  type: "background",
-  params: { paint: [25, 28, 36, 255] },
-});
-const title = composition.addNode({
-  type: "text",
-  params: {
-    content: "Hello from Lumen",
-    font_size: 76,
-    font_weight: 700,
-    color: [255, 255, 255, 255],
-  },
-});
-const merge = composition.addNode({ type: "merge", params: { blend_mode: "normal" } });
-const output = composition.addNode({ type: "media_output" });
-
-composition.connect(background, merge, { toPort: "base" });
-composition.connect(title, merge, { toPort: "overlay" });
-composition.connect(merge, output, { toPort: "source" });
+}).addOutput(
+  n.merge({
+    base: n.background({ paint: [25, 28, 36, 255] }),
+    overlay: n.text({
+      content: "Hello from Lumen",
+      font_size: 76,
+      font_weight: 700,
+      color: [255, 255, 255, 255],
+      position: [0, 320],
+      max_width: 1280,
+      alignment_horizontal: "center",
+    }),
+  }),
+);
 
 const preview = createLumenPreview();
-const bindings = createLumenBindings();
-const compositionJson = JSON.stringify(composition.toJSON());
 
 export function Preview() {
   const state = useLumenPreview(preview);
 
   return (
     <main>
-      <LumenCanvas preview={preview} bindings={bindings} compositionJson={compositionJson} />
+      <Player preview={preview} composition={composition} loop />
       <button
         type="button"
         disabled={!state.isLoaded}
@@ -86,43 +61,128 @@ export function Preview() {
 }
 ```
 
-`useLumenPreview(preview)` returns the current state: `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, and `error` (a string or `null`). Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`.
+`useLumenPreview(preview)` returns the current state: `frame`, `totalFrames`, `width`, `height`, `isLoaded`, `isPlaying`, `error` (a message or `null`), `errorCode` (see [Errors](#errors)), and `media`, which counts the sources the composition needs as `{ pending, ready, failed }`.
+
+Control playback with `preview.play()`, `preview.pause()`, and `preview.seek(frame)`. `play()` before the composition has loaded is ignored. `seek` returns a promise that resolves to `true` once that frame, or a later seek's frame, is on screen, and to `false` if a load or failure got in first.
+
+`preview.whenReady()` resolves once a frame of the current composition is drawn and nothing it needs is still loading. It never rejects. It resolves with `null`, or with the error that stopped the composition loading, so check the value:
+
+```ts
+const error = await preview.whenReady();
+if (error === null) preview.play();
+```
+
+## Playback options
+
+`Player` takes these props and applies them live, without reloading or restarting playback:
+
+| Prop           | Default | Effect                                                                                                                                          |
+| -------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loop`         | `false` | Plays on from the start of the range at its end, with no gap, audio included. Without it, playback stops on the last frame and calls `onEnded`. |
+| `rate`         | `1`     | Playback speed from `0.25` to `4`. Audio follows it, with its pitch.                                                                            |
+| `volume`       | `1`     | Audio level from `0` to `1`.                                                                                                                    |
+| `muted`        | `false` | Silences the audio without changing `volume`.                                                                                                   |
+| `range`        | `null`  | `{ in, out }` plays only frames `in` to `out - 1`. Seeks land inside it. `null` plays the whole composition.                                    |
+| `onEnded`      |         | Called once when playback reaches the end of the range without `loop`.                                                                          |
+| `onTimeUpdate` |         | Called with `{ frame, timeMs }` at most once per frame shown. It doesn't re-render the component.                                               |
+
+```tsx
+<Player
+  preview={preview}
+  composition={composition}
+  range={{ in: 30, out: 90 }}
+  rate={1.5}
+  volume={0.8}
+  onEnded={() => setPlaying(false)}
+/>
+```
+
+A value it can't use, such as a `rate` of 8, is reported as an `invalid_option` error, and the whole update is rejected: the previous props stay in effect.
 
 ## Add media
 
-Register images and videos with `mediaSources`. Each `id` must match the `source` param of a `media_in` node. Keep the array stable (module scope, `useMemo`, or state), because a new array makes the canvas sync its media again.
+Pass media in `media`, a map from each source name the composition uses to a file. A name is what a `media_in` `source`, an audio clip's `source_id`, a `model_3d` `source`, a `render_3d` `environment_map` or a `color_grade` `lut_source` holds, including an `asset:<id>`.
 
 ```tsx
-import type { MediaRegistration } from "@lumiscia/lumen-react";
-
-const mediaSources: MediaRegistration[] = [
-  { kind: "image", id: "hero", source: "/hero.png" },
-  { kind: "video", id: "intro", source: "/intro.mp4" },
-];
-
-<LumenCanvas
+<Player
   preview={preview}
-  bindings={bindings}
-  compositionJson={compositionJson}
-  mediaSources={mediaSources}
-/>;
+  composition={composition}
+  media={{
+    hero: "/hero.png",
+    intro: "/intro.mp4",
+    music: "/music.mp3",
+    fox: "/models/fox.glb",
+    "studio.hdr": "/env/studio.hdr",
+  }}
+/>
 ```
 
-`source` accepts a URL string or `URL`, a `Request`, a `File` or `Blob`, or raw bytes. Audio works the same way through `audioSources` (`{ kind: "audio", id, source }`), where `id` matches an audio clip's `sourceId`. See [Media sources](../guides/media-sources).
+A source can be a URL string or `URL`, a `File` or `Blob`, or raw bytes. Only the entries the composition names are fetched, and each is released when the composition stops naming it. The preview takes each source's kind from the node that reads it. When an expression computes a source, give the entry a `kind` unless its blob's type says it: `{ kind: "video", source }`. The kinds are `image`, `video`, `audio`, `model`, `environment` and `lut`. The preview reads every kind. Lumiscia renders can't use models, environment maps or LUTs, which can't be uploaded there (see [What you can upload](../guides/media-sources#what-you-can-upload)).
 
-## `LumenCanvas` props
+A source is found by its exact name, and the preview follows `lumen-server`'s rules: a source written as a URL (`https://...`), or with a `..` part, is `media.not_found` even when `media` has an entry under it. Name the source, such as `intro.mp4`, and put the URL in `media` under that name. See [Media sources](../guides/media-sources).
 
-| Prop              | Type                                                         | Default | Description                                                                            |
-| ----------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------- |
-| `preview`         | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                      |
-| `bindings`        | `LumenPreviewBindingSource`                                  |         | WebAssembly bindings from `createLumenBindings()`. Required.                           |
-| `compositionJson` | `string \| null`                                             | `null`  | Composition as a JSON string.                                                          |
-| `mediaSources`    | `MediaRegistration[]`                                        | `[]`    | Images and videos, keyed by `media_in` source alias.                                   |
-| `audioSources`    | `AudioSourceRegistration[]`                                  | `[]`    | Audio files, keyed by audio clip `sourceId`.                                           |
-| `lookaheadCount`  | `number`                                                     | `8`     | Frames whose media the preview loads ahead of the playhead.                            |
-| `logLevel`        | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                      |
-| `onStats`         | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`. |
-| `className`       | `string`                                                     |         | Class for the `<canvas>`.                                                              |
-| `style`           | `CSSProperties`                                              |         | Inline style for the `<canvas>`.                                                       |
+While anything the composition needs is loading, the preview holds its last frame and pauses playback, audio included.
 
-The canvas's `width` and `height` attributes follow the composition's render size. Size it on the page with CSS.
+## Add fonts
+
+Register fonts in `fonts`, a map from font family to source. A text node whose `font_family` names a registered family uses it. Other text falls back to Roboto, the font Lumen bundles.
+
+```tsx
+<Player preview={preview} composition={composition} fonts={{ Inter: "/fonts/Inter-Bold.ttf" }} />
+```
+
+## `Player` props
+
+| Prop             | Type                                                         | Default | Description                                                                                  |
+| ---------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------------- |
+| `preview`        | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                            |
+| `composition`    | `LumenPreviewComposition \| null`                            |         | Composition JSON as an object, or anything with `toJSON()`, such as a `Composition`.         |
+| `media`          | `LumenPreviewMedia`                                          | `{}`    | Media, keyed by the source name the composition uses.                                        |
+| `fonts`          | `LumenPreviewFonts`                                          | `{}`    | Fonts, keyed by font family.                                                                 |
+| `loop`           | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                   |
+| `rate`           | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                   |
+| `volume`         | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                   |
+| `muted`          | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                   |
+| `range`          | `{ in: number; out: number } \| null`                        | `null`  | See [Playback options](#playback-options).                                                   |
+| `onEnded`        | `() => void`                                                 |         | See [Playback options](#playback-options).                                                   |
+| `onTimeUpdate`   | `({ frame, timeMs }) => void`                                |         | See [Playback options](#playback-options).                                                   |
+| `onError`        | `(error: LumenPreviewError) => void`                         |         | Called with each failure the state's `error` shows. See [Errors](#errors).                   |
+| `onStats`        | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`.       |
+| `lookaheadCount` | `number`                                                     | `8`     | Frames past the playhead whose video the preview decodes ahead.                              |
+| `logLevel`       | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                            |
+| `runtimeUrl`     | `string \| URL`                                              |         | A directory serving the preview's runtime files. See [Runtime files](browser#runtime-files). |
+| `wasmUrl`        | `string \| URL`                                              |         | Where the engine's wasm is served. Defaults to the copy in `@lumiscia/lumen-bindings`.       |
+| `workerUrl`      | `string \| URL`                                              |         | Where the preview worker is served. Defaults to the copy in `@lumiscia/lumen-bindings`.      |
+| `className`      | `string`                                                     |         | Class for the player's `<div>`.                                                              |
+| `style`          | `CSSProperties`                                              |         | Inline style for the player's `<div>`.                                                       |
+
+`Player` renders a `<div>` with the canvas inside. The canvas renders at the composition's size, fills the `<div>` and keeps its aspect ratio, so size the `<div>` with CSS.
+
+## Errors
+
+When something fails, `error` holds the message and `errorCode` says what failed. `onError` receives the full `LumenPreviewError`, with its `code`, `message`, `diagnostics` and `media`.
+
+| `errorCode`          | Meaning                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webgpu_unavailable` | The browser or page has no WebGPU or `OffscreenCanvas`. WebGPU also needs HTTPS or localhost.                                                                                 |
+| `worker_failed`      | The worker or its wasm couldn't start, or the worker crashed. Check that both are served and that the page's CSP allows them (`worker-src`, `script-src 'wasm-unsafe-eval'`). |
+| `load_failed`        | The composition, or a media source or font it needs, failed to load. The preview tries again when an input changes.                                                           |
+| `render_failed`      | A frame failed to render. Playback pauses.                                                                                                                                    |
+| `audio_failed`       | An audio source couldn't be decoded. The video keeps playing.                                                                                                                 |
+| `invalid_option`     | A playback prop had a value the preview can't use. The previous props stay in effect.                                                                                         |
+
+When the engine rejects the composition, `diagnostics` list what is wrong and where, as [`lumen check`](../open-source/cli#lumen-check) does. A `render_failed` error has one diagnostic with the engine's code, such as `render.gpu` for a GPU fault or `render.limit` for a limit the composition exceeds.
+
+When a media source can't be used, `media` says which `source`, where the composition uses it, and why, with one of the codes `media.not_found`, `media.wrong_kind`, `media.unsupported`, `media.too_large` or `media.decode`. It is `null` for other failures.
+
+```tsx
+<Player
+  preview={preview}
+  composition={composition}
+  onError={({ code, message, diagnostics, media }) => {
+    if (media) console.warn(media.code, media.source);
+    for (const diagnostic of diagnostics) console.warn(diagnostic.code, diagnostic.path);
+    console.warn(code, message);
+  }}
+/>
+```

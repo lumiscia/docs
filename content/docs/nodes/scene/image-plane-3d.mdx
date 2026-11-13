@@ -1,0 +1,61 @@
+---
+title: Image Plane 3D
+description: Shows a raster, such as text or video, on a flat rectangle in a 3D scene.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`image_plane_3d` shows the raster wired into `source` on a flat rectangle facing +Z, so text, an image, a video or any other 2D layer can sit in depth under a real camera. For an image or a video, wire in a [`media_in`](../source/media-in), or a `resize` of one.
+
+`width` is in world units, and the height follows the aspect ratio of the source's full size. A `text` or `shape` raster has the composition's size, so its plane has the composition's aspect ratio. A [`clip`](../compositing/clip) keeps the canvas its template declares.
+
+A plane is `unlit` and `double_sided` by default, so one that faces the camera shows its source's colours as they look in 2D, whatever the `exposure` and `tone_mapping` of the [`render_3d`](render-3d). Seen from behind, the raster is mirrored. Set `unlit` to false to light the plane, with the raster as its base colour; `color` multiplies the raster.
+
+## Ordering and opacity
+
+A plane is drawn blended, so its transparent pixels show what is behind it, and `opacity` multiplies the source's alpha. Blended objects are ordered by their centres, so planes that intersect, or overlap while crossing in depth, can show in the wrong order. Layers kept apart in depth, and opaque shapes in front of or behind planes, are ordered correctly.
+
+`opaque` draws the plane with the opaque objects instead, writing depth, so it is ordered correctly against anything it crosses. Use it for a source with no transparent pixels: alpha is then ignored, and a fully transparent pixel shows as black.
+
+## Regions
+
+`region`, `[x, y, width, height]` in the source's pixels from its top left, shows only that part of the source. The plane stays where it would be, and as big as it would be, with the whole source on it: `width` is still the width of the whole source, and `position`, `rotation` and `scale` pivot about the whole source's centre. A source cut into planes at different depths therefore reads as one picture from a viewpoint where they line up.
+
+Planes showing regions of one source share its texture and draw together, so a region costs nothing beyond the plane, where a `crop` before each plane costs a raster the size of the source and a draw of its own. Each number takes an integer or an expression, but the whole `region` can't be one expression. Under strong minification, the band along each edge of a region can alias or shimmer where a `crop` would be smooth.
+
+A source shown at its own size or larger keeps its detail. Shown smaller, it is filtered with mipmaps before `supersample` averages it.
+
+<NodeReference type="image_plane_3d" />
+
+## Example
+
+A title turned 25° away from the camera, one unit behind the origin:
+
+```json
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "text",
+      "params": {
+        "content": "Lumen",
+        "font_size": 160,
+        "color": "#e6b45a",
+        "position": [420, 280]
+      }
+    },
+    {
+      "id": 2,
+      "type": "image_plane_3d",
+      "params": { "width": 4, "position": [0, 0, -1], "rotation": [0, 25, 0] }
+    },
+    { "id": 3, "type": "render_3d" },
+    { "id": 4, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 2, "to_port": "source" },
+    { "from_node": 2, "to_node": 3, "to_port": "scene" },
+    { "from_node": 3, "to_node": 4, "to_port": "source" }
+  ]
+}
+```

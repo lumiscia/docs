@@ -1,0 +1,47 @@
+---
+title: Shape 3D
+description: A primitive solid, box, sphere, plane, cylinder, torus or cone, centred on its position.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`shape_3d` makes a primitive solid centred on its `position`. `size` is its width, height and depth along X, Y and Z before the rotation, and stretches the shape along each axis. The extents below are for the default `size` of `[1, 1, 1]`.
+
+| `shape`    | Form                                                                                 | Extent X × Y × Z |
+| ---------- | ------------------------------------------------------------------------------------ | ---------------- |
+| `box`      | A cuboid. The default.                                                               | 1 × 1 × 1        |
+| `sphere`   | A sphere of diameter 1, or an ellipsoid when `size` is uneven.                       | 1 × 1 × 1        |
+| `plane`    | A flat rectangle in the XZ plane facing +Y, such as a floor. `size` Y has no effect. | 1 × 0 × 1        |
+| `cylinder` | A cylinder along Y, with caps.                                                       | 1 × 1 × 1        |
+| `torus`    | A ring in the XZ plane. Its tube is a quarter as thick as the ring is wide.          | 1 × 0.25 × 1     |
+| `cone`     | A cone along Y, with its point at +Y and its base at -Y.                             | 1 × 1 × 1        |
+
+## Material
+
+`color` is the base colour, and must be a solid colour: a gradient fails [`check`](../../open-source/cli#lumen-check). `metallic` is 0 for a dielectric such as plastic and 1 for a bare metal, and `roughness` is 0 for a mirror finish and 1 for fully diffuse. `emissive` is light the surface gives off, as a multiple of its base colour. `unlit` shows the base colour as it is, ignoring lights.
+
+`opacity` below 1 draws the shape blended. Opaque objects hide what is behind them. Blended objects are drawn after them, back to front, ordered by their centres, so blended objects that cross each other can show in the wrong order. `double_sided` is off, so a face is invisible from behind; a `plane` seen from below shows nothing unless you turn it on.
+
+`cast_shadows` and `receive_shadows` take part in the shadows of a [`light_3d`](light-3d) with `cast_shadows` on. Unlit and glowing surfaces cast shadows too, so a shape that stands in for a lamp around a point light needs `cast_shadows` off. `shadow_catcher` shows nothing but the shadows that fall on the shape, which grounds a scene on a 2D background; see the [3D guide](../../guides/3d#shadows).
+
+[`text_3d`](text-3d) and [`image_plane_3d`](image-plane-3d) take the same material params.
+
+<NodeReference type="shape_3d" />
+
+## Example
+
+A gold torus that turns about Y:
+
+```json
+{
+  "id": 1,
+  "type": "shape_3d",
+  "params": {
+    "shape": "torus",
+    "rotation": "=vec3(70, frame * 3, 0)",
+    "color": "#e6b45a",
+    "metallic": 1,
+    "roughness": 0.25
+  }
+}
+```

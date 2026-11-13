@@ -3,43 +3,34 @@ title: Preview to render
 description: Preview a composition in the browser, then render the same composition through your backend.
 ---
 
-The browser preview and Lumiscia's GPU workers run the same Lumen engine on the same composition JSON. You build and preview a composition in the browser, then send it unchanged to your backend for the final render. Media is the main difference. The preview takes files directly, and a render takes a manifest of uploaded media under the same aliases.
+The browser preview and Lumiscia's GPU workers run the same Lumen engine on the same composition JSON. You build and preview a composition in the browser, then send it unchanged to your backend for the final render. Media is the main difference. The preview takes files directly, and a render takes a manifest of uploaded media under the same source names.
 
 <Steps>
 <Step>
 ### Preview with local files
 
-Register each file under the alias its `media_in` node uses. The preview plays the composition with no uploads and no API key.
+Pass each file under the source name the composition uses, such as the `source` of its `media_in` node. The preview plays the composition with no uploads and no API key.
 
 ```tsx title="Editor.tsx"
-import { LumenCanvas, createLumenPreview } from "@lumiscia/lumen-react";
-import type { MediaRegistration } from "@lumiscia/lumen-react";
-import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
+import { Player, createLumenPreview } from "@lumiscia/lumen-react";
+import type { LumenComposition } from "@lumiscia/lumen-shared";
 
 const preview = createLumenPreview();
-const bindings = createLumenBindings();
 
-export function Editor({ compositionJson, file }: { compositionJson: string; file: File }) {
-  const mediaSources: MediaRegistration[] = [{ kind: "image", id: "hero", source: file }];
-
-  return (
-    <LumenCanvas
-      preview={preview}
-      bindings={bindings}
-      compositionJson={compositionJson}
-      mediaSources={mediaSources}
-    />
-  );
+export function Editor({ composition, file }: { composition: LumenComposition; file: File }) {
+  return <Player preview={preview} composition={composition} media={{ hero: file }} />;
 }
 ```
 
-[React](../sdks/react) and [Svelte](../sdks/svelte) cover setup, playback controls and audio.
+[React](../sdks/react) and [Svelte](../sdks/svelte) cover setup, playback controls, audio and fonts.
 
 </Step>
 <Step>
 ### Upload the files
 
-Upload each file to Lumiscia while the user edits, and keep the returned media id next to its alias. Uploads need your API key, so run them on your backend. See [Media sources](media-sources) for upload and URL ingest.
+Upload each file to Lumiscia while the user edits, and keep the returned media id next to its source name. Uploads need your API key, so run them on your backend with `lumen.uploadMedia({ body: file })`. See [Media sources](media-sources) for upload and URL ingest.
+
+A composition can also name an upload directly as `asset:<id>`. Pass the same file to the preview under that name, as in `media={{ "asset:media_3f9a1c2b7d4e5f60": file }}`, and the render needs no manifest entry for it. See [Media references](../composition-format#media-references).
 
 </Step>
 <Step>
@@ -63,20 +54,41 @@ export async function renderEdit(composition: LumenComposition, heroMediaId: str
 }
 ```
 
-In a Cloudflare Worker, import from `@lumiscia/lumen-sdk/cloudflare` instead.
+`render()` returns the queued `Render` and throws a `LumenError` if the API rejects the composition. To render a still of one frame instead of a video, add `output: { format: "png", frames: { start: 45 } }` to the options. See [Output](../how-it-works#output) for the formats, alpha and 10-bit video. In a Cloudflare Worker, import from `@lumiscia/lumen-sdk` as well, and read the key from the Worker's environment.
 
 </Step>
 <Step>
 ### Wait for the result
 
-`render()` returns the render's `id`. Wait with `waitForRender(id)`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. Then download the artifact with `getRenderArtifact(id)`. See the [Node SDK](../sdks/node).
+Wait with `waitForRender(id, { onProgress })`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. `waitForRender` resolves with the finished `Render` and throws a `LumenError` if the render fails. Download the artifact with `lumen.download(render)`, which returns a `Response`. See the [Node SDK](../sdks/node).
 
 </Step>
 </Steps>
 
 ## What to check before rendering
 
-- Every alias registered in the preview has an entry in the render's `media` manifest.
+- Every source name the preview resolves has an entry in the render's `media` manifest, or is an `asset:<id>`.
 - Every manifest entry points at media whose `status` is `validated`, and that hasn't expired.
 - The composition has the size, frame rate and duration you want, within your plan's limits.
-- Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you load into the browser preview isn't part of the render request, so text in another family can look different in the render.
+- Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you pass in the preview's `fonts` isn't part of the render request, so text in another family can look different in the render.
+
+The preview reports a composition the engine rejects through its `onError` and the state's `error`, with the same diagnostics a render would return. To check a composition without playing it, call `check` from `@lumiscia/lumen-bindings`, with the font families the render will have:
+
+```ts
+import { createLumenBindings } from "@lumiscia/lumen-bindings";
+
+const { check } = await createLumenBindings().preview();
+const diagnostics = check(JSON.stringify(composition), []);
+const errors = diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+```
+
+With no families listed, any text not in Roboto gets a `font.fallback` warning. See [Check a composition](../sdks/browser#check-a-composition).
+
+## Colour in preview and render
+
+The preview converts colour as a render does: it composites in linear light, follows images' embedded colour profiles, and converts BT.2020, Display P3 and HDR video to SDR BT.709. It is close but not pixel-identical:
+
+- The browser decodes images at 8 bits and clips colour outside sRGB, where a render keeps 16-bit depth and wide-gamut colour for effects such as `exposure` to bring back.
+- Each browser's decoder rounds differently, so an image can differ from a render, and between browsers, by a code value or so.
+- Where alpha is low, colour in images and video frames comes back coarsely rounded, because they pass through an 8-bit canvas.
+- Video frames the browser hands over as RGB in other primaries are converted by the browser, which decides how HDR looks.

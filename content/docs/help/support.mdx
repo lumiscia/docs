@@ -36,6 +36,7 @@ Send the details that apply to your issue:
 
 - workspace,
 - render id and input hash,
+- error `code`, message, and `requestId`, when the SDK threw a `LumenError`,
 - SDK package and version,
 - composition JSON, or a reduced composition that reproduces the problem,
 - media type, codec, dimensions, and duration, when media is involved,
@@ -43,7 +44,7 @@ Send the details that apply to your issue:
 
 ## Render issues
 
-For failed or slow renders, include the render id and its last status (`queued`, `processing`, `succeeded`, or `failed`). If media is involved, say whether you uploaded the file or registered it from a URL.
+For failed or slow renders, include the render id, its last status (`queued`, `processing`, `succeeded`, or `failed`), and for a failed render its `error.code`. If media is involved, say whether you uploaded the file or registered it from a URL.
 
 ## Billing questions
 

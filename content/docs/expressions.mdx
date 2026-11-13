@@ -20,25 +20,26 @@ To store a literal string that starts with `=`, write `==`. `"==total"` is the t
 
 ## Where expressions work
 
-Most params accept an expression in place of a literal: numbers, booleans, text, vec2 params such as `position`, and paint params such as `fill_paint`. A few params take literals only, mostly enums such as `merge.blend_mode` and `transform.sampling`, plus `clip.composition` and `clip.end`. The [node reference](nodes) lists which.
+Most params accept an expression in place of a literal: numbers, booleans, text, enums, vec2 params such as `position`, vec3 params such as a 3D node's `position`, and color and paint params such as `fill_paint`. A few params take literals only, such as `merge.mask_mode`, `resize.mode`, `background.width` and `background.height`, `clip.composition` and `clip.end`, and the 3D enums `shape_3d.shape`, `light_3d.light` and `render_3d.output`. The [node reference](nodes) lists which. Audio track and clip `volume` takes expressions too.
 
-The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, and a paint param takes a color (a paint expression gives a solid color, not a gradient).
+The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, a vec3 param takes a vec3, and a color or paint param takes a color (a paint expression gives a solid color, not a gradient). An enum param takes the option's name as a string, such as `=if(frame > 10, 'italic', 'normal')` for `font_style`. A value that names no option is an error, and so is NaN or infinity for an enum or integer param.
 
 ## Values
 
-Expressions work with numbers, booleans, strings, vec2 values and colors.
+Expressions work with numbers, booleans, strings, vec2 and vec3 values and colors, plus easings and keys, which only the animation functions take.
 
-| Literal                         | Value                                                          |
-| ------------------------------- | -------------------------------------------------------------- |
-| `42`, `0.5`                     | Number.                                                        |
-| `true`, `false`                 | Boolean.                                                       |
-| `'Launch'`, `"Launch"`          | String. Escape quotes and backslashes with `\`.                |
-| `#ff8000`, `#ff800080`          | Color.                                                         |
-| `1.5s`, `300ms`                 | Duration, converted to frames at the composition's frame rate. |
-| `vec2(10, 20)`                  | Vec2.                                                          |
-| `rgb(255, 128, 0)`, `rgba(...)` | Color from components in 0 to 255.                             |
+| Literal                         | Value                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `42`, `0.5`, `.5`, `1e3`        | Number.                                                                                              |
+| `true`, `false`                 | Boolean.                                                                                             |
+| `'Launch'`, `"Launch"`          | String. Escape quotes and backslashes with `\`, and write `\n`, `\t` or `\r` for control characters. |
+| `#ff8000`, `#ff800080`          | Color.                                                                                               |
+| `1.5s`, `300ms`                 | Duration, converted to frames at the composition's frame rate.                                       |
+| `vec2(10, 20)`                  | Vec2.                                                                                                |
+| `vec3(0, 1.5, 4)`               | Vec3.                                                                                                |
+| `rgb(255, 128, 0)`, `rgba(...)` | Color from components in 0 to 255.                                                                   |
 
-A boolean converts to `1` or `0` where a number is needed, and a numeric string such as `'12'` converts to a number. Any value converts to text for a string param. Vec2 values and colors never convert to numbers.
+A boolean converts to `1` or `0` where a number is needed. Strings, vectors and colors never convert to numbers, so `'12' + 1` is an error. Any value converts to text for a string param. There is no component access, so `position.x` doesn't parse; build vectors from numbers instead.
 
 ## Globals
 
@@ -52,7 +53,9 @@ A boolean converts to `1` or `0` where a number is needed, and a numeric string 
 
 Inside a template, `frame` and `time` follow the template's own clock, which the playing clip's `start`, `offset` and `speed` set.
 
-The `text` node's `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` params are evaluated once per glyph. In them, `glyph`, `word` and `line` are the zero-based index of the glyph, word and line being drawn, and `glyph_count`, `word_count` and `line_count` are their totals. Anywhere else, these globals are an error.
+The `text` node's `glyph_offset`, `glyph_scale`, `glyph_rotation` and `glyph_opacity` params are evaluated once per glyph. In them, `glyph`, `word`, `line` and `span` are the zero-based index of the glyph, word, line and [span](nodes/source/text) being drawn, and `glyph_count`, `word_count`, `line_count` and `span_count` are their totals. In plain string content, `span` is 0 and `span_count` is 1. Anywhere else, these globals are an error.
+
+An `instance_3d` evaluates its `position`, `rotation` and `scale` once per copy. In them, `instance` is the index of the copy being placed, from 0, and `instance_count` is the node's `count`. Anywhere else, these two are an error.
 
 There is no global for the timeline length. Write the frame count as a number when you need it.
 
@@ -66,9 +69,9 @@ There is no global for the timeline length. Write the frame count as a number wh
 | `&&`, <code>\|\|</code>, `!` | Boolean logic, short-circuiting. |
 | `( ... )`                    | Grouping.                        |
 
-Two vec2 values add, subtract, multiply and divide component by component, and a number scales a vec2 with `*` or `/`. Colors have no arithmetic; mix them with `lerp`. Division or modulo by zero is an error.
+Two vec2 values, or two vec3 values, add, subtract, multiply and divide component by component, and a number scales a vector with `*` or `/` on either side. Mixing a vec2 with a vec3 is an error. `-` negates a vector. Colors have no arithmetic; mix them with `lerp`. `+` is numeric only, so join text with `concat`. Division or modulo by exactly zero is an error.
 
-`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch.
+`if(condition, when_true, when_false)` returns one of two values and evaluates only that branch. A condition is false when it is `false`, exactly `0`, NaN, an empty string, or a vec2, vec3 or color whose components are all zero or NaN. Any other value is true, however small.
 
 ```txt
 =if(frame < 45, 0, 1)
@@ -78,50 +81,124 @@ Two vec2 values add, subtract, multiply and divide component by component, and a
 
 ### Math
 
-| Function                      | Result                                                   |
-| ----------------------------- | -------------------------------------------------------- |
-| `min(a, b, ...)`              | Smallest of two or more numbers.                         |
-| `max(a, b, ...)`              | Largest of two or more numbers.                          |
-| `abs(x)`                      | Absolute value.                                          |
-| `floor(x)`                    | Rounds down.                                             |
-| `ceil(x)`                     | Rounds up.                                               |
-| `round(x)`                    | Rounds to the nearest integer.                           |
-| `fract(x)`                    | Fractional part.                                         |
-| `mod(x, divisor)`             | Remainder, with the sign of `x`.                         |
-| `pow(base, exponent)`         | `base` raised to `exponent`.                             |
-| `sin(radians)`                | Sine.                                                    |
-| `cos(radians)`                | Cosine.                                                  |
-| `clamp(x, min, max)`          | `x` limited to `min..max`.                               |
-| `smoothstep(edge0, edge1, x)` | Hermite smoothing of `x` between two edges, from 0 to 1. |
-| `step(from, to, t)`           | `to` once `t >= 1`, otherwise `from`.                    |
+| Function                                       | Result                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `min(a, b, ...)`                               | Smallest of two or more numbers.                                                                 |
+| `max(a, b, ...)`                               | Largest of two or more numbers.                                                                  |
+| `abs(x)`                                       | Absolute value.                                                                                  |
+| `floor(x)`                                     | Rounds down.                                                                                     |
+| `ceil(x)`                                      | Rounds up.                                                                                       |
+| `round(x)`                                     | Rounds to the nearest integer.                                                                   |
+| `fract(x)`                                     | Fractional part.                                                                                 |
+| `mod(x, divisor)`                              | Remainder, with the sign of `x`.                                                                 |
+| `pow(base, exponent)`                          | `base` raised to `exponent`.                                                                     |
+| `sign(x)`                                      | -1, 0 or 1 by the sign of `x`.                                                                   |
+| `sin(radians)`                                 | Sine.                                                                                            |
+| `cos(radians)`                                 | Cosine.                                                                                          |
+| `atan2(y, x)`                                  | Angle in radians of the point `(x, y)` from the +x axis, from -π to π.                           |
+| `hypot(x, y)`                                  | Length of the vector `(x, y)`.                                                                   |
+| `clamp(x, min, max)`                           | `x` limited to `min..max`.                                                                       |
+| `remap(x, from_min, from_max, to_min, to_max)` | `x` mapped from one range onto another, without clamping. `from_min` and `from_max` must differ. |
+| `smoothstep(edge0, edge1, x)`                  | Hermite smoothing of `x` between two edges, from 0 to 1.                                         |
+| `step(from, to, t)`                            | `to` once `t >= 1`, otherwise `from`.                                                            |
 
 ### Animation
 
-| Function                                 | Result                                                                                              |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                     |
-| `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`. |
-| `lerp(from, to, t)`                      | Interpolates numbers, vec2 values or colors by `t`. Colors mix premultiplied.                       |
-| `linear(from, to, t)`                    | Same as `lerp`.                                                                                     |
-| `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.         |
-| `cubic_bezier(x1, y1, x2, y2, t)`        | CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t`.                                                 |
+| Function                                 | Result                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `progress(start, end)`                   | 0 before frame `start`, 1 after frame `end`, linear in between.                                                           |
+| `tween(from, to, start, duration, ease)` | Eases from `from` to `to` over `duration` frames from frame `start`. `ease` defaults to `'linear'`.                       |
+| `lerp(from, to, t)`                      | Interpolates numbers, vec2 or vec3 values, colors or path data by `t`. Colors mix premultiplied.                          |
+| `keyframes(t, ease, keys...)`            | The value of a keyframe track at time `t`. `ease` may be left out. See [Keyframes](#keyframes).                           |
+| `key(at, value, ease)`                   | A keyframe for `keyframes`. `ease` may be left out.                                                                       |
+| `ease(easing, t)`                        | An easing applied to progress `t`, such as `ease('out_expo', progress(0, 18))`.                                           |
+| `cubic_bezier(out, in)`                  | The easing CSS writes `cubic-bezier(out.x, out.y, in.x, in.y)`, with vec2 handles. Both x components must be from 0 to 1. |
+| `spring(t, stiffness, damping)`          | Spring from 0 to 1, `t` seconds after release. Stiffness defaults to 170 and damping to 26.                               |
 
-`tween` takes an easing name as a quoted string: `'linear'`, `'in_quad'`, `'out_quad'`, `'in_out_quad'`, `'in_cubic'`, `'out_cubic'`, `'in_out_cubic'`, `'in_expo'`, `'out_expo'`, `'in_out_expo'`, `'in_back'`, `'out_back'` or `'in_out_back'`. Each name except `linear` is also a function of one argument, such as `out_expo(t)`, that maps progress from 0 to 1.
+`tween`, `lerp` and `keyframes` interpolate numbers, vec2 and vec3 values, colors and path data. Two paths interpolate point by point, so they must have the same commands in the same order; that morphs a `path` node's `data`.
+
+### Easings
+
+An easing is a value: a quoted name, or `cubic_bezier(out, in)`. The names are `'linear'`, `'hold'`, which keeps the value until the next key and then jumps, and these families, each with `in_`, `out_` and `in_out_` forms such as `'out_expo'`:
+
+| Family                            | Shape                                    |
+| --------------------------------- | ---------------------------------------- |
+| `quad`, `cubic`, `quart`, `quint` | Polynomial, steeper with each power.     |
+| `sine`                            | Sinusoidal.                              |
+| `expo`                            | Exponential.                             |
+| `circ`                            | Circular.                                |
+| `back`                            | Pulls back, or overshoots.               |
+| `elastic`                         | Overshoots and oscillates like a spring. |
+| `bounce`                          | Bounces like a dropped ball.             |
+
+Each name except `linear` and `hold` is also a function of one argument, such as `out_bounce(t)`, that maps progress from 0 to 1. `ease(easing, t)` applies any easing, `cubic_bezier` included:
+
+```txt
+=ease(cubic_bezier(vec2(0.2, 0), vec2(0, 1)), progress(0, 24))
+```
+
+### Keyframes
+
+`keyframes(t, keys...)` is a track of `key(at, value)` keys, ordered by `at`, read at time `t`, usually `frame`. A key's own `ease` is how the curve leaves it toward the next key. Keys without one use the track's `ease`, the optional second argument, which defaults to `'linear'`. Before the first key and after the last, the value holds, and two keys at the same `at` jump.
+
+```txt
+=keyframes(frame, 'out_cubic', key(0, vec2(100, 400)), key(30, vec2(640, 360)), key(60, vec2(640, 360), 'hold'), key(90, vec2(1180, 400)))
+```
+
+A key can hold text that isn't path data, such as a readout that steps between words, when its segment eases with `'hold'`:
+
+```txt
+=keyframes(frame, 'hold', key(0, 'ten'), key(30, 'hundred'), key(60, '1,024'))
+```
+
+### Noise and randomness
+
+| Function          | Result                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `noise(seed, x)`  | Smooth gradient noise from -1 to 1, continuous in `x` and varying about once per unit. Each `seed` is an unrelated curve. |
+| `random(seed, x)` | A uniform number from 0 up to 1, fixed by its inputs. `random(x)` uses seed 0.                                            |
+
+Both are built from integer hashing, so a frame renders the same on every host. `=noise(1, time * 2) * 20` drifts a value by up to 20, and `=random(glyph)` in a `glyph_*` param gives each glyph its own value.
+
+### Paths
+
+| Function                   | Result                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `path_point(path_data, t)` | The vec2 point `t` of the way along path data by arc length, with `t` clamped to 0 to 1.                        |
+| `path_angle(path_data, t)` | The direction in degrees the path heads at that point, clockwise from +x like `rotation`, counting whole turns. |
+
+Because `t` measures arc length, a steady `t` moves at a steady speed. Moves between contours add no length, and a closed contour's closing segment does.
+
+```json
+{
+  "position": "=path_point('M 100 400 C 400 100 800 700 1180 400', progress(0, 60))",
+  "rotation": "=path_angle('M 100 400 C 400 100 800 700 1180 400', progress(0, 60))"
+}
+```
 
 ### Values and text
 
-| Function                                               | Result                                                            |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| `vec2(x, y)`                                           | A vec2.                                                           |
-| `rgb(r, g, b)`                                         | An opaque color from components in 0 to 255.                      |
-| `rgba(r, g, b, a)`                                     | A color with alpha, components in 0 to 255.                       |
-| `uppercase(text)`                                      | Text in uppercase.                                                |
-| `lowercase(text)`                                      | Text in lowercase.                                                |
-| `text_width(text, font_size, max_width, font_family)`  | Laid-out width of the text in pixels.                             |
-| `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                            |
-| `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template. |
+| Function                                               | Result                                                                                                                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vec2(x, y)`                                           | A vec2.                                                                                                                                                                    |
+| `vec3(x, y, z)`                                        | A vec3.                                                                                                                                                                    |
+| `rgb(r, g, b)`                                         | An opaque color from components in 0 to 255.                                                                                                                               |
+| `rgba(r, g, b, a)`                                     | A color with alpha, components in 0 to 255.                                                                                                                                |
+| `uppercase(text)`                                      | Text in uppercase.                                                                                                                                                         |
+| `lowercase(text)`                                      | Text in lowercase.                                                                                                                                                         |
+| `format(value, decimals, width, fill)`                 | A number as text with `decimals` digits after the point (default 0), padded on the left with the one-character `fill` (default a space) to `width` characters (default 0). |
+| `concat(parts...)`                                     | Strings and numbers joined into one string. A number shows as it does in a text param.                                                                                     |
+| `text_width(text, font_size, max_width, font_family)`  | Laid-out width of the text in pixels.                                                                                                                                      |
+| `text_height(text, font_size, max_width, font_family)` | Laid-out height of the text in pixels.                                                                                                                                     |
+| `prop(name)`                                           | A template prop, such as `prop('title')`. Only inside a template.                                                                                                          |
 
-`text_width` and `text_height` need only the first argument. Pass `node(id)` instead of text to measure a `text` node with its own font settings.
+`format` rounds halves away from zero on the number as written, so `format(2.5)` is `'3'` and `format(1.005, 2)` is `'1.01'`. With a `'0'` fill the sign stays first: `format(-5, 0, 4, '0')` is `'-005'`. `value` must be finite, `decimals` a whole number from 0 to 20 and `width` one from 0 to 64. `concat` takes strings and numbers only, and its result is at most 1 MiB. Together they make a frame counter:
+
+```txt
+=concat('frame ', format(frame, 0, 4, '0'), ' / 1200')
+```
+
+`text_width` and `text_height` need only the first argument. Pass `node(id)` alone instead of text to measure a `text` node with its own font settings. `node(id)` takes no other arguments, so `text_width(node(8), 32)` fails when the composition loads.
 
 ```txt
 =text_width('Launch', 64, 0, 'Roboto')
@@ -136,7 +213,7 @@ Two vec2 values add, subtract, multiply and divide component by component, and a
 =node(3, 'opacity') * 0.5
 ```
 
-It reads number, boolean, text and vec2 params. Paint params such as `fill_paint` and `text.color` can't be read. The id must be a number literal.
+It reads number, boolean, text, vec2, vec3 and color params. Paint params such as `fill_paint` and `text.color` can't be read. The id must be a number literal. Dotted reads such as `title.opacity` don't parse; use `node(id, 'param')`.
 
 `node(id)` without a param name works only as the argument of `text_width` and `text_height`.
 
@@ -157,11 +234,11 @@ The top-level `functions` object defines functions you can call from any express
 }
 ```
 
-A body can use its parameters, the globals and other functions, and the leading `=` is optional. Lumen expands each call where you use it. Functions can't call each other in a cycle, and a name can't reuse a built-in or global.
+A body can use its parameters, the globals and other functions, and the leading `=` is optional. Lumen expands each call where you use it. Functions can't call each other in a cycle, and a name can't reuse a built-in, a global, `if`, `node`, `true` or `false`.
 
 ## TypeScript helpers
 
-`@lumiscia/lumen-shared` exports a typed helper for every built-in, named in camelCase (`tween`, `outExpo`, `textWidth`), plus the globals (`frame`, `time`, `fps`, `width`, `height`), easing names as `ease.outCubic`, `sec()` and `ms()` for durations, and `hex()` for colors. Each helper returns an `Expr` that node params accept directly and that serializes to an `=` string.
+`@lumiscia/lumen-shared` exports a typed helper for every built-in, named in camelCase (`tween`, `keyframes`, `outExpo`, `pathPoint`, `textWidth`), plus the globals (`frame`, `time`, `fps`, `width`, `height`, glyph globals such as `glyph` and `spanCount`, and `instance` and `instanceCount`), easing names as `ease.outCubic`, `sec()` and `ms()` for durations, and `hex()` for colors. Each helper returns an `Expr` that node params accept directly and that serializes to an `=` string. A three-number tuple passed to a helper means `rgb(..)`, so write `vec3(x, y, z)` for a vector.
 
 ```ts
 import { Composition, ease, frame, sec, sin, tween } from "@lumiscia/lumen-shared";
@@ -186,11 +263,16 @@ composition.addNode({
 
 ## Errors
 
-An expression mistake fails validation when you submit the render, or fails the render itself. Common causes:
+An expression mistake fails validation when you submit the render, or fails the render itself. Syntax errors and unknown variables, functions and easing names fail when the composition loads. Errors name the node and param at fault. Common causes:
 
 - a missing leading `=`, so the value is read as a literal,
 - `=` where you meant `==`,
-- an unknown global, function or easing name,
-- a `glyph` global outside the `glyph_*` params, or `prop()` outside a template,
+- an unknown variable, function or easing name,
+- a `glyph` global outside the `glyph_*` params, `instance` outside an `instance_3d`, or `prop()` outside a template,
 - division or modulo by zero,
+- a string where a number is needed, such as `'12' + 1`,
+- a vec2 mixed with a vec3, or two paths with different commands in `lerp` or `keyframes`,
+- a text key in `keyframes` whose segment doesn't ease with `'hold'`,
 - a result the param can't take, such as a vec2 for a number param.
+
+Expressions have size limits. An expression, with its function calls expanded, can nest 64 levels deep and hold 10,000 operations. Nodes that read each other through `node()`, `text_width` or `text_height` fail past 96 levels of nested evaluation or 10,000 evaluations from one expression.

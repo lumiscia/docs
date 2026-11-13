@@ -1,23 +1,41 @@
 ---
 title: Color Grade
-description: Applies a LUT-driven color transform to a raster.
+description: Applies a LUT-driven color transform to a raster, looking up its sRGB-encoded colour.
 ---
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`color_grade` maps colors through a lookup table and blends the result in by `strength`. Set `lut_source` to `rgb1d:` followed by at least two `r,g,b` triplets separated by `;`, in 0 to 255 or 0 to 1, or to `identity` for no change. `interpolation` is `0` for nearest sampling and `1` for linear.
+`color_grade` maps colors through a lookup table and blends the result in by `strength`. It looks up the sRGB-encoded color, unpremultiplied and clamped to 0 to 1, and leaves alpha untouched. Set one of its two LUT params; setting both is an error.
+
+`lut` is an inline 1D LUT: `rgb1d:` followed by at least two `r,g,b` stops separated by `;`, each component from 0 to 1, or `identity` for no change. A value outside 0 to 1 is an error, so divide 0 to 255 values by 255.
+
+`lut_source` names a 3D `.cube` file in the Adobe or Resolve format, with up to 129 points per axis and up to 64 MiB. Lumen reads its `TITLE`, `LUT_3D_SIZE`, `DOMAIN_MIN` and `DOMAIN_MAX` lines, comments and blank lines. 1D `.cube` tables, other keywords and a wrong number of entries are errors that say which.
+
+`interpolation` is `linear`, which is trilinear for a `.cube` table, or `nearest`.
 
 <NodeReference type="color_grade" />
 
-## Example
+## Examples
+
+An inline 1D LUT, blended in at 60%:
 
 ```json
 {
   "id": 1,
   "type": "color_grade",
   "params": {
-    "lut_source": "rgb1d: 0,0,0; 255,128,0; 255,255,255",
+    "lut": "rgb1d: 0,0,0; 1,0.5,0; 1,1,1",
     "strength": 0.6
   }
+}
+```
+
+A `.cube` grade:
+
+```json
+{
+  "id": 1,
+  "type": "color_grade",
+  "params": { "lut_source": "warm.cube" }
 }
 ```

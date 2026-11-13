@@ -13,29 +13,35 @@ A composition is a JSON document that describes a video: nodes such as `media_in
 
 ## How does pricing work?
 
-You pay $0.002 per second of render time, the GPU time spent rendering, after your plan's monthly credit. Every completed render counts at least 5 seconds ($0.01). Failed renders are free, and time spent queued or waiting for a worker to start is not billed.
+You pay $0.01 for each successful render plus $0.0075 per second of render time, the GPU time spent rendering, after your plan's monthly credit. On Pro the per-second rate is $0.005. Failed renders are free, and time spent queued or waiting for a worker to start is not billed.
 
 The Free plan includes $5 of credit a month and Pro includes $50. When the credit runs out, renders draw from your workspace balance, which you top up from $10. See [Pricing](../pricing).
 
 ## How do I get media into a render?
 
-Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest, and reference the alias from your composition. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
+Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest and reference the alias from your composition, or name the upload directly as `asset:<id>`. Uploads take images, video, audio and fonts. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
 
 ## How do I know when a render finishes?
 
 Use any of these:
 
-- Subscribe to the render's WebSocket. The SDK's `waitForRender` does this for you.
+- Call the SDK's `waitForRender`, which reads the render's progress and listens on its WebSocket between reads.
 - Poll `GET https://api.lumiscia.com/v1/renders/:id` until `status` is `succeeded` or `failed`.
 - Pass a `webhookUrl` when you create the render. Lumiscia posts `render.succeeded` or `render.failed` to it. See [Webhooks](../guides/webhooks).
 
 ## Can I test without paying for GPU time?
 
-Yes. Renders created with a test API key skip the GPU and media validation and complete with a sample artifact, so you can wire up your integration for free.
+Yes. Renders created with a test API key skip the GPU and media validation and complete after about 10 seconds with a sample artifact, whatever output they ask for, so you can wire up your integration for free. Uploads made with a test key are free too, and aren't stored. Successful test renders send no webhook, and a test render that fails during submission can send `render.failed`. Each test key runs up to 5 at a time.
+
+To check a composition without rendering it at all, use [`POST /v1/renders/check`](../how-it-works#check-before-you-render).
 
 ## Can I preview compositions in the browser?
 
 Yes. `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` render previews on the viewer's device with WebAssembly. Previews are free and need no API key. You only pay when you submit a render to the API. See [React](../sdks/react) or [Svelte](../sdks/svelte).
+
+## What can Lumiscia render?
+
+By default, an 8-bit MP4 of the whole timeline in `h264`. You can also ask for `hevc` or `av1` in an MP4, also at 10 bits per channel, a ProRes 4444 `mov` with or without alpha, a `png` or `jpeg` still, or a range of frames, from any Lumen 0.6 composition, 3D nodes included. WebM, image sequences, and any combination a format can't hold, are rejected with a `422` before the render is queued or charged. Models, environment maps and LUT files can't be uploaded, so `model_3d`, `render_3d` environment maps and `color_grade` LUTs can't render on Lumiscia. See [Output](../how-it-works#output).
 
 ## What are the render limits?
 
@@ -43,16 +49,17 @@ Every render must fit within:
 
 - 3840 pixels wide and 2160 pixels tall,
 - 60 fps,
-- 10,800 frames,
+- 10,800 frames rendered, which a frame range counts by the frames it covers,
 - 250 nodes,
 - 1 MB of composition JSON,
-- 50 distinct media sources.
+- 50 manifest entries, and 50 distinct media files counting `asset:<id>` references,
+- 5,000,000,000 bytes of output, which the API checks up front for a `mov` (see [Output](../how-it-works#output)).
 
-Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB.
+Until a workspace tops up or subscribes to Pro, renders are also limited to the pixel count of 1920×1080 and to 120 seconds of output, counted over the frames a render covers, and artifacts are kept for 1 day. After that, artifacts are kept for 7 days. Uploaded media files can be up to 1 GiB, and fonts up to 20 MiB, but a file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`.
 
 ## Why is my render queued?
 
-Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
+Each workspace runs a limited number of renders at a time: 1 before its first top-up, 3 after it, and 10 on Pro or after $100 in total top-ups. Renders past that limit wait in `queued`, and workspaces that have never topped up run after paid work. A [batch render](../pricing#batch-renders) waits for idle GPU time, and after 12 hours it is queued like a standard render. Queue time also grows when workers are cold or capacity is changing. Queue time is not billed. See [queue priority](../pricing#queue-priority).
 
 ## Can I run Lumen myself?
 
@@ -60,4 +67,4 @@ Yes. Lumen, the engine behind Lumiscia, is open source under Apache 2.0. `lumen-
 
 ## Where do I report issues?
 
-See [Support](support). Include render ids, input hashes, SDK versions, composition JSON, and media details where they apply.
+See [Support](support). Include render ids, input hashes, error codes and request ids, SDK versions, composition JSON, and media details where they apply.

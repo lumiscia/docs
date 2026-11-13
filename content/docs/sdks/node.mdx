@@ -1,9 +1,9 @@
 ---
 title: Node.js
-description: Upload media, create renders, follow render events, and download artifacts from Node.js.
+description: Upload media, create renders, wait for them, and download artifacts from Node.js.
 ---
 
-`@lumiscia/lumen-sdk` is the TypeScript client for the Lumiscia API. It sends your API key with every request, so use it only from trusted server code. The default entry point targets Node.js 20 or later and uses the `ws` package for render event subscriptions. In Cloudflare Workers, use the [Cloudflare entry point](cloudflare) instead.
+`@lumiscia/lumen-sdk` is the TypeScript client for the Lumiscia API. It sends your API key with every request, so use it only from trusted server code. It needs Node.js 22 or later, and the same import works in [Cloudflare Workers](cloudflare). The same client also talks to a [self-hosted `lumen-server`](../open-source/self-hosting#use-the-sdk).
 
 ```bash
 npm install @lumiscia/lumen-sdk
@@ -20,18 +20,11 @@ const lumen = new Lumen({
 });
 ```
 
-<Callout type="warn" title="Always set baseUrl">
-  Without `baseUrl`, the SDK sends requests to `https://lumiscia.com/api/v1`, the dashboard's proxy.
-  That proxy authenticates dashboard sessions, not API keys, so your requests fail. Set `baseUrl:
-  "https://api.lumiscia.com/v1"`.
-</Callout>
-
-| Option      | Type                              | Description                                                                          |
-| ----------- | --------------------------------- | ------------------------------------------------------------------------------------ |
-| `apiKey`    | `string`                          | Workspace API key. Sent as `Authorization: Bearer <key>`.                            |
-| `baseUrl`   | `string`                          | API root. The SDK appends paths such as `/renders` to it.                            |
-| `fetch`     | `typeof fetch`                    | Custom `fetch` implementation. Defaults to `globalThis.fetch`.                       |
-| `websocket` | `(url, { headers }) => WebSocket` | Custom WebSocket factory for `subscribeToRender`. The Node entry point provides one. |
+| Option    | Type           | Description                                                                                          |
+| --------- | -------------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey`  | `string`       | Workspace API key. Sent as `Authorization: Bearer <key>` to the API's own origin.                    |
+| `baseUrl` | `string`       | API root. The SDK appends paths such as `/renders` to it. Defaults to `https://api.lumiscia.com/v1`. |
+| `fetch`   | `typeof fetch` | Custom `fetch` implementation. Defaults to `globalThis.fetch`.                                       |
 
 ## Upload media
 
@@ -40,13 +33,22 @@ Every media file a render uses must first exist in your workspace. Upload a loca
 ```ts
 import { readFile } from "node:fs/promises";
 
-const body = await readFile("hero.png");
-
 const hero = await lumen.uploadMedia({
-  body,
-  contentType: "image/png",
+  body: await readFile("hero.png"),
   fileName: "hero.png",
-  sizeBytes: body.byteLength,
+});
+```
+
+`body` takes a `Blob` or `File`, a `Buffer` or other `BufferSource`, or a web `ReadableStream`. A `File` or a `Blob` with a type needs nothing else. A buffer also needs a `contentType`, or a `fileName` with a known extension such as `.png`, `.mp4`, `.wav` or `.glb`, and a stream also needs `sizeBytes`. If no content type can be found, `uploadMedia` throws `invalid_upload` before it sends a request. Lumiscia takes images, video, audio and TrueType or OpenType fonts, and rejects models, environment maps and LUTs (see [What you can upload](../guides/media-sources#what-you-can-upload)).
+
+Bodies over 64 MiB and every stream go up in 8 MiB parts, and anything smaller in one request. For a large file, `openAsBlob` from `node:fs` gives a `Blob` that is read as it uploads:
+
+```ts
+import { openAsBlob } from "node:fs";
+
+const intro = await lumen.uploadMedia({
+  body: await openAsBlob("intro.mp4"),
+  fileName: "intro.mp4",
 });
 ```
 
@@ -61,16 +63,16 @@ const plate = await lumen.createUrlMedia({
 
 Both return the media record. A render can only use media whose `status` is `"validated"`, and only until its `expiresAt` time. Uploads and URL ingest both run validation before they return, but if the validator is unavailable or a probe fails with a retriable error, `status` stays `"uploaded"`. Check `status` before you render.
 
-For large files, pass `multipart: true` to upload in 8 MiB parts, or `multipart: { partSizeBytes }` to choose the part size. `body` accepts a `Buffer`, `Blob`, or web `ReadableStream`. In Node.js, send streams with `multipart: true`, since the single-request upload doesn't set the `duplex` option Node's `fetch` requires for stream bodies.
+Once a file has been opened, the record also has its `kind` (`image`, `video`, `audio`, `font`, `model` or `environment`) and a `metadata` object with what was found: `width` and `height` for images, video and environment maps, `durationMs`, `fps`, `codec` and the rest for video and audio, `families` and `faces` for fonts, and for a glTF model the `animations`, `materials` and `cameras` that a [`model_3d`](../nodes/scene/model-3d) selects by name or index. Lumiscia's media records have no `kind` or `metadata`.
 
 See [Media sources](../guides/media-sources) for how renders reference media.
 
 ## Render a composition
 
-Build the composition with `Composition` (re-exported from [`@lumiscia/lumen-shared`](../guides/composition-builder)), then pass it to `render` with a `media` manifest. Each manifest key is an alias that nodes reference; each value is `lumen:<media_id>`, which `mediaReference` builds from a media record or id.
+Build the composition with `Composition` (see [Composition builder](../guides/composition-builder)), then pass it to `render` with a `media` manifest. Each manifest key is an alias that nodes reference, and each value is a media record from `uploadMedia` or `createUrlMedia`, or a `lumen:<media_id>` string, which `mediaReference` builds from a media record or id.
 
 ```ts title="render.ts"
-import { Composition, Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+import { Composition, Lumen, nodes as n } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
@@ -85,109 +87,168 @@ const plate = await lumen.createUrlMedia({
 const composition = new Composition({
   renderSettings: { width: 1280, height: 720 },
   timeline: { fps: 30, durationSeconds: 3 },
-});
+}).addOutput(n.media_in({ kind: "image", source: "plate" }));
 
-const image = composition.addNode({
-  type: "media_in",
-  params: { kind: "image", source: "plate" },
-});
-const output = composition.addNode({ type: "media_output" });
-composition.connect(image, output, { toPort: "source" });
+const render = await lumen.render(composition, { media: { plate } });
 
-const { id, cached, error } = await lumen.render(composition, {
-  media: { plate: mediaReference(plate) },
-});
-
-if (error) {
-  throw new Error(`${error.code}: ${error.message}`);
-}
-
-console.log("Render created:", id, cached ? "(cached)" : "");
+console.log("Render created:", render.id, render.cached ? "(cached)" : "");
 ```
 
-`render` accepts a `Composition` or plain [composition JSON](../composition-format). Its options:
+`render` accepts a `Composition` or plain [composition JSON](../composition-format), and returns the queued [render](#read-a-render). Its options:
 
-| Option           | Description                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------- |
-| `media`          | Manifest of alias to `lumen:<media_id>`. Defaults to `{}`.                                         |
-| `webhookUrl`     | HTTPS URL that receives `render.succeeded` or `render.failed`. See [Webhooks](../guides/webhooks). |
-| `signal`         | `AbortSignal` for the request.                                                                     |
-| `idempotencyKey` | Sent as an `idempotency-key` header. The API currently ignores it.                                 |
+| Option           | Description                                                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `media`          | Manifest of alias to a media record or `lumen:<media_id>`. Defaults to `{}`.                                                                                    |
+| `webhookUrl`     | HTTPS URL that receives `render.succeeded` or `render.failed`. See [Webhooks](../guides/webhooks).                                                              |
+| `output`         | What to render: a video, a still or an image sequence, and which frames. See [Choose the output](#choose-the-output). Defaults to an MP4 of the whole timeline. |
+| `quality`        | A quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`.                                                                           |
+| `codec`          | `h264`, `hevc` or `av1` in an `mp4`, `prores` in a `mov`, or `vp9` in a `webm`.                                                                                 |
+| `bitDepth`       | `8` or `10`. 10 bits work with `hevc` and `av1`, and ProRes is always 10-bit.                                                                                   |
+| `alpha`          | `true` keeps transparency as an alpha channel, in a `mov` (ProRes 4444) or a `webm` (VP9).                                                                      |
+| `signal`         | `AbortSignal` for the request.                                                                                                                                  |
+| `idempotencyKey` | Sent as an `idempotency-key` header, so a retry with the same key never creates a second render. See [Billing in the API](../pricing#billing-in-the-api).       |
 
-If you send the same composition, media manifest, and `webhookUrl` within 5 minutes, the API returns the existing render with `cached: true` and doesn't start a new one.
+`quality`, `codec`, `bitDepth` and `alpha` win over the same settings in the composition's [`render_settings`](../composition-format#render-settings), and apply to video outputs only. A host that can't serve one rejects the render instead of rendering something else, so alpha in an MP4, or 10 bits with `h264`, is an error.
 
-## Follow render events
+<Callout type="info" title="On Lumiscia">
+  Lumiscia renders `mp4`, `mov`, `png` and `jpeg` outputs, with alpha, 10-bit and `frames` ranges
+  where the format holds them. It rejects `webm`, `png_sequence`, `jpeg_sequence` and any
+  combination a format can't hold with a `422`, before the render is queued or charged. WebM and
+  image sequences work with a [self-hosted `lumen-server`](../open-source/self-hosting#output). See
+  [Output](../how-it-works#output) for the combinations and limits.
+</Callout>
 
-`waitForRender` opens a WebSocket and resolves when the render completes. Then download the artifact, an MP4 file, with `getRenderArtifact`:
+If you send the same request body (composition, media manifest, `webhookUrl` and encoding options) within 5 minutes, the API returns the existing render with `cached: true` and doesn't start a new one.
+
+## Choose the output
+
+`output` takes a `format`, the `frames` to render, and `jpegQuality` for JPEG formats:
+
+| `format`        | Artifact                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `mp4`           | The default. A video in `h264`, `hevc` or `av1`, with the composition's audio cut to the same frames. |
+| `mov`           | A ProRes 4444 video with AAC audio.                                                                   |
+| `webm`          | A VP9 video with Opus audio.                                                                          |
+| `png`           | One frame, with its transparency.                                                                     |
+| `jpeg`          | One opaque frame, with transparent pixels over black. `jpegQuality` is 1 to 100, 90 by default.       |
+| `png_sequence`  | A ZIP of one PNG per frame, named `frame_0000.png` and up with the timeline's frame numbers.          |
+| `jpeg_sequence` | The same with JPEG files.                                                                             |
+
+`frames` is `{ start, end }` in the composition's frames, with `end` not included. `start` defaults to 0 and `end` to the end of the timeline. A still renders the frame at `start`. A video or sequence of a range starts at time 0.
+
+```ts
+const clip = await lumen.render(composition, { output: { frames: { start: 30, end: 90 } } });
+
+const poster = await lumen.render(composition, {
+  output: { format: "png", frames: { start: 45 } },
+});
+
+const overlay = await lumen.render(composition, { alpha: true, output: { format: "mov" } });
+```
+
+An empty range, a range past the end of the timeline, or a sequence past the host's limits is rejected with `invalid_output` or `output_too_large`. `outputFile(output)` returns the `contentType` and `extension` that a render of `output` downloads as, such as `{ contentType: "application/zip", extension: "zip" }` for a sequence.
+
+## Wait for a render
+
+`waitForRender` takes a render or its id and resolves with the finished render, or throws a `LumenError` if the render fails or is cancelled. Then download the artifact with `download`:
 
 ```ts
 import { writeFile } from "node:fs/promises";
 
-await lumen.waitForRender(id!, {
-  onEvent: (event) => console.log(event.type),
+const done = await lumen.waitForRender(render, {
+  onProgress: ({ status, progress }) => console.log(status, progress),
 });
 
-const artifact = await lumen.getRenderArtifact(id!);
-await writeFile(`${id}.mp4`, Buffer.from(await artifact.arrayBuffer()));
+const artifact = await lumen.download(done);
+await writeFile(`${done.id}.mp4`, Buffer.from(await artifact.arrayBuffer()));
 ```
 
-For lower-level control, `subscribeToRender` calls your handlers for each event and returns a subscription. The socket stays open after the render finishes, so close it yourself:
+`waitForRender` reads `GET /renders/:id/progress`, and between reads holds the render's WebSocket open for up to a minute to hear about progress sooner. When sockets fail, it reads the render every 5 to 30 seconds instead. Browsers can't send the socket's `Authorization` header, so there it only reads. `onProgress` receives `{ id, status, progress }`, with `progress` from 0 to 1, whenever the status or progress changes, and never goes backwards.
+
+A rate limit never ends a wait. Every wait on the same `Lumen` client holds off for the API's `Retry-After`, or a growing delay without one. Server errors and network failures are retried with backoff, and end the wait only after ten minutes without a successful read. A 401 or 404 throws at once. Abort `signal` to stop waiting. To follow many renders at once, use [webhooks](../guides/webhooks) instead.
+
+`download` returns the `Response` for the render's `url`, and sends your API key only when that URL is on the API's origin. Its `Content-Type` and `Content-Disposition` filename say what the artifact is. Given an id, it reads the render first, and throws `render_not_ready` if the render has no artifact yet.
+
+## Cancel a render
+
+`cancelRender(id)` asks the server to stop a render and returns it. It calls `POST /renders/:id/cancel`, a route of [`lumen-server`](../open-source/self-hosting#cancel-a-render). A queued render comes back `cancelled`. A running one comes back `processing` and stops at its next frame, so follow it with `waitForRender`, which then throws a `LumenError` with the code `render_cancelled`:
 
 ```ts
-const subscription = await lumen.subscribeToRender(id!, {
-  onEvent: (event) => {
-    console.log(event.type);
-    if (event.type === "render.completed" || event.type === "render.failed") {
-      subscription.close();
-    }
-  },
-  onError: (error) => console.error(error),
-  onClose: (event) => console.log("Socket closed", event.code),
-});
+import { LumenError } from "@lumiscia/lumen-sdk";
+
+await lumen.cancelRender(render.id);
+try {
+  await lumen.waitForRender(render);
+} catch (error) {
+  if (!(error instanceof LumenError && error.code === "render_cancelled")) throw error;
+}
 ```
 
-Event types are `render.queued`, `render.started`, `render.progress`, `render.completed`, and `render.failed`. If the render already has a state when you connect, the first message reports it, so subscribing late still works.
-
-<Callout type="warn" title="Event payloads differ from the SDK types">
-  The SDK types events with top-level fields such as `progress`, `url`, and `error`. The API
-  sends `{ type, state }` instead, where `state` holds `renderId`, `state` (the render status),
-  `progress` (0 to 1), `stage`, and, when they apply, `artifactUrl` and `error` (a string). Read
-  `type` from the event and everything else from `event.state`. Because of this mismatch,
-  `waitForRender` rejects with `undefined` when a render fails.
-</Callout>
+A render that has already ended is returned as it is, and one that finishes while the request is in flight can still end `succeeded`. Lumiscia has no cancel route, so there `cancelRender` throws a `LumenError` with the status `404` and the code `route_not_found`.
 
 ## Read a render
 
-`getRender(id)` returns `{ id, render }`, or `{ error }` if the request fails. `render.status` is `queued`, `processing`, `succeeded`, or `failed`. After a render succeeds, `outputUrl` is the artifact's API path (`/v1/renders/<id>/artifact`) and `outputExpiresAt` is when the artifact expires. `getRenderArtifact` fails after that time.
+`render`, `getRender`, `cancelRender` and `waitForRender` all return a `Render`:
 
-<Callout type="warn" title="Cost field: costMicros, not costCents">
-  The SDK's `RenderJob` type declares `costCents`, but the API returns `costMicros`, the render's
-  cost in millionths of a US dollar. `render.costCents` is always `undefined`. Read `costMicros`
-  with a cast until the type is fixed:
-
-```ts
-const { render } = await lumen.getRender(id!);
-const costMicros = (render as unknown as { costMicros: number } | undefined)?.costMicros;
-```
-
-</Callout>
+| Field             | Description                                                                |
+| ----------------- | -------------------------------------------------------------------------- |
+| `id`              | The render id.                                                             |
+| `status`          | `queued`, `processing`, `succeeded`, `failed`, or `cancelled`.             |
+| `progress`        | From 0 to 1. Set by `waitForRender`, not by `getRender`.                   |
+| `url`             | Absolute URL of the artifact, once the render has succeeded.               |
+| `error`           | `{ code, message, retryable? }`, when `status` is `failed` or `cancelled`. |
+| `cached`          | Set by `render`: whether an earlier identical request answered this one.   |
+| `costMicros`      | Render cost in millionths of a US dollar.                                  |
+| `outputExpiresAt` | When the artifact expires. `download` fails after that time.               |
+| `createdAt`       | When the render was created.                                               |
+| `inputHash`       | Hash of the render's input. Include it when you report a problem.          |
+| `organizationId`  | The workspace that owns the render.                                        |
 
 ## Methods
 
-| Method                                        | Returns                                 | API route                                |
-| --------------------------------------------- | --------------------------------------- | ---------------------------------------- |
-| `render(composition, options?)`               | `{ id, cached, render }` or `{ error }` | `POST /renders`                          |
-| `getRender(id, { signal }?)`                  | `{ id, render }` or `{ error }`         | `GET /renders/:id`                       |
-| `getRenderArtifact(id, { signal }?)`          | `Blob`                                  | `GET /renders/:id/artifact`              |
-| `subscribeToRender(id, handlers)`             | `{ close }`                             | `GET /renders/:id/socket` (WebSocket)    |
-| `waitForRender(id, { onEvent, signal }?)`     | The `render.completed` event            | `GET /renders/:id/socket` (WebSocket)    |
-| `uploadMedia(options)`                        | Media record                            | `POST /media`, then `PUT` to `uploadUrl` |
-| `createUrlMedia({ url, fileName?, signal? })` | Media record                            | `POST /media/url`                        |
+| Method                                               | Returns      | API route                                                      |
+| ---------------------------------------------------- | ------------ | -------------------------------------------------------------- |
+| `render(composition, options?)`                      | `Render`     | `POST /renders`                                                |
+| `getRender(id, { signal }?)`                         | `Render`     | `GET /renders/:id`                                             |
+| `waitForRender(renderOrId, { onProgress, signal }?)` | `Render`     | `GET /renders/:id/progress` and `GET /renders/:id/socket`      |
+| `download(renderOrId, { signal }?)`                  | `Response`   | The render's `url`                                             |
+| `cancelRender(id, { signal }?)`                      | `Render`     | `POST /renders/:id/cancel`                                     |
+| `uploadMedia(options)`                               | Media record | `POST /media`, then `PUT` to `uploadUrl` or a multipart upload |
+| `createUrlMedia({ url, fileName?, signal? })`        | Media record | `POST /media/url`                                              |
 
-`uploadMedia` is built from `createMediaUpload`, `createMediaMultipartUpload`, `uploadMediaMultipartPart`, and `completeMediaMultipartUpload`, which you can call directly to run a multipart upload yourself.
+`uploadMedia` takes `body`, `fileName`, `contentType`, `sizeBytes`, and `signal`. The package also exports `mediaReference`, `outputFile`, [`verifyWebhook`](../guides/webhooks#verify-signatures), and everything in `@lumiscia/lumen-shared`, including `Composition`, `nodes` and the expression helpers.
+
+The API also has `GET /v1/media/:id`, which the SDK doesn't wrap yet.
 
 ## Errors
 
-`render` and `getRender` don't throw on API errors. They return `{ error }` with `code`, `message`, and `details.requestId`. `code` is `http_<status>` (for example `http_400`) unless the API sends a specific code, as it does for media validation errors. The media methods and `getRenderArtifact` throw that same `{ code, message, details }` object, which is a plain object, not an `Error` instance.
+Every method throws a `LumenError` when a request fails or a render it waits on fails. An aborted `signal` rejects with the abort reason instead.
 
-The API also has `GET /v1/renders/:id/progress` and `GET /v1/media/:id`, which the SDK doesn't wrap yet.
+```ts
+import { LumenError } from "@lumiscia/lumen-sdk";
+
+try {
+  await lumen.render(composition);
+} catch (error) {
+  if (!(error instanceof LumenError)) throw error;
+  console.error(error.code, error.message, error.requestId);
+  for (const { severity, code, path, message } of error.diagnostics) {
+    console.error(`${severity} ${code} at ${path || "/"}: ${message}`);
+  }
+}
+```
+
+| Field          | Description                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `code`         | The API's error code, or one the SDK sets (below).                                                                 |
+| `message`      | The API's error message. A validation error names the field or node that failed.                                   |
+| `status`       | The HTTP status, when the failure was a response.                                                                  |
+| `requestId`    | The API's request id, when it sent one. Include it when you contact support.                                       |
+| `renderId`     | The render the error is about, such as the one `waitForRender` was waiting on.                                     |
+| `retryable`    | Whether the server expects the same request to succeed if you retry it.                                            |
+| `retryAfterMs` | How long the API asked you to wait, from its `Retry-After` header.                                                 |
+| `diagnostics`  | When the server rejected the composition as invalid, what is wrong with it and where. Empty for every other error. |
+
+Each diagnostic has a `severity` (`error` or `warning`), a stable `code` such as `node.unknown_param`, a JSON pointer `path` into the composition, the `node` id when there is one, and a `message`. New codes can appear in any release, so handle a code you don't know by its `severity`. [`lumen check`](../open-source/cli#lumen-check) reports the same diagnostics locally.
+
+When the failure never reached the API's error handling, `code` is `http_<status>` (for example `http_502`), `network_error`, `invalid_response`, `render_not_ready`, or `socket_error`. `uploadMedia` throws `invalid_upload` for a body it can't send, and `waitForRender` and `download` throw `render_cancelled`, which is not retryable, for a cancelled render.

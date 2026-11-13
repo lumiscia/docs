@@ -2,21 +2,23 @@
   "title": "Processing",
   "defaultOpen": false,
   "pages": [
-    "alpha-premultiply",
     "blur",
-    "channel-shuffle",
     "color-grade",
     "crop",
-    "curves",
+    "directional-blur",
+    "displacement-map",
     "exposure",
+    "glow",
     "hue-saturation",
     "levels",
-    "memo",
+    "motion-blur",
     "opacity",
+    "radial-blur",
     "resize",
     "shadow",
     "time-remap",
     "transform",
-    "wgsl-shader"
+    "wgsl-shader",
+    "zoom-blur"
   ]
 }

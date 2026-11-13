@@ -1,6 +1,6 @@
 ---
 title: Media sources
-description: Upload or ingest images, video and audio, and reference them in a composition by alias.
+description: Upload or ingest images, video, audio and fonts, and reference them in a composition by alias or asset id.
 ---
 
 A composition never contains files or URLs. Each `media_in` node and audio clip names a manifest alias such as `hero`, and the render request's top-level `media` manifest maps each alias to media you uploaded to Lumiscia:
@@ -18,49 +18,56 @@ A composition never contains files or URLs. Each `media_in` node and audio clip 
       { "id": 1, "type": "media_in", "params": { "kind": "image", "source": "hero" } },
       { "id": 2, "type": "media_output" }
     ],
-    "connections": [{ "from_node": 1, "from_port": "output", "to_node": 2, "to_port": "source" }]
+    "connections": [{ "from_node": 1, "to_node": 2, "to_port": "source" }]
   }
 }
 ```
 
 The same composition renders with different files when you change only the manifest.
 
+A source can also name an upload directly as `asset:<id>`, such as `"source": "asset:media_3f9a1c2b7d4e5f60"`, with no manifest entry. Name fonts this way, not through the manifest (see [Fonts](#fonts)). Media ids are scoped to your workspace, so another workspace's id reads as not found.
+
 ## Upload a file
 
-`uploadMedia()` creates the media and uploads its bytes. `mediaReference()` turns the result, or a media id, into the `lumen:<media_id>` form the manifest takes.
+`uploadMedia()` creates the media and uploads its bytes. Pass the result as a manifest value, and the SDK sends it as `lumen:<media_id>`. `mediaReference()` builds that string from a media record or id, for when you write the request yourself.
 
 ```ts
 import { readFile } from "node:fs/promises";
-import { Lumen, mediaReference } from "@lumiscia/lumen-sdk";
+import { Lumen } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-const bytes = await readFile("hero.png");
 const hero = await lumen.uploadMedia({
-  body: bytes,
-  contentType: "image/png",
+  body: await readFile("hero.png"),
   fileName: "hero.png",
-  sizeBytes: bytes.byteLength,
 });
 
-const { id, error } = await lumen.render(composition, {
-  media: { hero: mediaReference(hero) },
+const { id } = await lumen.render(composition, {
+  media: { hero },
 });
 ```
 
+The content type comes from `contentType`, the blob's type, or the file name's extension. A stream also needs `sizeBytes`. Bodies over 64 MiB, and every stream, go up as a multipart upload in 8 MiB parts. See [Upload media](../sdks/node#upload-media) for every body type.
+
 Without the SDK, the upload is two requests:
 
-1. `POST /v1/media` with `fileName`, `contentType` and `sizeBytes`. The response has the `media` object, an `uploadUrl` (`/v1/media/<id>/content`) and `maxBytes`, the largest upload allowed.
+1. `POST /v1/media` with `fileName`, `contentType` and `sizeBytes`. The `201` response has the `media` object, an `uploadUrl` (`/v1/media/<id>/content`) and `maxBytes`, the largest upload allowed for that content type.
 2. `PUT` the file to `uploadUrl` with your API key and a `content-length` header. The response has the updated `media` object.
 
-For large files, pass `multipart: true` to upload in 8 MiB parts, or `multipart: { partSizeBytes }` to choose the part size.
+For a large file, upload it in parts instead of step 2:
+
+1. `POST /v1/media/<id>/multipart`. The `201` response has an `uploadId`.
+2. `PUT` each part to `/v1/media/<id>/multipart/<uploadId>/parts/<n>`, numbered from 1 up to 10,000, with a `content-length` header. Each response has the part's `partNumber` and `etag`. The SDK sends 8 MiB parts and a smaller last one.
+3. `POST /v1/media/<id>/multipart/<uploadId>/complete` with `{ "parts": [{ "partNumber": 1, "etag": "..." }, ...] }`, in ascending order. The parts must add up to `sizeBytes`. The response has the updated `media` object.
+
+A part that failed or timed out is safe to send again under the same number, and the new bytes replace it. While a part is still being received, sending it again answers `409` with `upload_part_in_progress`.
 
 ## Ingest from a URL
 
-`createUrlMedia()` has Lumiscia fetch a file that is already online. The URL must use `https`, and can't point at `localhost` or contain credentials.
+`createUrlMedia()` has Lumiscia fetch a file that is already online. The URL must use `https`, and can't point at `localhost` or contain credentials. If the server sends a `content-type`, it must name an image, video, audio or font type.
 
 ```ts
 const intro = await lumen.createUrlMedia({
@@ -69,21 +76,48 @@ const intro = await lumen.createUrlMedia({
 });
 ```
 
-`fileName` is optional and defaults to the last segment of the URL path.
+`fileName` is optional and defaults to the last segment of the URL path. Without the SDK, send `{ "url": "...", "fileName": "..." }` to `POST /v1/media/url`.
 
 ## Before you render
 
-Lumiscia probes every file after it arrives. A render accepts only media whose `status` is `validated`. If the probe hasn't finished, `status` is `uploaded`, and `GET /v1/media/<id>` returns the current status. A file that fails the probe is `rejected`, with the reason in `rejectionReason`.
+Lumiscia probes every file after it arrives. A render accepts only media whose `status` is `validated`. Media is `pending` until its bytes arrive and `uploaded` while the probe hasn't finished, and `GET /v1/media/<id>` returns the current status. A file that fails the probe is `rejected`, with the reason in `rejectionReason`.
 
-| Rule             | Value                                                                       |
-| ---------------- | --------------------------------------------------------------------------- |
-| Content types    | `image/*`, `video/*` and `audio/*`                                          |
-| Expiry           | 24 hours after you create the media (`expiresAt`)                           |
-| Manifest entries | Up to 50 per render                                                         |
-| Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit. |
-| Manifest values  | `lumen:<media_id>`                                                          |
+| Rule             | Value                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Expiry           | 24 hours after you create the media (`expiresAt`)                                       |
+| Media per render | Up to 50 manifest entries, and up to 50 distinct files counting `asset:<id>` references |
+| Alias            | Up to 128 letters, digits, `.`, `_` and `-`. Starts with a letter or digit.             |
+| Manifest values  | `lumen:<media_id>`                                                                      |
 
-Media is temporary, so upload it again for a render after it expires. Uploads and URL ingests are billed per GB; see [Pricing](../pricing). A composition that puts an `http://` or `https://` URL in `source` fails validation.
+A render that names media that isn't ready is rejected with a `422` before it's queued, with a code such as `media_not_validated`, `media_expired` or `media_not_found`. A manifest value that isn't `lumen:<media_id>` is `invalid_media_reference`, and a URL in a media field fails validation.
+
+Media is temporary, so upload it again for a render after it expires. Uploads and URL ingests are billed per GB when the bytes arrive; see [Pricing](../pricing).
+
+## Delete media
+
+`DELETE /v1/media/<id>` deletes media before it expires and answers `204`:
+
+```bash
+curl -X DELETE https://api.lumiscia.com/v1/media/media_3f9a1c2b7d4e5f60 \
+  -H "authorization: Bearer $LUMISCIA_API_KEY"
+```
+
+New renders can't use the media from then on, and `GET /v1/media/<id>` answers `404` with `media_not_found`. A render that was already queued with it still renders. Deleting doesn't refund the upload's charge.
+
+## What you can upload
+
+Uploads take images, video, audio and fonts, up to 1 GiB per file. A file a render uses must be at most 512 MiB, or the render fails with `media_download_too_large`:
+
+| Kind   | Formats                                                                       | Limits                                                                 |
+| ------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Images | Still PNG, JPEG, WebP, GIF, BMP and TIFF                                      | 4,096 px a side, and 8,847,360 pixels (4096×2160) in all               |
+| Video  | H.264, HEVC, AV1, VP8, VP9 and MPEG-2, in a container that holds its own data | 4,096 px a side, 8,847,360 pixels in all, 120 fps, and 10 minutes long |
+| Audio  | Files with an `audio/*` content type                                          | 10 minutes long                                                        |
+| Fonts  | TrueType (`font/ttf`) and OpenType (`font/otf`)                               | 20 MiB                                                                 |
+
+A video or audio file may hold only audio and video streams. One with a subtitle or data stream, such as timecode or camera metadata, is rejected with `MEDIA_STREAM_TYPE_UNSUPPORTED`. Re-mux it with only its audio and video streams.
+
+Models (`.glb`), environment maps (`.hdr`, `.exr`) and `.cube` LUTs can't be uploaded, so `model_3d.source`, `render_3d.environment_map` and `color_grade.lut_source` have nothing to read on Lumiscia. An existing upload referenced in one of these fields is rejected with `422` and `media.wrong_kind`, a missing upload returns `media.not_found`, and a URL is rejected like any other. You can still preview those nodes with local files, and render 3D scenes built from `shape_3d`, `text_3d` and `image_plane_3d`.
 
 ## Images
 
@@ -95,7 +129,7 @@ A `media_in` node with `kind: "image"` shows the image on every frame.
 
 ## Video
 
-Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to source frames `range_start` up to, but not including, `range_end`. When `range_end` is not greater than `range_start` (both default to 0), the whole video plays.
+Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to source frames `range_start` up to, but not including, `range_end`. `range_start` defaults to 0 and works on its own. Leave out `range_end` to play to the end of the video.
 
 ```json
 {
@@ -113,6 +147,10 @@ Set `kind: "video"` to play a video. `range_start` and `range_end` trim it to so
 ```
 
 `speed` scales playback, and a negative speed plays backwards. `loop_mode` sets what happens past the end of the range: `clamp` (the default) holds the last frame, `repeat` starts over, and `ping_pong` plays back and forth. Playback follows the video's own frame rate, so a 24 fps video plays at normal speed in a 30 fps composition.
+
+Renders read video and audio only from files that hold their own data, such as MP4, MOV, WebM, MKV and MPEG-TS. HLS and DASH playlists, concat lists and image sequences are refused. A `media_in` whose source can't be opened, including a video with no usable frame rate, fails the render before the first frame, with the reason.
+
+Images and video with transparency, such as PNGs and WebM with alpha, are premultiplied when they are decoded, as in the browser preview.
 
 ## Audio
 
@@ -136,6 +174,26 @@ Audio files use the same manifest. Reference the alias as `source_id` in the com
 ```
 
 See [Audio](../composition-format#audio) for the clip fields.
+
+## Fonts
+
+Upload a TrueType or OpenType file, and name it as `asset:<id>` in the `font_family` of a `text` or `text_3d` node, or of a text span. The SDK doesn't know font extensions, so pass `contentType`:
+
+```ts
+const brand = await lumen.uploadMedia({
+  body: await readFile("Brand-Bold.ttf"),
+  fileName: "Brand-Bold.ttf",
+  contentType: "font/ttf",
+});
+
+const title = {
+  id: 3,
+  type: "text",
+  params: { content: "Launch", font_family: `asset:${brand.id}`, font_size: 96 },
+};
+```
+
+A missing font asset returns `media.not_found`, and an existing upload that is not a font returns `media.wrong_kind`. A plain family name that the render has no font for falls back to the bundled font, with a `font.fallback` warning.
 
 ## Preview with local files
 

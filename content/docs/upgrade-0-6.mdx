@@ -1,0 +1,300 @@
+---
+title: Upgrade to 0.6
+description: The breaking changes in the 0.6.0 release of the Lumen packages, the lumen CLI and lumen-server, and what to change.
+---
+
+Every `@lumiscia/lumen-*` package moved to 0.6.0 together. Upgrade all the packages at once, then work through the sections that apply to you. If you're coming from 0.4, start with [Upgrade to 0.5](upgrade-0-5).
+
+The biggest change is that Lumen composites in linear light, so most compositions render a little differently even when nothing in them breaks. Run [`lumen check`](open-source/cli#lumen-check) on stored compositions first: it reports every composition change below with its code and path.
+
+## Compositions
+
+### Schema version
+
+`lumenSchemaVersion` is now the Lumen `major.minor` a composition was written for. Lumen 0.6 reads `"0.6"`, or a full version of that line such as `"0.6.2"`, and rejects any other with `document.schema_version`. Change every stored `"0.1.0"`:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```json
+{ "lumenSchemaVersion": "0.1.0" }
+```
+
+</Tab>
+<Tab value="0.6">
+
+```json
+{ "lumenSchemaVersion": "0.6" }
+```
+
+</Tab>
+</Tabs>
+
+A composition without the field is read as the engine's own version. `Composition.toJSON()` writes the current version, so compositions built with the SDK need no change. See [Schema version](composition-format#schema-version).
+
+### `color_grade` LUTs
+
+The inline 1D LUT moved from `lut_source` to `lut`, and its scale is 0 to 1. Divide 0 to 255 values by 255:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```json
+{ "type": "color_grade", "params": { "lut_source": "rgb1d: 0,0,0; 255,128,0; 255,255,255" } }
+```
+
+</Tab>
+<Tab value="0.6">
+
+```json
+{ "type": "color_grade", "params": { "lut": "rgb1d: 0,0,0; 1,0.5,0; 1,1,1" } }
+```
+
+</Tab>
+</Tabs>
+
+`lut_source` now names a 3D `.cube` file, read like any other media source. An inline LUT left in `lut_source`, a value outside 0 to 1, or both params set is a `node.invalid_param` error. See [`color_grade`](nodes/processing/color-grade).
+
+### Linear-light compositing
+
+Every raster is now linear light with premultiplied alpha, in half floats. JSON colours, images and video are decoded from sRGB on the way in and encoded back on the way out, so a single image passed straight through, and a JSON colour on its own, render exactly as before. Wherever colours mix, the output changes:
+
+- Fades, merges, masks, blurs, glow, shadows, motion blur, and the antialiased edges of shapes and text mix light, not sRGB codes. 50% white over black is code 188, not 128, and a blurred black-to-white edge is brighter.
+- Small dark text on a light background looks lighter, and light text on dark looks bolder.
+- Video and JPEG output composite over black in linear light, so half-covered red is code 188, not 128.
+- 8-bit output is dithered, so smooth gradients lose their banding. Flat areas and JSON colours keep their exact codes.
+- Non-normal blend modes (`multiply`, `screen`, `overlay` and the rest), `levels`, `hue_saturation`, the `color_grade` LUT, `exposure`'s contrast and offset, `displacement_map` and `fractal_noise` still work on sRGB-encoded values, so they look as they did. `exposure` itself multiplies linear light.
+
+Retune opacities, blur radii and font weights where the new look matters.
+
+A [`wgsl_shader`](nodes/processing/wgsl-shader) gets linear, premultiplied inputs, and values above 1 are kept. Any storage texture it declares must be `texture_storage_2d<rgba16float, write>`; `rgba8unorm` fails. Colour uniforms arrive linear and premultiplied. A formula written for sRGB codes converts with the prelude's `lumen_linear_to_srgb` and `lumen_srgb_to_linear`:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```wgsl
+let color = textureLoad(input0, vec2<i32>(id.xy), 0);
+let curved = color.rgb * color.rgb * (3.0 - 2.0 * color.rgb);
+textureStore(output, vec2<i32>(id.xy), vec4<f32>(curved, color.a));
+```
+
+</Tab>
+<Tab value="0.6">
+
+```wgsl
+let color = textureLoad(input0, vec2<i32>(id.xy), 0);
+let encoded = lumen_linear_to_srgb(color.rgb / max(color.a, 1e-6));
+let curved = encoded * encoded * (3.0 - 2.0 * encoded);
+textureStore(output, vec2<i32>(id.xy), vec4<f32>(lumen_srgb_to_linear(curved) * color.a, color.a));
+```
+
+</Tab>
+</Tabs>
+
+### Media colour
+
+- Images follow their embedded ICC profiles, so a Display P3 or Adobe RGB photo shows its real colours instead of dull or washed-out ones. 16-bit PNG and TIFF keep their depth.
+- BT.2020 and Display P3 video converts to BT.709, and PQ and HLG (HDR) video is tone-mapped to SDR, instead of being shown as if it were BT.709.
+
+### Errors
+
+- Media failures have one set of codes for every kind: `media.not_found`, `media.wrong_kind`, `media.unsupported`, `media.too_large` and `media.decode`. `asset.not_found` and `asset.wrong_kind` from 0.5 are now `media.not_found` and `media.wrong_kind`. A file of the wrong kind, an unsupported codec, or a size limit used to be `media.decode`.
+- `render.gpu` now means a GPU fault only, which trying again may fix. A composition that needs more than the device or engine allows is `render.limit`, and an engine bug is `render.internal`. A `wgsl_shader` the device refuses is `render.node_evaluation`. If you show `render.gpu` to authors as their mistake, show `render.limit` instead.
+- Match on codes, not messages. New codes can appear in any release, so handle a code you don't know by its `severity`.
+
+### Other changes
+
+- A text node draws up to 16384 glyphs by default, up from 2048. The limit is a host setting.
+- A template name in `compositions` can be at most 256 bytes.
+- The root and each template hold at most 512 audio tracks and 8192 audio clips, and clips play templates that have sound at most 4096 times in all. Past one, the check fails with `audio.invalid`.
+- Audio playback is bounded. A 512-sample interval can be inside at most 1024 clips and time remaps, with a loop restarting fewer than 32 times in it, and sound at most 1024 clips. One planning call returns at most 500,000 segments, and the preview's plan of the whole timeline covers at most about 3 hours and 200,000 segments. Past a limit, the render or the preview load fails with `audio.limit`.
+- Node inputs and outputs carry a kind, `raster` or `scene`, for the new [3D nodes](guides/3d). Wiring one kind into the other fails with `connection.wrong_kind`.
+
+## Expressions
+
+`format`, `concat`, `vec3`, `instance` and `instance_count` are reserved names. A composition function or parameter with one of these names needs another:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```json
+{ "functions": { "format(n)": "round(n * 100) / 100" } }
+```
+
+</Tab>
+<Tab value="0.6">
+
+```json
+{ "functions": { "two_places(n)": "round(n * 100) / 100" } }
+```
+
+</Tab>
+</Tabs>
+
+## SDK and composition builder
+
+- The `lumenSchemaVersion` option of `Composition` is removed. `toJSON()` always writes `"0.6"`.
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```ts nocheck
+import { Composition } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({
+  lumenSchemaVersion: "0.1.0",
+  timeline: { durationSeconds: 4 },
+});
+```
+
+</Tab>
+<Tab value="0.6">
+
+```ts
+import { Composition } from "@lumiscia/lumen-shared";
+
+const composition = new Composition({ timeline: { durationSeconds: 4 } });
+```
+
+</Tab>
+</Tabs>
+
+- `RenderStatus` gains `"cancelled"`, so an exhaustive `switch` over it needs a new case. `waitForRender` and `download` throw a `LumenError` with the code `render_cancelled` for a cancelled render. See [Cancel a render](sdks/node#cancel-a-render).
+- `NodeReference` takes the kind of output, as in `NodeReference<"raster">`. `addNode` inputs and `connect` only take nodes whose output fits the port, so a scene wired into a raster port is a type error. The generated definitions name port kinds `raster` and `scene` where they said `raster_frame`.
+- The generated `AudioClip` and `AudioTrack` types have `volume: ExpressionValue<number>`, and the root `audio` is an `AudioTimeline`.
+
+The builder also gained node values, `addOutput`, typed conditions and `vec3`. Nothing requires them. See [Composition builder](guides/composition-builder).
+
+## Preview
+
+Playback no longer loops by default. It stops on the last frame and calls `onEnded`. Pass `loop` to keep the old behaviour:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```tsx nocheck
+<Player preview={preview} composition={composition} />
+```
+
+</Tab>
+<Tab value="0.6">
+
+```tsx
+<Player preview={preview} composition={composition} loop />
+```
+
+</Tab>
+</Tabs>
+
+- `LumenPreviewErrorCode` gains `"invalid_option"`, so an exhaustive `switch` over it needs a new case.
+- `@lumiscia/lumen-preview` exports only `createLumenPreview`, `mountPreview`, `LumenPreviewContext`, `LumenPreviewSession` and their types. The `./media`, `./session` and `./audio-engine` subpaths are removed, with `LumenMediaBridge`, `LumenMediaError` and the rest of the media bridge. The bindings contract for a custom host moves to `@lumiscia/lumen-preview/advanced`.
+- A custom host also changes that contract. Bindings implement `mediaDependencies(compositionJson)` and `modelInfo(bytes)`. A controller implements `setModel`, `hasModel` and `removeModelSource`, the same three for `Environment` and `Lut` (`setEnvironment`, `setLut`), and `validateComposition(compositionJson)`. `audioTimeline()` returns the engine's audio plan as JSON, `{ voices, segments, durationFrames, fps }`, instead of parsed tracks and clips.
+- `@lumiscia/lumen-react` and `@lumiscia/lumen-svelte` no longer re-export `MediaRegistration`.
+- Only the `media` entries the composition names are fetched, and the rest are released. When an expression computes a source, give entries a `kind` unless the node or the blob's type says it.
+- A `kind` the composition doesn't read the source as fails with `media.wrong_kind`. Drop it, or fix it to the kind the node reads.
+- A source written as a URL, or with a `..` part, is `media.not_found` even when `media` has an entry under it, as on `lumen-server`. Name the source and put the URL in `media`:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```json
+{ "type": "media_in", "params": { "kind": "video", "source": "https://cdn.example.com/intro.mp4" } }
+```
+
+</Tab>
+<Tab value="0.6">
+
+```json
+{ "type": "media_in", "params": { "kind": "video", "source": "intro.mp4" } }
+```
+
+```tsx
+<Player
+  preview={preview}
+  composition={composition}
+  media={{ "intro.mp4": "https://cdn.example.com/intro.mp4" }}
+/>
+```
+
+</Tab>
+</Tabs>
+
+- Playback pauses while any source the composition needs, audio included, is loading. To start without that pause, await `preview.whenReady()` before `play()`. A custom transport passed to `preview.attach()` must implement `whenReady`.
+- The preview composites in linear light and follows images' colour profiles, as renders do.
+
+See [React](sdks/react), [Svelte](sdks/svelte) or [Browser](sdks/browser).
+
+## CLI
+
+`lumen-local` is now the [Lumen CLI](open-source/cli), `lumen`, installed with `npm install -g @lumiscia/lumen-cli`. It has two commands, `render` and `check`, and takes the composition as an argument. `--composition` and `--check` are gone:
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```bash
+lumen-local --composition composition.json --output out.mp4 --codec hevc
+lumen-local --composition composition.json --output frame.png --frame 30
+lumen-local --composition composition.json --check --format json
+```
+
+</Tab>
+<Tab value="0.6">
+
+```bash
+lumen render composition.json -o out.mp4 --codec hevc
+lumen render composition.json -o frame.png --frame 30
+lumen check composition.json --format json
+```
+
+</Tab>
+</Tabs>
+
+- `lumen check` takes only `--format`, `--media-root` and `--font-dir`, and rejects the render flags it used to ignore.
+- Errors start with `lumen failed`.
+- In a checkout, `cargo run -p lumen-local --` is `cargo run -p lumen-cli --`.
+- On NVIDIA, AV1 encodes with `av1_nvenc` instead of `av1_vulkan`.
+
+## Self-hosting
+
+- A render can end as `cancelled`, through the new `POST /renders/:id/cancel`. A client that polls until `succeeded` or `failed` must also stop on `cancelled`.
+- At most `--max-queued-renders` renders (32 by default) wait for a slot. Past that, `POST /renders` answers `503` with `render_queue_full`. Retry, or raise the limit.
+- A failed render's `error.code` is the engine's code, such as `media.not_found` or `media.decode`, instead of `render_failed`. Only `render.gpu` and shortages that can pass, such as running out of memory, are retryable.
+- `LUMEN_MEDIA_ROOT` is gone. The binary reads fonts from `--font-dir` (`LUMEN_FONT_DIR`).
+- `--max-text-glyphs` (`LUMEN_SERVER_MAX_TEXT_GLYPHS`) sets the text glyph limit.
+- CPU encoders get dithered YUV converted on the GPU, so 8-bit `libx264`, `libx265` and `libsvtav1` output changes slightly.
+
+For Rust users of the `lumen_server` library:
+
+- The library reads no environment variables. Pass a `RenderConfig` in `RenderOptions::config`, and set `RenderOptions::encoder` to pin an encoder.
+- `RenderError` is `ServerRenderError`, with `code()`, `retryable()` and a private body. `audio_render_failed` is now the engine's code or `encode_failed`, `invalid_fps` is `invalid_render_profile`, and `media_root_error` and `font_dir_error` are `invalid_config`.
+- `render_project_mp4` is `render_project`, which returns a `RenderedOutput { bytes, format }`. Use `render_project(..)?.bytes` for the MP4 bytes.
+- `MediaStore::resolve(source, kind) -> Result<ResolvedMedia, MediaError>` replaces the per-kind `get_*_resolver` getters and `font_resolver_id`. Resolver `id()` methods are removed. Each `ResolvedMedia` carries a `MediaIdentity` (`MediaIdentity::of_key`, `unique()` or `of_file`) that must change when the source's bytes change. A font the store lacks is `Err(MediaError::source_not_found(..))`, not `Ok(None)`. To call a store, use `media::resolve_as::<dyn ImageResolver>(store, source)`.
+- `MediaError::{SourceNotFound, Decode, AssetNotFound, AssetWrongKind}` are replaced by `MediaError::Failed(MediaFailure)`. Build one with `MediaError::source_not_found` or `MediaError::decode`.
+- `MediaFrame` has the new variants `WideRgba` and `LinearRgba`, so a `match` needs arms for them. `Warning::UnsupportedColor { kind, media, .. }` covers images and video (`kind` is `AssetKind::Image` or `AssetKind::Video`) with the code `media.color_unsupported`. `ColorTags` gains `primaries`, `transfer` and `chroma_location`, built with `ColorTags::new(matrix, full_range)`. `YuvColor` gains `primaries` and `transfer`, built with `YuvColor::sdr(matrix, full_range)`.
+- `GpuCompositionRenderer::render(composition, frame, media, target)` replaces `render_frame`, `render_frame_at`, `render_frame_submitted` and `render_frame_into_external`. `target` is `RenderTarget::Owned` or `RenderTarget::External(texture)`, and `render` returns a `RenderedFrame { raster, submission }`. To time the stages apart, call `bind_frame(.., target)`, `upload_frame` and `submit_frame`. `FfmpegVideoResolver`, `FfmpegAudioResolver`, `FfmpegResolverOptions` and `ImageFileResolver` are at `lumen_engine::media`, and the `lumen_engine::ffmpeg` and `lumen_engine::image` aliases are gone.
+- `set_media_texture_cache_budget(bytes)` is `set_cache_budgets(CacheBudgets { image_textures: bytes, ..renderer.cache_budgets() })`. The pool and retained-output setters are the `pooled_textures` and `retained_outputs` fields.
+- `set_output_alpha` takes an `OutputAlpha`: `Premultiplied` (the default), `Straight` or `Opaque`. `premultiply_rgba_in_place_if_needed` is removed.
+- Hand-written `Node` and `NodeParams` implementations must add `for_each_media_source`, and `PropertyDef` has a `media` field.
+- `AudioMixer::new` takes the `Composition` instead of its timeline, and `mix_range` takes `&mut self` and returns a `LumenError` on failure. `AudioTrack::volume` and `AudioClip::volume` are an `AudioGain`, and `CompositionTemplate` has an `audio` field.
+- `resolve_encoder` takes the `OutputFormat` after the composition and returns a `ServerRenderError` instead of an `anyhow::Error`. A `match` over these enums needs the new variants: `OutputFormat::{Mov, Webm}`, `ProRes` and `Vp9` on `OutputCodec` and `EncodeCodec`, `Vpx` and `ProRes` on `EncoderFamily`, and `Yuv420p`, `Yuv420p10`, `Yuva420p`, `Yuv444p10` and `Yuva444p10` on `PixelFormat`.
+- `VulkanVideoTarget::nv12(renderer, size)` is `VulkanVideoTarget::new(renderer, size, BitDepth, dither)`, and `CudaNvencTargetPool::rgba8(renderer, size)` is `CudaNvencTargetPool::new(renderer, size, BitDepth, dither)`. `VulkanVideoFrame::new` takes a `VulkanFrameLayout` (`nv12` or `p010`) instead of a width and height.
+- `Mp4Render::open` takes a `&RenderOutput` after the output path and a `CancelToken` last, and `Mp4Render::set_cancel` is gone. `RenderOptions` has new fields, so build it with `..RenderOptions::default()`.
+
+<Tabs items={["0.5", "0.6"]}>
+<Tab value="0.5">
+
+```rust
+let mp4 = render_project_mp4(&composition, &options, &mut |_| {})?;
+```
+
+</Tab>
+<Tab value="0.6">
+
+```rust
+let mp4 = render_project(&composition, &options, &mut |_| {})?.bytes;
+```
+
+</Tab>
+</Tabs>
+
+See [Self-hosting](open-source/self-hosting#build-your-own-platform).

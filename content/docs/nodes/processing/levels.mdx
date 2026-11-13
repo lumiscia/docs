@@ -5,7 +5,7 @@ description: Remaps raster black, white, gamma, and output range.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`levels` maps the input range between `black_point` and `white_point` to the range between `output_black` and `output_white`, with `gamma` for the midtones. Use it to fix washed-out or crushed footage.
+`levels` maps the input range between `black_point` and `white_point` to the range between `output_black` and `output_white`, with `gamma` for the midtones. Use it to fix washed-out or crushed footage. It works on the sRGB-encoded color.
 
 <NodeReference type="levels" />
 

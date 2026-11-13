@@ -7,6 +7,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 `resize` scales the source into a `width` by `height` rectangle placed at `x`, `y` on the canvas. `mode` picks whether the source stretches to the rectangle, fits inside it or fills it.
 
+With `sampling: "linear"`, the default, a source shown smaller than its size is filtered: each output pixel averages the source pixels it covers, so a large photo or video shrunk to a thumbnail doesn't alias. `nearest` takes the nearest pixel.
+
 <NodeReference type="resize" />
 
 ## Example

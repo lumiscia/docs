@@ -1,0 +1,31 @@
+---
+title: Fractal Noise
+description: Generates opaque grey fractal noise, the same for a given seed and evolution.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`fractal_noise` generates opaque grey noise on the GPU: 2D gradient noise summed over `octaves` layers, each half the size and half the strength of the one before. Use it for clouds, grain and organic texture, or as the `map` of a [`displacement_map`](../processing/displacement-map) or the `mask` of a [`merge`](../compositing/merge).
+
+`scale` is the size of the largest features in pixels, and `seed` picks an unrelated pattern. `evolution` morphs the pattern in turns and repeats every whole turn, so `"=time"` loops once a second. `turbulent` mode folds each layer, which gives dark creases. The noise is computed on sRGB-encoded values, so `contrast` scales around mid grey as it looks, and `brightness` is added after it.
+
+Leave `width` and `height` at `0` to match the composition size. They take fixed numbers, not expressions. The pattern is built from integer hashing, so it holds steady at any offset or time and is the same on every GPU to within a level of rounding.
+
+<NodeReference type="fractal_noise" />
+
+## Example
+
+Large, slow clouds that loop every 4 seconds:
+
+```json
+{
+  "id": 1,
+  "type": "fractal_noise",
+  "params": {
+    "scale": 240,
+    "octaves": 5,
+    "seed": 7,
+    "evolution": "=time / 4"
+  }
+}
+```

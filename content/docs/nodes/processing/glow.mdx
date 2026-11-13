@@ -1,0 +1,32 @@
+---
+title: Glow
+description: Adds a blurred copy of a raster's brightest pixels to it, as light.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`glow` adds a blurred copy of its source's brightest pixels back onto it, as light. Use it for neon signs, bloom on highlights and glowing text.
+
+`threshold` is the luminance where the glow starts, from 0 to 1 on the sRGB-encoded scale, so 0.5 is halfway from black to white as they look. Brighter pixels glow more and white glows at full strength. Black never glows. At `threshold: 1`, pixels at or below SDR white contribute no glow, but brighter pixels still do. `radius` blurs the light with the same Gaussian as [`blur`](blur), and `intensity` multiplies its brightness, up to 1000. Set `intensity` to 0 to disable the glow.
+
+With `tint_enabled`, the glow takes the solid `tint` colour at the brightness of the light that casts it. `glow_only` outputs the glow alone, without the source, and its alpha is its brightest channel. The glow keeps light brighter than white, with alpha at most 1.
+
+`edge` is `clamp`, which repeats the canvas's edge pixels, or `transparent`, which lets the glow fade out towards the canvas edges. The output grows by the blur's reach.
+
+<NodeReference type="glow" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "glow",
+  "params": {
+    "threshold": 0.55,
+    "radius": 44,
+    "intensity": 0.8,
+    "tint_enabled": true,
+    "tint": "#ff4fd8"
+  }
+}
+```

@@ -5,6 +5,7 @@
     "composition-json",
     "media-sources",
     "animation",
+    "3d",
     "preview-to-render",
     "webhooks"
   ]

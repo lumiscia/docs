@@ -9,6 +9,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 <NodeReference type="text" />
 
+`position` is the top-left corner of the text, and `alignment_horizontal` aligns lines within `max_width`. To center text on a 1280-pixel canvas, set `position` to `[0, y]` and `max_width` to `1280`.
+
 ## Example
 
 ```json
@@ -18,7 +20,8 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
   "params": {
     "content": "Hello",
     "font_size": 96,
-    "position": [640, 360],
+    "position": [0, 360],
+    "max_width": 1280,
     "alignment_horizontal": "center",
     "glyph_opacity": "=progress(glyph * 2, glyph * 2 + 10)"
   }
@@ -42,7 +45,8 @@ Set `content` to an array of spans to style parts of the text. Each span needs `
       { "text": " explained", "color": "#f5b301", "font_weight": 700 }
     ],
     "font_size": 72,
-    "position": [640, 360],
+    "position": [0, 360],
+    "max_width": 1280,
     "alignment_horizontal": "center"
   }
 }
@@ -91,7 +95,8 @@ Each field takes a literal or an expression, but a whole decoration can't be one
   "params": {
     "content": "Breaking news",
     "font_size": 72,
-    "position": [640, 600],
+    "position": [0, 600],
+    "max_width": 1280,
     "alignment_horizontal": "center",
     "stroke": { "paint": [0, 0, 0, 255], "width": 6 }
   }
@@ -140,7 +145,8 @@ A text node draws at most 16384 glyphs by default, counting a stroked glyph twic
   "params": {
     "content": "=floor(progress(0, 60) * 1250)",
     "font_size": 96,
-    "position": [640, 360],
+    "position": [0, 360],
+    "max_width": 1280,
     "alignment_horizontal": "center",
     "font_features": { "tnum": 1 }
   }

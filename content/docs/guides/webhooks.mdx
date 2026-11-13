@@ -18,7 +18,7 @@ const { id } = await lumen.render(composition, {
 });
 ```
 
-Without the SDK, add `webhookUrl` next to `media` and `composition` in the body of `POST /v1/renders`. The URL must use `https` and can't point at `localhost` or contain credentials.
+Without the SDK, add `webhookUrl` next to `media` and `composition` in the body of `POST /v1/renders`. The URL must use `https` and can't point at `localhost` or contain credentials, or the request is rejected with `invalid_webhook_url`. Renders created with a test API key send no webhook.
 
 ## Events
 
@@ -44,25 +44,27 @@ The body is JSON:
   "createdAt": "2026-10-30T12:00:04.512Z",
   "durationMs": 7350,
   "costMicros": 14700,
-  "artifactUrl": "/v1/renders/r_3f9a1c2b7d4e/artifact",
+  "artifactUrl": "https://api.lumiscia.com/v1/renders/r_3f9a1c2b7d4e/artifact",
   "outputBytes": 1843200,
   "resolution": "1280x720"
 }
 ```
 
-| Field            | Description                                                                       |
-| ---------------- | --------------------------------------------------------------------------------- |
-| `event`          | `render.succeeded` or `render.failed`.                                            |
-| `status`         | `succeeded` or `failed`.                                                          |
-| `id`             | The render id.                                                                    |
-| `organizationId` | The workspace that owns the render.                                               |
-| `createdAt`      | When the render reached this status, in ISO 8601.                                 |
-| `durationMs`     | Billed render time in milliseconds, at least 5,000 for a render that succeeds.    |
-| `costMicros`     | Charge in millionths of a dollar. `14700` is $0.0147.                             |
-| `artifactUrl`    | Path of the artifact, relative to `https://api.lumiscia.com`. Present on success. |
-| `outputBytes`    | Artifact size in bytes. Present on success.                                       |
-| `resolution`     | Artifact size as `<width>x<height>`. Present on success.                          |
-| `error`          | Why the render failed. Present on failure.                                        |
+| Field            | Description                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `event`          | `render.succeeded` or `render.failed`.                                                    |
+| `status`         | `succeeded` or `failed`.                                                                  |
+| `id`             | The render id.                                                                            |
+| `organizationId` | The workspace that owns the render.                                                       |
+| `createdAt`      | When the render reached this status, in ISO 8601.                                         |
+| `durationMs`     | Render time in milliseconds, as the GPU worker measured it. Present on success.           |
+| `costMicros`     | Charge in millionths of a dollar. `14700` is $0.0147, and a failed render is `0`.         |
+| `artifactUrl`    | Absolute URL of the artifact. Present on success.                                         |
+| `outputBytes`    | Artifact size in bytes. Present on success.                                               |
+| `resolution`     | Artifact size as `<width>x<height>`. Present on success.                                  |
+| `error`          | Why the render failed, as a message. Present on failure.                                  |
+| `errorCode`      | The failure's stable code, the same as the render's `error.code`. Present on failure.     |
+| `diagnostics`    | A failed render's diagnostics, or a succeeded render's warnings, when Lumen reported any. |
 
 Download the artifact from `artifactUrl` with your API key, or call `download(id)`. Artifacts expire; the render's `outputExpiresAt` gives the time, and [Pricing](../pricing) lists retention per plan.
 
@@ -75,9 +77,11 @@ Webhooks are signed with the [Standard Webhooks](https://www.standardwebhooks.co
 | `webhook-id`        | Id of the delivery. The same on every retry.                                                                                                                   |
 | `webhook-timestamp` | Unix time in seconds when the attempt was sent.                                                                                                                |
 | `webhook-signature` | `v1,` and a base64 HMAC-SHA256 of `<webhook id>.<timestamp>.<body>`, signed with your workspace's `whsec_` secret. Several signatures are separated by spaces. |
-| `user-agent`        | `Lumen-Webhooks/1.0`                                                                                                                                           |
+| `user-agent`        | `Lumiscia-Webhooks/1.0`                                                                                                                                        |
 
-Return a `2xx` status to acknowledge a delivery. Lumiscia makes up to 3 attempts when your endpoint returns any other status, 2 seconds and then 4 seconds apart.
+Return a `2xx` status within 10 seconds to acknowledge a delivery. Lumiscia makes up to 3 attempts when your endpoint returns any other status, times out, or can't be reached, 2 seconds and then 4 seconds apart. A render's webhook isn't sent again after its attempts run out, so read the render with `GET /v1/renders/:id` if you missed one.
+
+Workspace admins find the signing secret on the dashboard's API keys page, where they can also rotate it. For 24 hours after a rotation, each delivery carries two signatures, one per secret, so a receiver with either secret verifies it.
 
 ## Verify signatures
 

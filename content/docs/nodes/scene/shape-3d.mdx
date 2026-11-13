@@ -18,7 +18,7 @@ import { NodeReference } from "@/src/components/mdx/node-reference";
 
 ## Material
 
-`color` is the base colour, and must be a solid colour: a gradient fails `check`. `metallic` is 0 for a dielectric such as plastic and 1 for a bare metal, and `roughness` is 0 for a mirror finish and 1 for fully diffuse. `emissive` is light the surface gives off, as a multiple of its base colour. `unlit` shows the base colour as it is, ignoring lights.
+`color` is the base colour, and must be a solid colour: a gradient fails [`check`](../../open-source/cli#lumen-check). `metallic` is 0 for a dielectric such as plastic and 1 for a bare metal, and `roughness` is 0 for a mirror finish and 1 for fully diffuse. `emissive` is light the surface gives off, as a multiple of its base colour. `unlit` shows the base colour as it is, ignoring lights.
 
 `opacity` below 1 draws the shape blended. Opaque objects hide what is behind them. Blended objects are drawn after them, back to front, ordered by their centres, so blended objects that cross each other can show in the wrong order. `double_sided` is off, so a face is invisible from behind; a `plane` seen from below shows nothing unless you turn it on.
 

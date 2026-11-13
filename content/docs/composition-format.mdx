@@ -38,7 +38,7 @@ Other top-level fields are ignored, so an editor can store its own state in the 
 
 ## Schema version
 
-`lumenSchemaVersion` is the Lumen `major.minor` the composition was written for, `"0.6"` for Lumen 0.6. An engine reads only its own line: it accepts its `major.minor`, or a full version of that line such as `"0.6.3"`, and rejects any other with `document.schema_version`. Each 0.x minor release can break compositions, so there is no migration between lines. A composition without the field is read as the engine's own version. The TypeScript builder always writes the current version.
+`lumenSchemaVersion` is the Lumen `major.minor` the composition was written for, `"0.6"` for Lumen 0.6. An engine reads only its own line: it accepts its `major.minor`, or a full version of that line such as `"0.6.3"`, and rejects any other with `document.schema_version`. Each 0.x minor release can break compositions, so there is no migration between lines. [Upgrade to 0.6](upgrade-0-6) lists what changed from 0.5. A composition without the field is read as the engine's own version. The TypeScript builder always writes the current version.
 
 ## Timeline
 

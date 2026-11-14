@@ -27,7 +27,7 @@ A raster wired into `texture` replaces the material that `texture_material` name
 
 ## What is read
 
-The node reads triangle meshes with normals, two sets of texture coordinates and vertex colours; metallic-roughness materials with their base colour, metallic-roughness, normal, emissive and occlusion maps, alpha modes, `KHR_texture_transform`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; skins; morph targets; and clips of node transforms and morph weights. Draco meshes, meshopt buffers, and KTX2 (Basis Universal) and WebP textures are read too. The Lumen CLI and `lumen-server` read all four compressions, and the browser preview's default build reads meshopt only.
+The node reads triangle meshes with normals, two sets of texture coordinates and vertex colours; metallic-roughness materials with their base colour, metallic-roughness, normal, emissive and occlusion maps, alpha modes, `KHR_texture_transform`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; skins; morph targets; and clips of node transforms and morph weights. Draco meshes, meshopt buffers, and KTX2 (Basis Universal) and WebP textures are read too. The Lumen CLI and `lumen-server` read all four compressions. The browser preview's default build reads Draco, meshopt and WebP but not KTX2, and its [2D-only build](../../sdks/browser#2d-only-build) has no 3D.
 
 Points, lines, and triangle strips and fans are left out, with a `scene.model_primitives_skipped` warning. A `.gltf` JSON file, a file that refers to data outside itself, and a model that requires an extension Lumen doesn't read fail with `media.unsupported`. A model past a size limit fails with `media.too_large`.
 

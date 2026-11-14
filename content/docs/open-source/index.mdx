@@ -32,9 +32,9 @@ Lumen is in heavy beta. Expect breaking changes in crate APIs, schema shapes, no
 
 ## How a hosted render runs
 
-1. Your backend sends a composition and its media manifest to `POST https://api.lumiscia.com/v1/renders` with an API key.
+1. Your backend sends a composition to `POST https://api.lumiscia.com/v1/renders` with an API key.
 2. The API validates the composition and the media it references, then queues the render. Each workspace has its own scheduler, which enforces your plan's concurrency limit and [queue priority](../pricing).
-3. A GPU render worker picks up the render and runs it with `lumen-server`, the same crate you can [run yourself](self-hosting).
+3. A GPU render worker picks up the render and runs it with Lumen's render library, the same one `lumen-server` uses when you [run it yourself](self-hosting).
 4. The worker uploads the artifact to Lumiscia's storage and reports the result and the measured render time.
 5. The API marks the render `succeeded` or `failed`, bills the render time, sends render events to subscribers, and delivers your webhook.
 
@@ -45,7 +45,7 @@ Browser previews skip this pipeline. `@lumiscia/lumen-react` and `@lumiscia/lume
 | Open source in `lumen-oss`                                                  | Hosted only                                    |
 | --------------------------------------------------------------------------- | ---------------------------------------------- |
 | Rendering engine, GPU, FFmpeg, and text crates                              | The Lumiscia API and render scheduling         |
-| `lumen-server`, with a render library and a local HTTP binary               | The GPU worker that wraps `lumen-server`       |
+| The render library (`lumen_engine::render`) and the `lumen-server` binary   | The GPU worker that wraps the render library   |
 | Composition schema and node definitions                                     | Hosted media storage and validation            |
 | TypeScript packages: SDK, composition builder, types, preview, and bindings | Dashboard, editor, accounts, API keys, billing |
 | The `lumen` CLI                                                             |                                                |

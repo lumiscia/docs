@@ -22,6 +22,8 @@ It applies to running Lumen yourself. Hosted renders run on Lumiscia's GPU worke
 
 Linux with Vulkan is the main open development path. AMD, Intel, and NVIDIA hardware all use the same Vulkan renderer, but CI only runs software Vulkan, so hardware-specific behavior is untested there. On NVIDIA, CUDA/NVENC interop is the fastest path. Treat it as experimental until you have validated your driver, FFmpeg build, and adapter.
 
+lavapipe compiles shaders for the CPU it runs on. On Intel CPUs with AVX-512 older than Sapphire Rapids (Skylake-X to Ice Lake and Tiger Lake), Mesa 25.2 and 26.0 with LLVM 21 draw some path fills wrongly, such as a `path` with an `offset` or `feather` under non-uniform scale, and can hang on them. Set `GALLIUM_OVERRIDE_CPU_CAPS=avx` to keep lavapipe to AVX2, as CI does.
+
 The Debian and Ubuntu packages CI installs are listed under [Self-hosting](self-hosting).
 
 ## macOS

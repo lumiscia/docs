@@ -33,40 +33,47 @@ Webhooks don't report queue position or progress. For those, use `waitForRender(
 
 ## Payload
 
-The body is JSON:
+The body is a [Standard Webhooks](https://www.standardwebhooks.com) payload: the event's `type`, its `timestamp`, and the render as `data`, the same `Render` that `GET /v1/renders/:id` returns:
 
 ```json
 {
-  "event": "render.succeeded",
-  "status": "succeeded",
-  "id": "r_3f9a1c2b7d4e",
-  "organizationId": "org_01J8Z3K4M5N6P7Q8R9S0T1V2W3",
-  "createdAt": "2026-10-30T12:00:04.512Z",
-  "durationMs": 7350,
-  "costMicros": 65125,
-  "artifactUrl": "https://api.lumiscia.com/v1/renders/r_3f9a1c2b7d4e/artifact",
-  "outputBytes": 1843200,
-  "resolution": "1280x720"
+  "type": "render.succeeded",
+  "timestamp": "2026-10-30T12:00:11.862Z",
+  "data": {
+    "id": "r_3f9a1c2b7d4e",
+    "status": "succeeded",
+    "progress": 1,
+    "url": "https://api.lumiscia.com/v1/renders/r_3f9a1c2b7d4e/artifact",
+    "createdAt": "2026-10-30T12:00:04.512Z",
+    "organizationId": "org_01J8Z3K4M5N6P7Q8R9S0T1V2W3",
+    "costMicros": 65125,
+    "durationMs": 7350,
+    "outputBytes": 1843200
+  }
 }
 ```
 
-| Field            | Description                                                                               |
-| ---------------- | ----------------------------------------------------------------------------------------- |
-| `event`          | `render.succeeded` or `render.failed`.                                                    |
-| `status`         | `succeeded` or `failed`.                                                                  |
-| `id`             | The render id.                                                                            |
-| `organizationId` | The workspace that owns the render.                                                       |
-| `createdAt`      | When the render reached this status, in ISO 8601.                                         |
-| `durationMs`     | Render time in milliseconds, as the GPU worker measured it. Present on success.           |
-| `costMicros`     | Charge in millionths of a dollar. `65125` is $0.065125, and a failed render is `0`.       |
-| `artifactUrl`    | Absolute URL of the artifact. Present on success.                                         |
-| `outputBytes`    | Artifact size in bytes. Present on success.                                               |
-| `resolution`     | Artifact size as `<width>x<height>`. Present on success.                                  |
-| `error`          | Why the render failed, as a message. Present on failure.                                  |
-| `errorCode`      | The failure's stable code, the same as the render's `error.code`. Present on failure.     |
-| `diagnostics`    | A failed render's diagnostics, or a succeeded render's warnings, when Lumen reported any. |
+| Field       | Description                                                            |
+| ----------- | ---------------------------------------------------------------------- |
+| `type`      | `render.succeeded` or `render.failed`.                                 |
+| `timestamp` | When the render ended, in RFC 3339 UTC.                                |
+| `data`      | The render. `data.status` is `succeeded` or `failed`, matching `type`. |
 
-Download the artifact from `artifactUrl` with your API key, or call `download(id)`. Artifacts expire; the render's `outputExpiresAt` gives the time, and [Pricing](../pricing) lists retention per plan.
+In `data`:
+
+| Field            | Description                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| `id`             | The render id.                                                                              |
+| `status`         | `succeeded` or `failed`.                                                                    |
+| `url`            | Absolute URL of the artifact. Present on success.                                           |
+| `error`          | `{ code, message, retryable }`, and `media` when a media source failed. Present on failure. |
+| `durationMs`     | Render time in milliseconds, as the GPU worker measured it. Present on success.             |
+| `outputBytes`    | Artifact size in bytes. Present on success.                                                 |
+| `costMicros`     | Charge in millionths of a dollar. `65125` is $0.065125, and a failed render is `0`.         |
+| `createdAt`      | When the render was requested, in RFC 3339 UTC.                                             |
+| `organizationId` | The workspace that owns the render.                                                         |
+
+Download the artifact from `data.url` with your API key, or call `download(event.data)`. Artifacts expire; the render's `outputExpiresAt` gives the time, and [Pricing](../pricing) lists retention per plan.
 
 ## Delivery
 
@@ -85,7 +92,7 @@ Workspace admins find the signing secret on the dashboard's API keys page, where
 
 ## Verify signatures
 
-`verifyWebhook` from `@lumiscia/lumen-sdk` checks the signature and the timestamp, then returns the typed event. Pass it the raw body exactly as received, since parsing and re-serializing the JSON breaks the signature. This handler takes a web `Request`, as in Cloudflare Workers, and your workspace's webhook signing secret:
+`verifyWebhook` from `@lumiscia/lumen-sdk` checks the signature and the timestamp, then returns the typed event: `{ type, timestamp, data }`, where `data` is a `SucceededRender` for `render.succeeded` and a `FailedRender` for `render.failed`. Pass it the raw body exactly as received, since parsing and re-serializing the JSON breaks the signature. This handler takes a web `Request`, as in Cloudflare Workers, and your workspace's webhook signing secret:
 
 ```ts
 import { LumenWebhookError, verifyWebhook } from "@lumiscia/lumen-sdk";
@@ -105,10 +112,10 @@ export async function handleWebhook(request: Request, secret: string): Promise<R
     throw error;
   }
 
-  if (event.event === "render.succeeded") {
-    console.log("Render ready:", event.id, event.artifactUrl);
+  if (event.type === "render.succeeded") {
+    console.log("Render ready:", event.data.id, event.data.url);
   } else {
-    console.log("Render failed:", event.id, event.error);
+    console.log("Render failed:", event.data.id, event.data.error.message);
   }
   return new Response(null, { status: 204 });
 }
@@ -118,16 +125,16 @@ export async function handleWebhook(request: Request, secret: string): Promise<R
 
 If a delivery can't be trusted or parsed, `verifyWebhook` throws a `LumenWebhookError` with one of these codes:
 
-| Code                     | Meaning                                                                       |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| `missing_headers`        | A `webhook-*` header is missing, or `webhook-timestamp` isn't a Unix time.    |
-| `invalid_secret`         | The secret isn't `whsec_` followed by base64.                                 |
-| `timestamp_out_of_range` | `webhook-timestamp` is further from the current time than `toleranceSeconds`. |
-| `invalid_signature`      | No `v1` signature matches the body.                                           |
-| `invalid_payload`        | The body isn't JSON, or isn't a render event.                                 |
+| Code                     | Meaning                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------ |
+| `missing_headers`        | A `webhook-*` header is missing, or `webhook-timestamp` isn't a Unix time.           |
+| `invalid_secret`         | The secret isn't `whsec_` followed by base64.                                        |
+| `timestamp_out_of_range` | `webhook-timestamp` is further from the current time than `toleranceSeconds`.        |
+| `invalid_signature`      | No `v1` signature matches the body.                                                  |
+| `invalid_payload`        | The body isn't JSON, or isn't a render event whose `data.status` matches its `type`. |
 
 ## Handling deliveries
 
-- Use `webhook-id` or the render `id` to ignore duplicate deliveries.
+- Use `webhook-id` or `data.id` to ignore duplicate deliveries.
 - Verify the signature before making changes your users can see, such as publishing the video.
 - Ignore payload fields you don't recognize. New fields can appear.

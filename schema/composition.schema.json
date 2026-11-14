@@ -1,7 +1,7 @@
 {
   "$defs": {
     "audio": {
-      "additionalProperties": true,
+      "additionalProperties": false,
       "description": "Audio tracks and clips. A template's audio plays wherever a `clip` plays the template, following the clip's start, duration, offset, speed and end.",
       "properties": {
         "clips": {
@@ -22,21 +22,7 @@
       "x-lumen-type": "AudioTimeline"
     },
     "audioClip": {
-      "additionalProperties": true,
-      "not": {
-        "anyOf": [
-          {
-            "required": ["start_frame"]
-          },
-          {
-            "required": ["duration_frames"]
-          },
-          {
-            "required": ["source_start_seconds"]
-          }
-        ],
-        "description": "Retired timing keys, which the engine rejects."
-      },
+      "additionalProperties": false,
       "properties": {
         "duration_ms": {
           "minimum": 1,
@@ -51,6 +37,19 @@
           "description": "Milliseconds the clip falls to silence over at its end, on an equal-power curve.",
           "minimum": 0,
           "type": "integer"
+        },
+        "gain": {
+          "anyOf": [
+            {
+              "maximum": 3.4028234663852886e38,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/expression"
+            }
+          ],
+          "description": "Gain, 1 by default. An expression is evaluated in the time of the composition the audio is in, and reads `frame`, `time`, `fps`, `width`, `height` and props."
         },
         "id": {
           "type": "string"
@@ -74,8 +73,16 @@
         },
         "track_id": {
           "type": "string"
-        },
-        "volume": {
+        }
+      },
+      "required": ["id", "source_id", "track_id", "start_ms", "duration_ms"],
+      "type": "object",
+      "x-lumen-type": "AudioClip"
+    },
+    "audioTrack": {
+      "additionalProperties": false,
+      "properties": {
+        "gain": {
           "anyOf": [
             {
               "maximum": 3.4028234663852886e38,
@@ -87,15 +94,7 @@
             }
           ],
           "description": "Gain, 1 by default. An expression is evaluated in the time of the composition the audio is in, and reads `frame`, `time`, `fps`, `width`, `height` and props."
-        }
-      },
-      "required": ["id", "source_id", "track_id", "start_ms", "duration_ms"],
-      "type": "object",
-      "x-lumen-type": "AudioClip"
-    },
-    "audioTrack": {
-      "additionalProperties": true,
-      "properties": {
+        },
         "id": {
           "type": "string"
         },
@@ -107,19 +106,6 @@
         },
         "solo": {
           "type": "boolean"
-        },
-        "volume": {
-          "anyOf": [
-            {
-              "maximum": 3.4028234663852886e38,
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "$ref": "#/$defs/expression"
-            }
-          ],
-          "description": "Gain, 1 by default. An expression is evaluated in the time of the composition the audio is in, and reads `frame`, `time`, `fps`, `width`, `height` and props."
         }
       },
       "required": ["id"],
@@ -271,7 +257,7 @@
           "type": "object"
         },
         "render_settings": {
-          "$ref": "#/$defs/templateRenderSettings"
+          "$ref": "#/$defs/renderSettings"
         },
         "timeline": {
           "$ref": "#/$defs/timeline"
@@ -289,6 +275,7 @@
           "type": "integer"
         },
         "from_port": {
+          "description": "The output of `from_node` to read. Optional: it defaults to `output`, the only output any node has.",
           "type": "string"
         },
         "to_node": {
@@ -626,32 +613,12 @@
     },
     "renderSettings": {
       "additionalProperties": false,
-      "description": "The canvas, and how the host that renders the video encodes it. Previews ignore `codec`, `quality`, `bit_depth` and `alpha`.",
+      "description": "The canvas size in pixels.",
       "properties": {
-        "alpha": {
-          "description": "Keeps the frame's transparency in the video as an alpha channel, which `prores` in a MOV and `vp9` in a WebM hold; the default renders over black. Asking for alpha in a format that can't hold it is an error, never an opaque render. A render request's `alpha` wins over it.",
-          "type": "boolean"
-        },
-        "bit_depth": {
-          "description": "Bits per sample of the rendered video: 8, the default, or 10 for `hevc` and `av1`. H.264 and VP9 with alpha are always 8-bit and ProRes always 10, and a host whose encoders can't write the depth asked for rejects the render rather than writing another. A render request's `bit_depth` wins over it.",
-          "enum": [8, 10],
-          "type": "integer",
-          "x-lumen-type": "VideoBitDepth"
-        },
-        "codec": {
-          "description": "Video codec of the rendered file: `h264`, `hevc` or `av1` in an MP4, `prores` (ProRes 4444) in a MOV, or `vp9` in a WebM. A render request's `codec` wins over it.",
-          "enum": ["h264", "hevc", "av1", "prores", "vp9"],
-          "type": "string",
-          "x-lumen-type": "VideoCodec"
-        },
         "height": {
           "maximum": 4294967295,
           "minimum": 1,
           "type": "integer"
-        },
-        "quality": {
-          "description": "Quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`; operators can add others. A render request's `quality` wins over it.",
-          "type": "string"
         },
         "width": {
           "maximum": 4294967295,
@@ -831,24 +798,6 @@
       "description": "Shader uniform values by field name, checked against the shader's uniform struct when the node compiles.",
       "type": "object",
       "x-lumen-type": "ShaderUniforms"
-    },
-    "templateRenderSettings": {
-      "additionalProperties": false,
-      "properties": {
-        "height": {
-          "maximum": 4294967295,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "width": {
-          "maximum": 4294967295,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": ["width", "height"],
-      "type": "object",
-      "x-lumen-type": "TemplateRenderSettings"
     },
     "textContent": {
       "description": "Text to render: a string, or spans that each override the node's text style.",
@@ -8572,11 +8521,11 @@
       {
         "args": [
           {
-            "kind": "any",
+            "kind": "same",
             "name": "from"
           },
           {
-            "kind": "any",
+            "kind": "same",
             "name": "to"
           },
           {
@@ -8588,7 +8537,7 @@
         "maxArgs": 3,
         "minArgs": 3,
         "name": "lerp",
-        "returns": "any"
+        "returns": "same"
       },
       {
         "args": [
@@ -8973,11 +8922,11 @@
       {
         "args": [
           {
-            "kind": "any",
+            "kind": "same",
             "name": "from"
           },
           {
-            "kind": "any",
+            "kind": "same",
             "name": "to"
           },
           {
@@ -8997,7 +8946,7 @@
         "maxArgs": 5,
         "minArgs": 4,
         "name": "tween",
-        "returns": "any"
+        "returns": "same"
       },
       {
         "args": [
@@ -9040,7 +8989,7 @@
             "name": "at"
           },
           {
-            "kind": "any",
+            "kind": "same",
             "name": "value"
           },
           {

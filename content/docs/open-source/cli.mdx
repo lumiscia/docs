@@ -29,7 +29,7 @@ title.json: 0 errors, 0 warnings
 Each problem is a line with its severity, a stable code, a JSON pointer into the composition, and a message:
 
 ```text
-error node.unknown_param at /nodes/0/params/opacityy: unknown param `opacityy` on node 1
+error node.unknown_param at /nodes/0/params/opacityy: node 1: unknown param `opacityy`
 broken.json: 1 errors, 0 warnings
 ```
 
@@ -110,7 +110,7 @@ This writes `frames/shot_0028.png` to `frames/shot_0032.png`.
 
 ### Alpha video
 
-`--alpha` keeps the frame's transparency as an alpha channel. It works in `.mov` (ProRes 4444) and `.webm` (VP9). The colour is straight, as a PNG holds it. Alpha in an `.mp4` is an error rather than an opaque video, and `--alpha false` renders opaque over a composition whose `render_settings` ask for alpha.
+`--alpha` keeps the frame's transparency as an alpha channel. It works in `.mov` (ProRes 4444) and `.webm` (VP9). The colour is straight, as a PNG holds it. Alpha in an `.mp4` is an error rather than an opaque video. Without `--alpha`, or with `--alpha false`, the video is opaque.
 
 ```bash
 lumen render title.json -o title.mov --alpha
@@ -123,7 +123,7 @@ lumen render title.json -o title.webm --alpha --quality high
 lumen render title.json -o title.mp4 --codec hevc --bit-depth 10 --quality high
 ```
 
-`--quality`, `--codec`, `--bit-depth` and `--alpha` win over the composition's `render_settings`. The video flags with an image output are an error.
+A composition holds no encoding settings, so these flags decide them, over the quality config's defaults. Without `--codec`, a `.mov` takes `prores` and a `.webm` takes `vp9`. The video flags with an image output are an error, reported after the composition is read.
 
 ### `lumen render`
 
@@ -144,7 +144,7 @@ Video options:
 | `--quality <name>`        |                        | Quality preset: `draft`, `standard` (the default), `high`, `lossless`, or one from `--quality-config`.             |
 | `--quality-config <path>` | `LUMEN_QUALITY_CONFIG` | JSON file of quality presets and encoder orders, the same file [`lumen-server`](self-hosting#configuration) takes. |
 | `--bit-depth <8\|10>`     |                        | 8 (the default) or 10, for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                       |
-| `--alpha [true\|false]`   |                        | Keeps transparency as an alpha channel, in `.mov` or `.webm` only.                                                 |
+| `--alpha [true\|false]`   |                        | Keeps transparency as an alpha channel, in `.mov` or `.webm` only. `false`, an opaque video, is the default.       |
 | `--encoder <name>`        | `LUMEN_VIDEO_ENCODER`  | Pins one encoder, with no fallback. It opens or the render fails.                                                  |
 | `--bitrate <bps\|Nk\|NM>` |                        | Target bits per second, as `14000000`, `14000k` or `14M`.                                                          |
 | `--crf <n>`               |                        | Constant rate factor.                                                                                              |
@@ -165,7 +165,7 @@ Other environment variables:
 | Variable                | Meaning                                                                            |
 | ----------------------- | ---------------------------------------------------------------------------------- |
 | `LUMEN_HARDWARE_DECODE` | `1`, `true`, `yes` or `on` decodes video on the GPU when the hardware supports it. |
-| `RUST_LOG`              | Log filter. Defaults to `lumen_engine=warn,lumen_server=warn`.                     |
+| `RUST_LOG`              | Log filter. Defaults to `lumen_engine=warn`.                                       |
 
 ## Encoders
 

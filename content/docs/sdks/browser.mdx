@@ -40,7 +40,7 @@ const composition = new Composition({
 );
 ```
 
-The `media_in` node reads the source `hero`. In preview, you pass a local file under that name. At render time, the backend maps the same name to uploaded media.
+The `media_in` node reads the source `hero`. In preview, you pass a local file under that name. At render time, the backend uploads the file and points the source at the upload's `asset:<id>`.
 
 ## Preview
 
@@ -58,15 +58,14 @@ npm install @lumiscia/lumen-preview @lumiscia/lumen-bindings @lumiscia/lumen-sha
 
 ```ts
 import { createLumenPreview, mountPreview } from "@lumiscia/lumen-preview";
-import { wasmUrl, workerUrl } from "@lumiscia/lumen-bindings/urls";
+import { runtime } from "@lumiscia/lumen-bindings/urls";
 
 const preview = createLumenPreview();
 const session = mountPreview(document.querySelector("#player")!, {
   preview,
   composition,
   media: { hero: file },
-  wasmUrl,
-  workerUrl,
+  runtime,
   loop: true,
 });
 
@@ -76,53 +75,73 @@ preview.subscribe(() => {
 });
 ```
 
-`mountPreview` takes the same inputs and playback options as the React and Svelte `Player`. `session.update()` changes them while it plays. It replaces every input, so pass the ones that should stay. `session.dispose()` stops the preview and removes the canvas.
+`mountPreview` takes the same inputs and playback options as the React and Svelte `Player`, plus `runtime`, the manifest of the [runtime files](#runtime-files). `session.setInputs()` changes them while it plays. It replaces every input, so one you leave out returns to its default, and an input that is unchanged does nothing. It serializes the composition on every call to pick up edits made in place, so call it when an input may have changed, not on every frame. `session.dispose()` stops the preview and removes the canvas.
 
-`@lumiscia/lumen-preview` exports `createLumenPreview`, `mountPreview`, `LumenPreviewContext`, `LumenPreviewSession` and the types of their state, errors, options and callbacks. Media decoding and audio are internal.
+The object from `createLumenPreview()` is read-only: it has `subscribe`, `getSnapshot`, `play`, `pause`, `seek` and `whenReady`, and only the session mounted with it changes its state. `getSnapshot()` returns the same object until the state changes, then a new one, so it works with `useSyncExternalStore`.
+
+`@lumiscia/lumen-preview` exports `createLumenPreview`, `mountPreview`, `LumenPreviewContext`, `LumenPreviewSession` and the types of their state, errors, options and callbacks, including `LumenRuntime`. Media decoding and audio are internal. Render failures are logged only after you set a log level with `setLogLevel`.
 
 ## Runtime files
 
-The preview renders in a worker that loads a wasm module, and plays audio through a second worker and an audio worklet. The framework packages find all four with Vite or plain ESM. To host them yourself, from your own path or a CDN, copy them into one directory and pass its URL as `runtimeUrl`:
+The preview renders in a worker that loads a wasm module, and plays audio through a second worker and an audio worklet. All four files come from `@lumiscia/lumen-bindings`, which names them in a manifest: `runtime` from `@lumiscia/lumen-bindings/urls`, or `runtime2d` from `@lumiscia/lumen-bindings/urls-2d` for the [2D-only build](#2d-only-build). Each entry is `{ file, url }`: `url` is where the file is served by default, found next to the package with Vite or plain ESM, and `file` is its name in a directory you host yourself.
 
-| File                 | Copy of                                            |
-| -------------------- | -------------------------------------------------- |
-| `worker.js`          | `@lumiscia/lumen-bindings/dist/browser/worker.js`  |
-| `lumen_wasm_bg.wasm` | `@lumiscia/lumen-bindings/wasm/lumen_wasm_bg.wasm` |
-| `audio-worker.js`    | `@lumiscia/lumen-preview/dist/audio-worker.js`     |
-| `audio-worklet.js`   | `@lumiscia/lumen-preview/dist/audio-worklet.js`    |
+| Entry          | `file` in `runtime`  | `file` in `runtime2d`   |
+| -------------- | -------------------- | ----------------------- |
+| `worker`       | `worker.js`          | `worker-2d.js`          |
+| `wasm`         | `lumen_wasm_bg.wasm` | `lumen_wasm_2d_bg.wasm` |
+| `audioWorker`  | `audio-worker.js`    | `audio-worker.js`       |
+| `audioWorklet` | `audio-worklet.js`   | `audio-worklet.js`      |
+
+To host them yourself, from your own path or a CDN, copy the four files of one manifest from `@lumiscia/lumen-bindings` into one directory and pass its URL as `runtimeUrl`. The `/worker`, `/worker-2d`, `/wasm`, `/wasm-2d`, `/audio-worker` and `/audio-worklet` exports name each file for a copy step or a bundler's asset imports.
 
 ```tsx
 <Player preview={preview} composition={composition} runtimeUrl="/lumen-runtime/" />
 ```
 
-`runtimeUrl` names a directory whether or not it ends with `/`, and a query on it is kept on each file. `workerUrl` and `wasmUrl` name one file each and win over `runtimeUrl`.
+```ts
+mountPreview(host, { preview, composition, runtime, runtimeUrl: "/lumen-runtime/" });
+```
+
+`runtimeUrl` names a directory whether or not it ends with `/`, and a query on it is kept on each file. To serve one file somewhere else, pass a manifest of your own, such as `{ ...runtime, wasm: { file: "lumen_wasm_bg.wasm", url: "https://cdn.example/lumen.wasm" } }`.
 
 The files can be on another origin that sends CORS headers. A worker on another origin starts from a `blob:` URL that imports it, so a Content Security Policy must allow `blob:` and that origin in `worker-src`, and `script-src` needs `'wasm-unsafe-eval'`.
 
-With Vite 6 or 7 and no `runtimeUrl`, keep the two packages out of the dev server's dependency pre-bundling, or the worker and wasm 404. Vite 8 and `vite build` need nothing.
+With Vite 6 or 7 and no `runtimeUrl`, keep `@lumiscia/lumen-bindings` out of the dev server's dependency pre-bundling, or the runtime files 404. Vite 8 and `vite build` need nothing.
 
 ```js title="vite.config.js"
 export default defineConfig({
-  optimizeDeps: { exclude: ["@lumiscia/lumen-bindings", "@lumiscia/lumen-preview"] },
+  optimizeDeps: { exclude: ["@lumiscia/lumen-bindings"] },
 });
+```
+
+### 2D-only build
+
+The default build renders 2D and 3D nodes, and reads glTF models with Draco, meshopt and WebP compression. KTX2 textures stay out of the browser build, though `lumen` and `lumen-server` read them. A page that only shows 2D compositions can load the 2D-only build instead, which has no 3D and is about a quarter smaller to download (1.23 MB against 1.65 MB, brotli-compressed). It reports each 3D node as a `node.unsupported` error.
+
+Import `Player` and `createLumenPreview` from `@lumiscia/lumen-react/2d` or `@lumiscia/lumen-svelte/2d`. With `mountPreview`, pass `runtime: runtime2d`. A bundler emits only the build a page imports.
+
+```ts
+import { runtime2d } from "@lumiscia/lumen-bindings/urls-2d";
+
+mountPreview(host, { preview, composition, runtime: runtime2d });
 ```
 
 ## Check a composition
 
 `@lumiscia/lumen-bindings` loads the engine on the calling thread to inspect compositions without rendering them. Import it from the entry point that fits where the code runs:
 
-| Entry point                     | Use                                                                                |
-| ------------------------------- | ---------------------------------------------------------------------------------- |
-| `@lumiscia/lumen-bindings/urls` | Names the preview worker and its wasm without loading either, for `mountPreview`.  |
-| `@lumiscia/lumen-bindings`      | Browsers, with or without a bundler. `/browser` and `/bundler` are the same entry. |
-| `@lumiscia/lumen-bindings/node` | Node.js.                                                                           |
+| Entry point                                                         | Use                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `@lumiscia/lumen-bindings/urls`, `@lumiscia/lumen-bindings/urls-2d` | The [runtime manifests](#runtime-files), without loading any file. |
+| `@lumiscia/lumen-bindings`                                          | Browsers, with or without a bundler.                               |
+| `@lumiscia/lumen-bindings/node`                                     | Node.js.                                                           |
 
 `check` returns the same diagnostics as [`lumen check`](../open-source/cli#lumen-check), each with a `severity`, a `code`, a JSON pointer `path`, the `node` it's about when there is one, and a `message`. Pass the font families the page provides, and it also warns of text in any other family, which renders in the default font:
 
 ```ts
-import { createLumenBindings } from "@lumiscia/lumen-bindings";
+import { loadLumenBindings } from "@lumiscia/lumen-bindings";
 
-const { check } = await createLumenBindings().preview();
+const { check } = await loadLumenBindings();
 
 const diagnostics = check(JSON.stringify(composition), ["Inter"]);
 const ok = diagnostics.every((diagnostic) => diagnostic.severity !== "error");
@@ -135,11 +154,11 @@ const ok = diagnostics.every((diagnostic) => diagnostic.severity !== "error");
 `modelInfo(bytes)` lists the animation clips, materials and cameras of a binary glTF (`.glb`), which a `model_3d` selects with `animation`, `texture_material` and `camera`:
 
 ```ts
-const { modelInfo } = await createLumenBindings().preview();
+const { modelInfo } = await loadLumenBindings();
 const { animations, materials, cameras } = modelInfo(new Uint8Array(await file.arrayBuffer()));
 ```
 
-`mediaDependencies` and `modelInfo` throw on input they can't read. A composition the engine rejects throws an `Error` that carries its `diagnostics`.
+`mediaDependencies` and `modelInfo` throw on input they can't read. An engine failure is an `Error` with the engine's diagnostic `code`, `media` when a file is the cause, and `diagnostics` when a composition doesn't parse. The result types, such as `Diagnostic`, `MediaInventory` and `ModelInfo`, are in `@lumiscia/lumen-types`.
 
 ## Render through your backend
 
@@ -157,7 +176,7 @@ const { id } = await response.json();
 On the server, upload the file and create the render. This example uses Node.js. On [Cloudflare Workers](cloudflare), import from the same package and read the key from the Worker's environment.
 
 ```ts title="server.ts"
-import { Lumen } from "@lumiscia/lumen-sdk";
+import { Lumen, assetSource } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
@@ -169,8 +188,13 @@ export async function createRender(form: FormData) {
   const file = form.get("hero") as File;
 
   const hero = await lumen.uploadMedia({ body: file });
+  for (const node of composition.nodes) {
+    if (node.type === "media_in" && node.params?.source === "hero") {
+      node.params.source = assetSource(hero);
+    }
+  }
 
-  return lumen.render(composition, { media: { hero } });
+  return lumen.render(composition);
 }
 ```
 

@@ -3,7 +3,7 @@ title: Preview to render
 description: Preview a composition in the browser, then render the same composition through your backend.
 ---
 
-The browser preview and Lumiscia's GPU workers run the same Lumen engine on the same composition JSON. You build and preview a composition in the browser, then send it unchanged to your backend for the final render. Media is the main difference. The preview takes files directly, and a render takes a manifest of uploaded media under the same source names.
+The browser preview and Lumiscia's GPU workers run the same Lumen engine on the same composition JSON. You build and preview a composition in the browser, then send it unchanged to your backend for the final render. Media is the main difference. The preview takes files directly, and a render reads uploaded media, which the composition names as `asset:<id>`.
 
 <Steps>
 <Step>
@@ -28,27 +28,26 @@ export function Editor({ composition, file }: { composition: LumenComposition; f
 <Step>
 ### Upload the files
 
-Upload each file to Lumiscia while the user edits, and keep the returned media id next to its source name. Uploads need your API key, so run them on your backend with `lumen.uploadMedia({ body: file })`. See [Media sources](media-sources) for upload and URL ingest.
+Upload each file to Lumiscia while the user edits. Uploads need your API key, so run them on your backend with `lumen.uploadMedia({ body: file })`. See [Media sources](media-sources) for upload and URL ingest.
 
-A composition can also name an upload directly as `asset:<id>`. Pass the same file to the preview under that name, as in `media={{ "asset:media_3f9a1c2b7d4e5f60": file }}`, and the render needs no manifest entry for it. See [Media references](../composition-format#media-references).
+Then name the upload in the composition as `asset:<id>`, which `assetSource(upload)` writes, and pass the same file to the preview under that name, as in `media={{ "asset:media_3f9a1c2b7d4e5f60": file }}`. The preview and the render then read the same source name. See [Media references](../composition-format#media-references).
 
 </Step>
 <Step>
 ### Render from your backend
 
-Send the composition JSON and the manifest to your backend, and render there with `@lumiscia/lumen-sdk`.
+Send the composition JSON to your backend, and render there with `@lumiscia/lumen-sdk`.
 
 ```ts title="render.ts"
-import { Lumen, mediaReference, type LumenComposition } from "@lumiscia/lumen-sdk";
+import { Lumen, type LumenComposition } from "@lumiscia/lumen-sdk";
 
 const lumen = new Lumen({
   apiKey: process.env.LUMISCIA_API_KEY!,
   baseUrl: "https://api.lumiscia.com/v1",
 });
 
-export async function renderEdit(composition: LumenComposition, heroMediaId: string) {
+export async function renderEdit(composition: LumenComposition) {
   return lumen.render(composition, {
-    media: { hero: mediaReference(heroMediaId) },
     webhookUrl: "https://example.com/webhooks/lumiscia",
   });
 }
@@ -60,24 +59,24 @@ export async function renderEdit(composition: LumenComposition, heroMediaId: str
 <Step>
 ### Wait for the result
 
-Wait with `waitForRender(id, { onProgress })`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. `waitForRender` resolves with the finished `Render` and throws a `LumenError` if the render fails. Download the artifact with `lumen.download(render)`, which returns a `Response`. See the [Node SDK](../sdks/node).
+Wait with `waitForRender(id, { onProgress })`, poll `getRender(id)`, or receive a [webhook](webhooks) when it finishes. `waitForRender` resolves with the succeeded `Render`, whose `url` is always set, and throws a `LumenError` if the render fails. Download the artifact with `lumen.download(render)`, which returns a `Response`. See the [Node SDK](../sdks/node).
 
 </Step>
 </Steps>
 
 ## What to check before rendering
 
-- Every source name the preview resolves has an entry in the render's `media` manifest, or is an `asset:<id>`.
-- Every manifest entry points at media whose `status` is `validated`, and that hasn't expired.
+- Every source name the preview resolves is an `asset:<id>` the render can read.
+- Every upload it names has the `status` `validated`, and hasn't expired.
 - The composition has the size, frame rate and duration you want, within your plan's limits.
 - Text uses fonts the render has. Lumen bundles one font, Roboto, and a font you pass in the preview's `fonts` isn't part of the render request, so text in another family can look different in the render.
 
 The preview reports a composition the engine rejects through its `onError` and the state's `error`, with the same diagnostics a render would return. To check a composition without playing it, call `check` from `@lumiscia/lumen-bindings`, with the font families the render will have:
 
 ```ts
-import { createLumenBindings } from "@lumiscia/lumen-bindings";
+import { loadLumenBindings } from "@lumiscia/lumen-bindings";
 
-const { check } = await createLumenBindings().preview();
+const { check } = await loadLumenBindings();
 const diagnostics = check(JSON.stringify(composition), []);
 const errors = diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 ```

@@ -19,7 +19,7 @@ The Free plan includes $5 of credit a month and Pro includes $50. When the credi
 
 ## How do I get media into a render?
 
-Upload a file or register a URL with the media endpoints first. Then map an alias to the media id (`lumen:<media_id>`) in the render request's `media` manifest and reference the alias from your composition, or name the upload directly as `asset:<id>`. Uploads take images, video, audio and fonts. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
+Upload a file or register a URL with the media endpoints first. Then name the upload in your composition as `asset:<id>`, which the SDK's `assetSource()` writes, or map an alias to it (`lumen:<media_id>`) in the render request's `media` manifest. Uploads take images, video, audio and fonts. Media is probed and validated before a GPU sees it, and temporary media expires after 24 hours. See [Media sources](../guides/media-sources).
 
 ## How do I know when a render finishes?
 

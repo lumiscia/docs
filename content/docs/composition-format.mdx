@@ -26,7 +26,7 @@ This renders 3 seconds of a dark [`background`](nodes/source/background) at 1280
 | -------------------- | -------- | ----------------------------------------------------------------------------------------- |
 | `lumenSchemaVersion` | No       | The Lumen version the composition was written for. See [Schema version](#schema-version). |
 | `timeline`           | Yes      | Frame rate and length.                                                                    |
-| `render_settings`    | Yes      | Output size and encoding.                                                                 |
+| `render_settings`    | Yes      | Output size.                                                                              |
 | `nodes`              | Yes      | The nodes in the graph.                                                                   |
 | `connections`        | Yes      | Edges from node outputs to node inputs.                                                   |
 | `compositions`       | No       | Named templates that `clip` nodes play. See [Templates](#templates).                      |
@@ -34,7 +34,7 @@ This renders 3 seconds of a dark [`background`](nodes/source/background) at 1280
 | `audio`              | No       | Audio tracks and clips. See [Audio](#audio).                                              |
 | `metadata`           | No       | An object for your own data. `name`, if set, must be a string.                            |
 
-Other top-level fields are ignored, so an editor can store its own state in the document. Everything else is strict. An unknown key in `timeline`, `render_settings`, a template, a node or a connection fails validation, as does an unknown node type or param. Lumen's errors name the JSON path at fault, such as `timeline.fps`.
+Other top-level fields are ignored, so an editor can store its own state in the document. Everything else is strict. An unknown key in `timeline`, `render_settings`, `audio`, a template, a node or a connection fails validation, as does an unknown node type or param. Lumen's errors name the JSON path at fault, such as `timeline.fps`.
 
 ## Schema version
 
@@ -50,22 +50,9 @@ Other top-level fields are ignored, so an editor can store its own state in the 
 
 ## Render settings
 
-`width` and `height` set the output size in pixels and are required. To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node; `background_color` is an error.
+`width` and `height` set the output size in pixels, are required, and are the only keys. To fill the frame with a color or gradient, use a [`background`](nodes/source/background) node; `background_color` is an unknown field.
 
-The other keys choose how the video is encoded. A render request can set each of them too, and the request's value wins. Previews ignore them.
-
-| Key         | Values                                                                                                                                |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `codec`     | `h264`, `hevc` or `av1` in an MP4, `prores` (ProRes 4444) in a MOV, or `vp9` in a WebM.                                               |
-| `quality`   | A quality preset name. Every host defines `draft`, `standard`, `high` and `lossless`.                                                 |
-| `bit_depth` | `8`, the default, or `10` for `hevc` and `av1`. H.264 is always 8-bit and ProRes always 10-bit.                                       |
-| `alpha`     | `true` keeps transparency as an alpha channel, which only `prores` in a MOV and `vp9` in a WebM hold. The default renders over black. |
-
-Asking for something the format can't hold, such as alpha in an MP4, is an error, never a different video. On Lumiscia the format comes from the render request's `output`, not from the composition, so `prores` in `render_settings` needs `output.format` set to `mov`. Lumiscia doesn't render `vp9`, and encodes the other four codecs with the four built-in presets, except `lossless` with `av1` or `prores`. A still ignores these keys. See [Output](how-it-works#output) for the accepted combinations.
-
-```json
-{ "render_settings": { "width": 1920, "height": 1080, "codec": "hevc", "quality": "high" } }
-```
+A composition holds no encoding settings. The render request sets the output format, `codec`, `quality`, `bitDepth` and `alpha`, so `codec` or `alpha` in `render_settings` fails as an unknown field. See [Output](how-it-works#output) for what Lumiscia accepts.
 
 ## Nodes
 
@@ -164,19 +151,17 @@ These params name a media file:
 
 In Lumen, each is a path or `media` alias, or `asset:<id>` for an asset in the host's asset store. A source that can't be used fails with a `media.*` code naming the source and where it is used: `media.not_found`, `media.wrong_kind`, `media.unsupported`, `media.too_large` or `media.decode`.
 
-On Lumiscia, `media_in.source` holds a manifest alias or `asset:<id>`, not a file path, URL or bare media id.
+On Lumiscia, a source names an upload as `asset:<id>`, or a manifest alias, never a file path, URL or bare media id.
 
 ```json
-{ "id": 4, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
+{
+  "id": 4,
+  "type": "media_in",
+  "params": { "kind": "image", "source": "asset:media_3f9a1c2b7d4e5f60" }
+}
 ```
 
-The render request's top-level `media` manifest maps each alias to uploaded media:
-
-```json
-{ "media": { "hero": "lumen:media_3f9a1c2b7d4e5f60" } }
-```
-
-The API rejects compositions that put an `http://` or `https://` URL where an alias belongs. See [Media sources](guides/media-sources) for uploads and the manifest.
+The SDK's `assetSource(upload)` writes that string. The API rejects compositions that put an `http://` or `https://` URL where a source belongs. See [Media sources](guides/media-sources) for uploads and the manifest.
 
 ## Templates
 
@@ -231,17 +216,17 @@ A template draws at its own size from the top-left corner of the parent's canvas
 
 ## Audio
 
-`audio` lists `tracks` and `clips`. Each clip belongs to a track and plays an audio file by manifest alias in `source_id`.
+`audio` lists `tracks` and `clips`. Each clip belongs to a track and plays the audio file its `source_id` names, such as `asset:<id>` on Lumiscia.
 
 ```json
 {
   "audio": {
-    "tracks": [{ "id": "music", "volume": 0.8 }],
+    "tracks": [{ "id": "music", "gain": 0.8 }],
     "clips": [
       {
         "id": "intro",
         "track_id": "music",
-        "source_id": "song",
+        "source_id": "asset:media_8b0e2d4f6a1c3e5d",
         "start_ms": 0,
         "duration_ms": 3000
       }
@@ -250,12 +235,12 @@ A template draws at its own size from the top-left corner of the parent's canvas
 }
 ```
 
-Clips take their timing in whole milliseconds. `start_ms` and `duration_ms` are required, and `source_start_ms` skips into the source. Frame and second timings (`start_frame`, `duration_frames`, `source_start_seconds`) are errors. `fade_in_ms` and `fade_out_ms` fade a clip from and to silence at its start and end, on an equal-power curve. Tracks also take `muted` and `solo`.
+Clips take their timing in whole milliseconds. `start_ms` and `duration_ms` are required, and `source_start_ms` skips into the source. Frame and second timings (`start_frame`, `duration_frames`, `source_start_seconds`) are unknown fields. `fade_in_ms` and `fade_out_ms` fade a clip from and to silence at its start and end, on an equal-power curve. Tracks also take `muted` and `solo`, and both take a `name`. Any other key is an error naming its path, such as `audio.clips[0].volume: unknown field`.
 
-Tracks and clips take a `volume`, 1 by default: a number of 0 or more, or an expression. A volume expression is evaluated in the time of the composition the audio is in and can read `frame`, `time`, `fps`, `width`, `height` and, inside a template, props. Gains move smoothly between evaluations, every 512 samples, so an animated volume never steps.
+Tracks and clips take a `gain`, 1 by default: a number of 0 or more, or an expression. A gain expression is evaluated in the time of the composition the audio is in and can read `frame`, `time`, `fps`, `width`, `height` and, inside a template, props. Gains move smoothly between evaluations, every 512 samples, so an animated gain never steps.
 
 ```json
-{ "id": "music", "volume": "=if(time >= 2 && time < 6, 0.25, 1)" }
+{ "id": "music", "gain": "=if(time >= 2 && time < 6, 0.25, 1)" }
 ```
 
 A template's `audio` plays wherever a `clip` that reaches the output plays the template, following the clip's start, duration, offset, speed and end. Speed resamples it, so the pitch follows. A `switch` plays only its selected layer's audio, and a `time_remap` plays its source's audio at the remapped time.

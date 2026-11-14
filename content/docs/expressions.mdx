@@ -20,7 +20,7 @@ To store a literal string that starts with `=`, write `==`. `"==total"` is the t
 
 ## Where expressions work
 
-Most params accept an expression in place of a literal: numbers, booleans, text, enums, vec2 params such as `position`, vec3 params such as a 3D node's `position`, and color and paint params such as `fill_paint`. A few params take literals only, such as `merge.mask_mode`, `resize.mode`, `background.width` and `background.height`, `clip.composition` and `clip.end`, and the 3D enums `shape_3d.shape`, `light_3d.light` and `render_3d.output`. The [node reference](nodes) lists which. Audio track and clip `volume` takes expressions too.
+Most params accept an expression in place of a literal: numbers, booleans, text, enums, vec2 params such as `position`, vec3 params such as a 3D node's `position`, and color and paint params such as `fill_paint`. A few params take literals only, such as `merge.mask_mode`, `resize.mode`, `background.width` and `background.height`, `clip.composition` and `clip.end`, and the 3D enums `shape_3d.shape`, `light_3d.light` and `render_3d.output`. The [node reference](nodes) lists which. Audio track and clip `gain` takes expressions too.
 
 The expression's result must fit the param. A number param takes a number or a boolean, a vec2 param takes a vec2, a vec3 param takes a vec3, and a color or paint param takes a color (a paint expression gives a solid color, not a gradient). An enum param takes the option's name as a string, such as `=if(frame > 10, 'italic', 'normal')` for `font_style`. A value that names no option is an error, and so is NaN or infinity for an enum or integer param.
 

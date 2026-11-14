@@ -100,7 +100,7 @@ These costs use the standard rate. At $0.0475 each, the Free plan's $5 credit co
 
 ## Billing in the API
 
-`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request body (same composition, media manifest, webhook URL, `codec`, `quality`, `bit_depth`, `alpha`, `output` and `priority`) with the same kind of key, live or test, in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
+`POST https://api.lumiscia.com/v1/renders` returns `202` with `cached: false` when it creates a render. If your workspace submitted an identical request body (same composition, media manifest, webhook URL, `codec`, `quality`, `bitDepth`, `alpha`, `output` and `priority`) with the same kind of key, live or test, in the last 5 minutes, it returns `200` with `cached: true` and the existing render, and you aren't charged again. Treat both as success. An identical request after 5 minutes creates and bills a new render.
 
 To retry safely after a timeout, send an `Idempotency-Key` header of 1 to 255 printable ASCII characters without spaces, such as a UUID, or pass `idempotencyKey` to the SDK's `render()`. For 24 hours, a request with the same key gets the first response again, with an `idempotent-replayed: true` header, and creates no second render. Reusing a key with a different body answers `422` with `idempotency_key_reused`, and a retry that arrives while the first request is still running answers `409` with `idempotency_key_in_progress`. If the first request failed, a retry with its key runs again.
 

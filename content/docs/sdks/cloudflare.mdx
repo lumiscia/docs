@@ -20,7 +20,7 @@ npx wrangler secret put LUMISCIA_API_KEY
 This Worker ingests an image from a URL, renders it for 3 seconds, and asks Lumiscia to call a webhook when the render finishes.
 
 ```ts title="src/index.ts"
-import { Composition, Lumen } from "@lumiscia/lumen-sdk";
+import { Composition, Lumen, assetSource } from "@lumiscia/lumen-sdk";
 
 interface Env {
   LUMISCIA_API_KEY: string;
@@ -44,12 +44,11 @@ export default {
     });
     const image = composition.addNode({
       type: "media_in",
-      params: { kind: "image", source: "plate" },
+      params: { kind: "image", source: assetSource(plate) },
     });
     composition.addNode({ type: "media_output", inputs: { source: image } });
 
     const { id } = await lumen.render(composition, {
-      media: { plate },
       webhookUrl: "https://example.com/webhooks/lumiscia",
     });
 

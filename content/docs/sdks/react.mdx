@@ -9,11 +9,13 @@ description: Preview compositions in React with the Lumen WebAssembly engine.
 npm install @lumiscia/lumen-react @lumiscia/lumen-shared
 ```
 
-The preview renders in a worker that loads the WebAssembly engine. Both come from `@lumiscia/lumen-bindings`, which `@lumiscia/lumen-react` depends on and finds by itself with Vite or plain ESM. To serve them from elsewhere, see [Runtime files](browser#runtime-files).
+The preview renders in a worker that loads the WebAssembly engine, and plays audio through a second worker and an audio worklet. All four files come from `@lumiscia/lumen-bindings`, which `@lumiscia/lumen-react` depends on and finds by itself with Vite or plain ESM. To serve them from elsewhere, see [Runtime files](browser#runtime-files).
+
+A page that only shows 2D compositions can import `Player` and `createLumenPreview` from `@lumiscia/lumen-react/2d` instead. Its wasm has no 3D and is about a quarter smaller to download, and it reports each 3D node as a `node.unsupported` error. See [2D-only build](browser#2d-only-build).
 
 ## Render a preview
 
-Create the preview controller once, outside your components. `Player` starts a new engine session whenever `preview` or a runtime URL changes, and updates the running session when other props change. It reloads only when the composition, media or fonts change, so you can pass new objects with the same content on every render.
+Create the preview controller once, outside your components. `Player` starts a new engine session whenever `preview`, `runtime` or `runtimeUrl` changes, and passes every other prop to the running session when one changes. It reloads only when the composition, media or fonts change, so you can pass new objects with the same content on every render.
 
 ```tsx title="Preview.tsx"
 import { Composition, nodes as n } from "@lumiscia/lumen-shared";
@@ -133,28 +135,27 @@ Register fonts in `fonts`, a map from font family to source. A text node whose `
 
 ## `Player` props
 
-| Prop             | Type                                                         | Default | Description                                                                                  |
-| ---------------- | ------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------------- |
-| `preview`        | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                            |
-| `composition`    | `LumenPreviewComposition \| null`                            |         | Composition JSON as an object, or anything with `toJSON()`, such as a `Composition`.         |
-| `media`          | `LumenPreviewMedia`                                          | `{}`    | Media, keyed by the source name the composition uses.                                        |
-| `fonts`          | `LumenPreviewFonts`                                          | `{}`    | Fonts, keyed by font family.                                                                 |
-| `loop`           | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                   |
-| `rate`           | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                   |
-| `volume`         | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                   |
-| `muted`          | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                   |
-| `range`          | `{ in: number; out: number } \| null`                        | `null`  | See [Playback options](#playback-options).                                                   |
-| `onEnded`        | `() => void`                                                 |         | See [Playback options](#playback-options).                                                   |
-| `onTimeUpdate`   | `({ frame, timeMs }) => void`                                |         | See [Playback options](#playback-options).                                                   |
-| `onError`        | `(error: LumenPreviewError) => void`                         |         | Called with each failure the state's `error` shows. See [Errors](#errors).                   |
-| `onStats`        | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`.       |
-| `lookaheadCount` | `number`                                                     | `8`     | Frames past the playhead whose video the preview decodes ahead.                              |
-| `logLevel`       | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                            |
-| `runtimeUrl`     | `string \| URL`                                              |         | A directory serving the preview's runtime files. See [Runtime files](browser#runtime-files). |
-| `wasmUrl`        | `string \| URL`                                              |         | Where the engine's wasm is served. Defaults to the copy in `@lumiscia/lumen-bindings`.       |
-| `workerUrl`      | `string \| URL`                                              |         | Where the preview worker is served. Defaults to the copy in `@lumiscia/lumen-bindings`.      |
-| `className`      | `string`                                                     |         | Class for the player's `<div>`.                                                              |
-| `style`          | `CSSProperties`                                              |         | Inline style for the player's `<div>`.                                                       |
+| Prop             | Type                                                         | Default | Description                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preview`        | `LumenPreviewContext`                                        |         | Controller from `createLumenPreview()`. Required.                                                                                                 |
+| `composition`    | `LumenPreviewComposition \| null`                            |         | Composition JSON as an object, or anything with `toJSON()`, such as a `Composition`.                                                              |
+| `media`          | `LumenPreviewMedia`                                          | `{}`    | Media, keyed by the source name the composition uses.                                                                                             |
+| `fonts`          | `LumenPreviewFonts`                                          | `{}`    | Fonts, keyed by font family.                                                                                                                      |
+| `loop`           | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                                                                        |
+| `rate`           | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                                                                        |
+| `volume`         | `number`                                                     | `1`     | See [Playback options](#playback-options).                                                                                                        |
+| `muted`          | `boolean`                                                    | `false` | See [Playback options](#playback-options).                                                                                                        |
+| `range`          | `{ in: number; out: number } \| null`                        | `null`  | See [Playback options](#playback-options).                                                                                                        |
+| `onEnded`        | `() => void`                                                 |         | See [Playback options](#playback-options).                                                                                                        |
+| `onTimeUpdate`   | `({ frame, timeMs }) => void`                                |         | See [Playback options](#playback-options).                                                                                                        |
+| `onError`        | `(error: LumenPreviewError) => void`                         |         | Called with each failure the state's `error` shows. See [Errors](#errors).                                                                        |
+| `onStats`        | `(stats) => void`                                            |         | Receives `frame`, `timelineFps`, `targetFrameDurationMs`, `renderMs`, and `actualFps`.                                                            |
+| `lookaheadCount` | `number`                                                     | `8`     | Frames past the playhead whose video the preview decodes ahead.                                                                                   |
+| `logLevel`       | `"off" \| "error" \| "warn" \| "info" \| "debug" \| "trace"` | `"off"` | Engine log level.                                                                                                                                 |
+| `runtimeUrl`     | `string \| URL`                                              |         | A directory serving the preview's runtime files. See [Runtime files](browser#runtime-files).                                                      |
+| `runtime`        | `LumenRuntime`                                               |         | The [runtime manifest](browser#runtime-files). Defaults to `runtime` from `@lumiscia/lumen-bindings/urls`, or `runtime2d` for the `/2d` `Player`. |
+| `className`      | `string`                                                     |         | Class for the player's `<div>`.                                                                                                                   |
+| `style`          | `CSSProperties`                                              |         | Inline style for the player's `<div>`.                                                                                                            |
 
 `Player` renders a `<div>` with the canvas inside. The canvas renders at the composition's size, fills the `<div>` and keeps its aspect ratio, so size the `<div>` with CSS.
 

@@ -23,7 +23,7 @@ const composition = new Composition({
 });
 ```
 
-`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. Pass every setting to the constructor, since a composition has no setters. To fill the frame with a color, add a `background` node. `toJSON()` always writes the current [`lumenSchemaVersion`](../composition-format#schema-version).
+`timeline` takes `duration_frames` or `durationSeconds`, which rounds up to whole frames, but not both: passing both is a type error, and a `TypeError` at run time. `renderSettings` takes only `width` and `height`; the render request sets how the video is encoded. Without options, a composition is 1920×1080 at 30 fps and 1 frame long, so always set a duration. Pass every setting to the constructor, since a composition has no setters. To fill the frame with a color, add a `background` node. `toJSON()` always writes the current [`lumenSchemaVersion`](../composition-format#schema-version).
 
 ## Build the graph
 
@@ -150,7 +150,7 @@ const rise = fn("rise(start)", (start: Num) => tween(0, 1, start, 12, "out_cubic
 composition.addFunction(rise);
 ```
 
-`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`.
+`rise(10)` is then an `Expr<number>` for any number param, written as `"=rise(10)"`. The function name and each parameter must be an identifier (a letter or `_`, then letters, digits or `_`), and `fn()` throws on a signature such as `1bad(x)` or `f(x + y)`.
 
 Params nested in rich text, such as the fields of a text node's spans and decorations, also take an `Expr`. Type such a value built on its own with `ExpressionInput`, as in `ExpressionInput<TextSpan>`. See [Expressions](../expressions) for the syntax and every built-in, and [Animation](animation) for common patterns.
 
@@ -233,21 +233,21 @@ Adding a clip registers its template in `compositions`. A clip draws at the temp
 
 ## Add audio
 
-`addAudio()` adds a clip, with every time in seconds: `start` on the timeline, `duration`, and `offset` into the source. `fadeIn` and `fadeOut` fade the clip from and to silence on an equal-power curve.
+`addAudio()` adds a clip, with every time in seconds: `startSeconds` on the timeline, `durationSeconds`, and `offsetSeconds` into the source. `fadeInSeconds` and `fadeOutSeconds` fade the clip from and to silence on an equal-power curve.
 
 ```ts
 composition.addAudioTrack({ id: "music", gain: 0.8 }).addAudio({
-  source: "song",
-  start: 0,
-  duration: 4,
-  offset: 1.5,
+  source: "song.mp3",
+  startSeconds: 0,
+  durationSeconds: 4,
+  offsetSeconds: 1.5,
   trackId: "music",
-  fadeIn: 1,
-  fadeOut: 1,
+  fadeInSeconds: 1,
+  fadeOutSeconds: 1,
 });
 ```
 
-`source` is the name the host resolves to an audio file, such as a `media` alias or an `asset:<id>`. `trackId` defaults to `main`, a track that isn't declared yet becomes a plain track, and clips may overlap. To set a track's `name`, `muted`, `solo` or `gain`, call `addAudioTrack()` before the track's first clip. Clips take a `gain` too. Times are written to the JSON as whole milliseconds.
+`source` is the name the host resolves to an audio file, such as a path, a `media` alias or an `asset:<id>`. `trackId` defaults to `main`, a track that isn't declared yet becomes a plain track, and clips may overlap. To set a track's `name`, `muted`, `solo` or `gain`, call `addAudioTrack()` before the track's first clip. Clips take a `gain` too. Times are written to the JSON as whole milliseconds.
 
 `gain` takes a number or an `Expr<number>`, evaluated in the composition's time, so music can duck under a voice-over:
 
@@ -256,8 +256,8 @@ import { time, when } from "@lumiscia/lumen-shared";
 
 composition
   .addAudioTrack({ id: "bed", gain: when(time.gte(2).and(time.lt(6)), 0.25, 1) })
-  .addAudio({ source: "music.mp3", start: 0, duration: 10, trackId: "bed" })
-  .addAudio({ source: "voice.wav", start: 2, duration: 4, trackId: "voice" });
+  .addAudio({ source: "music.mp3", startSeconds: 0, durationSeconds: 10, trackId: "bed" })
+  .addAudio({ source: "voice.wav", startSeconds: 2, durationSeconds: 4, trackId: "voice" });
 ```
 
 A template can have its own audio. It plays wherever a `clip` plays the template, following the clip's start, trim, speed and end.
@@ -277,4 +277,4 @@ const lumen = new Lumen({
 const { id } = await lumen.render(composition);
 ```
 
-A composition that uses media, like the `song` source above, also needs a `media` manifest. See [Media sources](media-sources). To check the JSON before you render it, write it to a file and run [`lumen check`](../open-source/cli#lumen-check).
+On Lumiscia, a source such as `song.mp3` above must name an upload instead: upload the file and write `assetSource(upload)` as the `source`. See [Media sources](media-sources). To check the JSON before you render it, write it to a file and run [`lumen check`](../open-source/cli#lumen-check).

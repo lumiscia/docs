@@ -103,26 +103,25 @@ node render.mts
 
 ## Add media
 
-To use an image or video, upload it, give it an alias in the render's `media` manifest, and reference the alias from a `media_in` node.
+To use an image or video, upload it and name the upload in a `media_in` node's `source` as `asset:<id>`. `assetSource()` writes that string:
 
 ```ts
 import { readFile } from "node:fs/promises";
+import { assetSource } from "@lumiscia/lumen-sdk";
 
 const hero = await lumen.uploadMedia({
   body: await readFile("hero.png"),
   fileName: "hero.png",
 });
 
-const { id } = await lumen.render(composition, {
-  media: { hero },
+composition.nodes.push({
+  id: 3,
+  type: "media_in",
+  params: { kind: "image", source: assetSource(hero) },
 });
 ```
 
-The SDK sends the upload as a `lumen:<media_id>` reference. In the composition, add a `media_in` node whose `source` is the alias, and connect its `output` port like any other source:
-
-```json
-{ "id": 3, "type": "media_in", "params": { "kind": "image", "source": "hero" } }
-```
+Connect the node's `output` port like any other source, then render the composition as before.
 
 A render can use the media once its `status` is `validated`. `uploadMedia()` returns after Lumiscia has probed the file, so check `status` before you render. Uploads expire after 24 hours, so upload media shortly before you render it. See [Media sources](guides/media-sources) for video, audio, fonts, URL ingest, and large files.
 

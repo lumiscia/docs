@@ -1,4 +1,4 @@
 {
   "title": "Open source",
-  "pages": ["index", "packages", "self-hosting", "platform-support"]
+  "pages": ["index", "packages", "cli", "self-hosting", "platform-support"]
 }

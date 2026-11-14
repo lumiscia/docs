@@ -5,7 +5,7 @@ description: Adjusts raster exposure, contrast, and offset.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`exposure` shifts brightness in stops, scales contrast and adds a color offset. Alpha passes through unchanged.
+`exposure` shifts brightness in stops, scales contrast and adds a color offset. `exposure` multiplies linear light by 2 to the power of its value. `offset` and then `contrast` work on the sRGB-encoded color, so contrast pivots on mid grey as it looks. Alpha passes through unchanged.
 
 <NodeReference type="exposure" />
 

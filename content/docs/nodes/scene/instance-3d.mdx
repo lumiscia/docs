@@ -1,0 +1,53 @@
+---
+title: Instance 3D
+description: Draws its input scene many times, each copy placed by expressions.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`instance_3d` draws the scene wired into `scene` `count` times, from 0 to 100,000. The copies share the input's meshes, textures and materials on the GPU, so a field of a thousand shapes costs far less than a thousand nodes.
+
+`position`, `rotation` and `scale` are evaluated once per copy. In them, the expression global `instance` is the copy's index from 0 and `instance_count` is `count`, so one node lays out a grid, a ring or a path. Anywhere else these globals are an error.
+
+| Layout | `position`                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| Grid   | `=vec3(instance % 10 * 1.5, 0, floor(instance / 10) * 1.5)`                                            |
+| Ring   | `=vec3(sin(instance / instance_count * 6.2832) * 3, 0, cos(instance / instance_count * 6.2832) * 3)`   |
+| Spiral | `=vec3(sin(instance * 0.5) * instance * 0.05, instance * 0.02, cos(instance * 0.5) * instance * 0.05)` |
+
+A copy is placed in the input scene's own space, so it turns and scales about that scene's origin. Only objects are copied: the input's lights and camera appear once, placed as they would be without the node. Every copy of a skinned model plays the same clip at the same time. An `instance_3d` may hold another, up to 8 deep, and their counts multiply. `count` 0 leaves the scene out entirely, lights and camera too.
+
+A scene draws at most 100,000 objects in all, counting every copy, and a render that would draw more fails, naming the node. When the params don't read the frame, the copies are placed once and kept across frames.
+
+<NodeReference type="instance_3d" />
+
+## Example
+
+A 10 × 10 grid of cubes:
+
+```json
+{
+  "nodes": [
+    { "id": 1, "type": "shape_3d", "params": { "size": [0.6, 0.6, 0.6], "position": [0, 0.3, 0] } },
+    {
+      "id": 2,
+      "type": "instance_3d",
+      "params": {
+        "count": 100,
+        "position": "=vec3(instance % 10 * 1.5 - 6.75, 0, floor(instance / 10) * 1.5 - 6.75)"
+      }
+    },
+    { "id": 3, "type": "camera_3d", "params": { "position": [0, 9, 12], "look_at": true } },
+    { "id": 4, "type": "merge_3d" },
+    { "id": 5, "type": "render_3d" },
+    { "id": 6, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 2, "to_port": "scene" },
+    { "from_node": 2, "to_node": 4, "to_port": "objects" },
+    { "from_node": 3, "to_node": 4, "to_port": "objects" },
+    { "from_node": 4, "to_node": 5, "to_port": "scene" },
+    { "from_node": 5, "to_node": 6, "to_port": "source" }
+  ]
+}
+```

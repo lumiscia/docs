@@ -1,0 +1,27 @@
+---
+title: Motion Blur
+description: Blurs everything that moves in its source by rendering it at several sub-frame times.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`motion_blur` renders its source at `samples` sub-frame times across a shutter of `shutter` degrees, centred on the frame, and averages them. It blurs any motion in the source, including motion the `motion_blur` param of `transform`, `shape`, `path` and `text` can't see: animated `width`, `height`, `font_size` and `border_radius`, path data, anything upstream of a `transform`, and motion inside video.
+
+Each sample renders the whole source again, so render time grows with `samples`. Memory doesn't, because the samples share the same textures. `samples: 1` or `shutter: 0` renders the source once, unchanged. Samples are summed in 32-bit float and divided once, so a still source comes through unchanged at any sample count.
+
+While it samples, the `motion_blur` params of nodes inside its source are off, and a `motion_blur` node inside it renders its source once per sample. Content that already has motion blur, such as video shot with it, is blurred a second time. Video shows the source frame each sub-frame time maps to.
+
+<NodeReference type="motion_blur" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "motion_blur",
+  "params": {
+    "samples": 12,
+    "shutter": 180
+  }
+}
+```

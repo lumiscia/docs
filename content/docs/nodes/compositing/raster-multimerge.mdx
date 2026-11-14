@@ -5,7 +5,7 @@ description: Composites a variadic stack of raster layers in order.
 
 import { NodeReference } from "@/src/components/mdx/node-reference";
 
-`raster_multimerge` composites every raster connected to `layers` in connection order, with the first at the bottom. Use it for layer stacks instead of chaining `merge` nodes.
+`raster_multimerge` composites every raster connected to `layers` in connection order, with the first at the bottom. Use it for layer stacks instead of chaining `merge` nodes. `blend_mode` applies to every layer, with the same modes as [`merge`](merge).
 
 <NodeReference type="raster_multimerge" />
 

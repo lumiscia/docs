@@ -1,5 +1,5 @@
 {
   "title": "Source",
   "defaultOpen": false,
-  "pages": ["background", "media-in", "text"]
+  "pages": ["background", "fractal-noise", "media-in", "text"]
 }

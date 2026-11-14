@@ -1,0 +1,71 @@
+---
+title: Render 3D
+description: Draws a 3D scene into a raster, or its depth or normals.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`render_3d` draws the scene wired into `scene` into a raster with a transparent background, so its output composites like any other layer: wire it into a [`merge`](../compositing/merge), a [`glow`](../processing/glow) or any other 2D node. It is the only node that turns a scene into a raster. `width` and `height` set its size in pixels; 0 uses the composition's.
+
+Surfaces get metallic-roughness lighting from the scene's lights and from an environment that lights them from all around, a built-in studio of softboxes unless `environment_map` sets another. `environment` is the brightness of that light, and 0 turns it off. A scene with no lights gets a default key light and ambient fill, and a scene with no camera is seen from `[0, 0, 5]` with a 40° field of view.
+
+- `exposure` adjusts the brightness in stops before tone mapping.
+- `tone_mapping` brings light brighter than white into range: `none` (the default, which clips it), `aces` or `agx`.
+- `fog_density` fades surfaces into the solid `fog_color` with distance: after `d` world units, e^(-density × d) of a surface's colour is left. 0 turns fog off.
+- `supersample` renders 1 to 4 times wider and taller, then averages down, to antialias edges. It is lowered if the larger target wouldn't fit the GPU.
+
+A `render_3d` is drawn again only on frames where something in its scene changes, so a still scene is drawn once. A video on a plane, or a model playing a clip, changes it on every frame.
+
+## Environment maps
+
+`environment_map` is an equirectangular Radiance `.hdr` or OpenEXR `.exr` file. It replaces the studio: surfaces take their diffuse light and their reflections from it, rough ones blurred as much as their roughness. `environment_rotation` turns it about +Y in degrees. Its centre is the view along -Z, with +X to its right and +Y at its top. A map that isn't 2:1 is stretched over the whole sphere, and a scene lit by a map and no lights gets no default lights.
+
+`environment_background` shows the map behind the scene, through the exposure and tone mapping but not the fog, which makes the output opaque. `environment_background_blur` blurs it, from 0 (sharp) to 1. Shadow catchers darken the background by the light their shadows take away.
+
+A map is decoded and prefiltered on the first frame that uses it, which adds about 0.35 s for a 2K or 4K map and 0.5 s for an 8K one. Files over 256 MiB, maps over 8192 pixels a side or 8192 × 4096 in all, and EXR files with several parts, deep data or mip levels are refused. Larger maps are shrunk to 4096 × 2048 as they are read.
+
+## Depth and normals
+
+`output` picks what the raster holds: `color` (the lit scene), `depth` or `normal`. A node has one output, so a composition that wants colour and depth wires the same scene into two `render_3d` nodes. The second shares the models, meshes and image plane sources the first loaded.
+
+- `depth` is the distance along the camera's view, from 0 at `depth_near` to 1 at `depth_far`, as opaque grey, and 1 where nothing is drawn. Each is in world units, and 0, the default, uses the camera's `near` or `far`. Rasters hold half floats, finest near 0, so set the range around the part of the scene the effect needs.
+- `normal` is the shaded surface normal in the camera's space, +X right, +Y up and +Z toward the camera, stored as `n * 0.5 + 0.5`. It is opaque where a surface is drawn and transparent elsewhere.
+
+Both are data: they skip lighting, shadows and the environment, have no colour transfer function, and ignore `supersample`, so each pixel is the nearest surface at its centre. Opaque surfaces write them, and blended ones, such as image planes, only where their alpha is at least 0.5. An 8-bit output encodes them as it encodes light, so a depth of 0.5 is code 188.
+
+<NodeReference type="render_3d" />
+
+## Example
+
+Fog from depth: the colour render is a `merge`'s `base`, a pale background its `overlay`, and the depth render its luma `mask`, so far surfaces fade into the background.
+
+```json
+{
+  "nodes": [
+    { "id": 1, "type": "shape_3d", "params": { "position": [-1, 0, 0], "color": "#d94b4b" } },
+    { "id": 2, "type": "shape_3d", "params": { "position": [1, 0, -6], "color": "#d94b4b" } },
+    { "id": 3, "type": "camera_3d", "params": { "position": [0, 1.5, 6], "look_at": true } },
+    { "id": 4, "type": "merge_3d" },
+    { "id": 5, "type": "render_3d" },
+    {
+      "id": 6,
+      "type": "render_3d",
+      "params": { "output": "depth", "depth_near": 3, "depth_far": 20 }
+    },
+    { "id": 7, "type": "background", "params": { "paint": [205, 215, 228, 255] } },
+    { "id": 8, "type": "merge", "params": { "mask_mode": "luma" } },
+    { "id": 9, "type": "media_output" }
+  ],
+  "connections": [
+    { "from_node": 1, "to_node": 4, "to_port": "objects" },
+    { "from_node": 2, "to_node": 4, "to_port": "objects" },
+    { "from_node": 3, "to_node": 4, "to_port": "objects" },
+    { "from_node": 4, "to_node": 5, "to_port": "scene" },
+    { "from_node": 4, "to_node": 6, "to_port": "scene" },
+    { "from_node": 5, "to_node": 8, "to_port": "base" },
+    { "from_node": 7, "to_node": 8, "to_port": "overlay" },
+    { "from_node": 6, "to_node": 8, "to_port": "mask" },
+    { "from_node": 8, "to_node": 9, "to_port": "source" }
+  ]
+}
+```

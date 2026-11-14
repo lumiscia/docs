@@ -64,14 +64,14 @@ House style for docs prose. When in doubt, cut.
 ## Glossary
 
 - **Lumiscia**: the hosted rendering API and platform at `api.lumiscia.com`, with workspaces, API keys, media storage and GPU render workers.
-- **Lumen**: the open-source rendering engine, developed in the `lumen-oss` repository and published as `@lumiscia/lumen-*` packages on npm and `lumen-server` on crates.io.
+- **Lumen**: the open-source rendering engine, developed in the `lumen-oss` repository and published as `@lumiscia/lumen-*` packages on npm.
 - **`@lumiscia/lumen-sdk`**: the TypeScript SDK for the API. Its client class is `Lumen`, with Node and Cloudflare entry points.
 - **Composition**: the JSON document describing a video: timeline, render settings, nodes and the connections between them. It is the input to a render.
 - **Render / render job**: a request to render a composition, submitted to the API and processed by a GPU render worker.
 - **Node**: a single operation in a composition graph, such as a source, processing, compositing, vector or output node.
-- **Manifest alias**: a key in a render request's top-level `media` manifest. The manifest maps each alias to a Lumen media id (`lumen:<media_id>`), and composition nodes reference media by alias.
+- **Manifest alias**: a key in a render request's top-level `media` manifest. The manifest maps each alias to a Lumen media id (`lumen:<media_id>`). Composition nodes reference media by alias, or name an upload directly as `asset:<id>` with no manifest entry.
 - **Workspace**: the account that owns renders, API keys, media and balance.
 - **Artifact**: the rendered output file produced by a render.
-- **`lumen-server`**: the Lumen crate for running renders yourself, with render service primitives and a local HTTP binary. Lumiscia's GPU workers render with it.
+- **`lumen-server`**: Lumen's local HTTP server for running renders yourself, built from the `lumen-oss` repository and not published on crates.io. The render library is `lumen_engine::render` in the `lumen-engine` crate, and Lumiscia's GPU workers render with that library, not with `lumen-server`.
 - **Render time**: the GPU time a worker spends rendering a composition, measured to the millisecond and billed per second. It is not the output video's length.
 - **Monthly credit**: the dollar credit a plan adds each month, spent before the workspace balance.

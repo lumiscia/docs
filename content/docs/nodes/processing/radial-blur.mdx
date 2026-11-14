@@ -1,0 +1,27 @@
+---
+title: Radial Blur
+description: Blurs a raster along circles about a centre, as a spin.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`radial_blur` spreads each pixel along an arc of `amount` degrees about `center`, centred on the pixel, up to a full 360. Pixels far from the centre streak farther than pixels near it. Use it for wheels, spinning logos and spin transitions.
+
+`center` is in canvas pixels. Leave it out to spin about the middle of the canvas, `[width / 2, height / 2]`. `edge` is `clamp`, which repeats the canvas's edge pixels, or `transparent`. The output grows to cover the source spread along its arcs.
+
+The blur takes about one sample per pixel of its longest streak, up to 4096. Streaks longer than about 256 pixels are taken in two passes, which softens sharp edges slightly more.
+
+<NodeReference type="radial_blur" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "radial_blur",
+  "params": {
+    "amount": "=tween(0, 40, 0, 20, 'in_cubic')",
+    "center": [640, 360]
+  }
+}
+```

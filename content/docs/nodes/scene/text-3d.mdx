@@ -1,0 +1,34 @@
+---
+title: Text 3D
+description: Text from its font's outlines, extruded into a solid.
+---
+
+import { NodeReference } from "@/src/components/mdx/node-reference";
+
+`text_3d` shapes `content` as a [`text`](../source/text) node with the same font and layout would, with its kerning, ligatures, font fallback and wrapping, then extrudes each glyph's outline `depth` deep along Z, centred on `position`. The text lies in the XY plane, facing +Z and reading along +X. It takes the `position`, `rotation`, `scale` and material params of a [`shape_3d`](shape-3d).
+
+`font_size` is in world units: the height of the font's em square, so capitals are about 0.7 of it tall. At the default of 1, a word stands about as tall as a default `shape_3d` box is wide. `max_width`, `letter_spacing` and `line_height` are in world units too. `alignment_horizontal` and `alignment_vertical` align lines as in 2D and choose which point of the text's box sits at `position`, its centre by default.
+
+`bevel_size` rounds off each glyph's edges, in world units and up to half of `depth`, and `bevel_segments` is the number of steps in the rounding: 1 is a flat 45° chamfer and 0 is no bevel. A glyph whose strokes are too thin for the bevel gets the widest one that fits it.
+
+One style covers the whole text. Rich text spans, decorations, strokes and the `glyph_*` params of `text` have no counterpart. Glyphs drawn from colour or bitmap tables, such as emoji, have no outline, so they are left out with a `font.no_outlines` warning.
+
+Glyph geometry is built again only when the text, font, layout or bevel change, or, with a bevel, when `font_size` or `depth` do. Animating the transform or material costs no more than for a `shape_3d`. A node extrudes at most as many glyphs as the host's text glyph limit lets a `text` node draw, 16384 by default, and at most 4,000,000 vertices and 12,000,000 indices; more is a render error.
+
+<NodeReference type="text_3d" />
+
+## Example
+
+```json
+{
+  "id": 1,
+  "type": "text_3d",
+  "params": {
+    "content": "Lumen",
+    "depth": 0.3,
+    "bevel_size": 0.02,
+    "rotation": [-20, 0, 0],
+    "color": [232, 176, 96, 255]
+  }
+}
+```

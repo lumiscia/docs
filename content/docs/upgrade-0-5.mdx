@@ -1,0 +1,106 @@
+---
+title: Upgrade to 0.5
+description: The breaking changes in the 0.5.0 release of the Lumen packages and lumen-server, and what to change.
+---
+
+Every `@lumiscia/lumen-*` package moved to 0.5.0 together. Upgrade all the packages at once, then work through the sections that apply to you. If you're coming from 0.3, start with [Upgrade to 0.4](upgrade-0-4). After this page, continue with [Upgrade to 0.6](upgrade-0-6).
+
+## Compositions
+
+The `lumenSchemaVersion` stays `"0.1.0"`.
+
+- `ease`, `key`, `keyframes`, `noise`, `random`, `path_point` and `path_angle` are reserved names. Rename composition functions or function parameters that use them.
+- Problems come back as a list of diagnostics, each with a stable `code` and a JSON pointer `path`, instead of one joined string. Messages lose their `composition structure validation failed:` prefix, so match on the `code`, not the message.
+- A composition nested more than 48 nodes deep fails with `render.too_deeply_nested`.
+- A font staged under a `media` alias now draws under the name the composition asks for. It used to load and then fall back silently.
+- Untagged video below 720 rows is read as BT.601, and from 720 rows as BT.709, in renders and in the preview. Some small videos change colour slightly.
+- A render with no quality setting uses the `standard` preset instead of a 14 Mb/s target, so file sizes change. Set `render_settings.quality` to `draft`, `standard`, `high` or `lossless`, and `render_settings.codec` to `h264`, `hevc` or `av1`.
+
+## Expressions
+
+`cubic_bezier` takes its control points as two vec2 values and no longer takes `t`. Apply it with `ease`:
+
+<Tabs items={["0.4", "0.5"]}>
+<Tab value="0.4">
+
+```json
+{ "opacity": "=cubic_bezier(0.25, 0.1, 0.25, 1, progress(0, 30))" }
+```
+
+</Tab>
+<Tab value="0.5">
+
+```json
+{ "opacity": "=ease(cubic_bezier(vec2(0.25, 0.1), vec2(0.25, 1)), progress(0, 30))" }
+```
+
+</Tab>
+</Tabs>
+
+The TypeScript helper changes with it, to `cubicBezier(out, in)`:
+
+```ts
+import { cubicBezier, ease, progress } from "@lumiscia/lumen-shared";
+
+const opacity = ease(cubicBezier([0.25, 0.1], [0.25, 1]), progress(0, 30));
+```
+
+See [Easings](expressions#easings).
+
+## SDK and composition builder
+
+- A render the API rejects for an invalid composition throws a `LumenError` whose `diagnostics` list what is wrong. See [Errors](sdks/node#errors).
+- `RenderSettings` and `new Composition({ renderSettings })` take `codec` and `quality`. A template's `size` is a `TemplateRenderSettings`, without them.
+
+## Preview
+
+`Player` no longer takes `bindings`. React and Svelte depend on `@lumiscia/lumen-bindings` and load its worker and wasm from where they're installed:
+
+<Tabs items={["0.4", "0.5"]}>
+<Tab value="0.4">
+
+```tsx nocheck
+import { createLumenBindings } from "@lumiscia/lumen-bindings/bundler";
+
+const bindings = createLumenBindings();
+
+<Player preview={preview} bindings={bindings} composition={composition} />;
+```
+
+</Tab>
+<Tab value="0.5">
+
+```tsx
+<Player preview={preview} composition={composition} />
+```
+
+</Tab>
+</Tabs>
+
+- A page that serves the files elsewhere passes `wasmUrl` and `workerUrl` to `Player`. See [Runtime files](sdks/browser#runtime-files).
+- `mountPreview` and `LumenPreviewSession` take `wasmUrl` and `workerUrl` in place of `bindings`. `@lumiscia/lumen-bindings/urls` exports the defaults.
+- `LumenWorkerBindings` is gone, and `createLumenBindings` no longer takes `previewWorkerUrl`. It only loads the wasm on the calling thread, to check compositions.
+- Updating the composition keeps the playback position instead of rewinding to frame 0, and a preview that was playing keeps playing. Call `preview.seek(0)` after an update to rewind.
+- The preview takes `onError`, which receives the error with its `diagnostics`.
+
+See [React](sdks/react) or [Svelte](sdks/svelte).
+
+## Self-hosting
+
+- Renders pick a quality preset and a codec. `--quality-config` (`LUMEN_QUALITY_CONFIG`) names a JSON file that sets the defaults, each codec's encoder order and each preset's settings, and the server checks it at startup.
+- `POST /renders` answers `422` with `invalid_quality` for a preset this host doesn't define, or a codec none of its encoders can write, instead of failing the render later.
+- An invalid composition answers `422` with a `diagnostics` array. `POST /renders/check` checks a composition without rendering it.
+- `lumen-server` keeps uploaded media and resolves `asset:<id>` references. `uploadMedia` and `createUrlMedia` in the SDK work against it.
+- NVENC on the CUDA path encodes BT.709 and tags it so, instead of BT.601.
+- `lumen-local` takes `--quality`, `--codec` and `--quality-config`, and `--check` with `--format json`. `--bitrate`, `--crf`, `--qp` and `--preset` replace the preset's settings, so they can't be combined with `--quality`. In 0.6, `lumen-local` became the [Lumen CLI](open-source/cli).
+
+For Rust users of `lumen-server` and the engine crates:
+
+- `RenderOptions::encoder` and `resolve_encoder` replace `video_encoder` and `quality`, and `Mp4Render::open` takes the resulting choice.
+- In `lumen-engine-ffmpeg`, `QualityConfig` resolves presets into a `VideoEncoderChoice`. `VideoEncoderChoice::resolve` and `check_quality` are removed. `EncoderQuality::rate_control` is optional and `EncoderQuality` gains `options`.
+- `VideoDecoder::receive_rgba_frame` and `receive_cpu_frame` are replaced by `receive_video_frame`.
+- `MediaStore::get_font_resolver` returns a `Result`. `json::check` and `check_value` take the asset store as their third argument.
+- `MediaFrame` has a new `RawRgba` variant, so a `match` needs an arm for it.
+- `json::unknown_param_error` is removed, and `GraphValidationError::InvalidSettings` has a `field` pointer.
+
+See [Self-hosting](open-source/self-hosting).

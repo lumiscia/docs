@@ -23,6 +23,7 @@ just ready           # Run everything CI runs
 vp run preview       # Preview the production build locally
 just deploy-dry-run  # Build and validate a Cloudflare deploy
 vp run deploy        # Publish to docs.lumiscia.com
+vp run deploy:beta   # Upload a preview to beta-lumiscia-docs.oglassyt.workers.dev
 ```
 
 ## Project Structure
@@ -38,6 +39,12 @@ The site publishes with Wrangler as a Cloudflare Workers static assets app. TanS
 
 ```sh
 vp run deploy
+```
+
+To preview unreleased docs, upload the current checkout as a Worker version under the `beta` preview alias. Production traffic stays on the deployed version, and the preview build sets `noindex` and points its Markdown links at the preview origin.
+
+```sh
+vp run deploy:beta
 ```
 
 Wrangler generated types are intentionally ignored by Git. Regenerate them locally with:

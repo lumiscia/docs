@@ -4,6 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 import { createRootRoute, HeadContent, Outlet, Scripts, ScriptOnce } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { docsOrigin, productionOrigin } from "@/src/lib/docs-href";
 import { themeScript } from "@/src/lib/theme";
 import { isActiveUrl, notFoundPath, usePathname } from "@/src/lib/pathname";
 import { colors, fonts } from "@/src/styles/tokens.stylex";
@@ -20,6 +21,8 @@ export const Route = createRootRoute({
         name: "description",
         content: "Documentation for building dynamic visual compositions with Lumiscia.",
       },
+      // Builds for any other origin are previews and stay out of search indexes.
+      ...(docsOrigin === productionOrigin ? [] : [{ name: "robots", content: "noindex" }]),
     ],
     links: [
       { rel: "stylesheet", href: interTight },

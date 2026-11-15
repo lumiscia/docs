@@ -1,4 +1,6 @@
-export const docsOrigin = "https://docs.lumiscia.com";
+export const productionOrigin = "https://docs.lumiscia.com";
+// Vite inlines `process.env.DOCS_ORIGIN` into the bundle; the Vite config and remark plugin read it in Node.
+export const docsOrigin = process.env.DOCS_ORIGIN ?? productionOrigin;
 
 export function isExternalHref(href: string) {
   return href.startsWith("//") || /^[a-z][a-z\d+.-]*:/i.test(href);

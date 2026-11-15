@@ -8,7 +8,7 @@ import { DocsLayout } from "@/src/components/docs/layout";
 import { DocsPage } from "@/src/components/docs/page";
 import { mdxComponents } from "@/src/components/mdx";
 import { Link } from "@/src/components/mdx/prose";
-import { resolveDocsHref } from "@/src/lib/docs-href";
+import { productionOrigin, resolveDocsHref } from "@/src/lib/docs-href";
 
 import type { source } from "./source";
 
@@ -19,6 +19,16 @@ export type DocsPageData = {
   description?: string;
   pageTree: Awaited<ReturnType<typeof source.serializePageTree>>;
 };
+
+export function docsHead(data?: DocsPageData) {
+  return {
+    meta: [
+      { title: data?.title ? `${data.title} | Lumiscia Docs` : "Lumiscia Docs" },
+      ...(data?.description ? [{ name: "description", content: data.description }] : []),
+    ],
+    links: [{ rel: "canonical", href: `${productionOrigin}${data ? data.url : "/"}` }],
+  };
+}
 
 type DocsContentProps = { page: DocsPageData; tree: PageTree.Root };
 

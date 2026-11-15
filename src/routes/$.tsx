@@ -1,7 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
-import { DocsContent, docsClientLoader } from "@/src/lib/docs-page";
+import { DocsContent, docsClientLoader, docsHead } from "@/src/lib/docs-page";
 import type { DocsPageData } from "@/src/lib/docs-page";
 import { source } from "@/src/lib/source";
 
@@ -15,20 +15,7 @@ export const Route = createFileRoute("/$")({
 
     return data;
   },
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: loaderData?.title ? `${loaderData.title} | Lumiscia Docs` : "Lumiscia Docs" },
-      ...(loaderData?.description
-        ? [{ name: "description", content: loaderData.description }]
-        : []),
-    ],
-    links: [
-      {
-        rel: "canonical",
-        href: `https://docs.lumiscia.com${loaderData ? loaderData.url : "/"}`,
-      },
-    ],
-  }),
+  head: ({ loaderData }) => docsHead(loaderData),
   component: DocsRoute,
 });
 

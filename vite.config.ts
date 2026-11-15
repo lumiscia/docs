@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 import mdx from "fumadocs-mdx/vite";
 import { defineConfig } from "vite-plus";
 
-import { markdownUrl } from "./src/lib/docs-href.ts";
+import { docsOrigin, markdownUrl, productionOrigin } from "./src/lib/docs-href.ts";
 
 const docsDir = join(import.meta.dirname, "content/docs");
 const docsPages = getDocsPages(docsDir);
@@ -34,6 +34,9 @@ export default defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
+  },
+  define: {
+    "process.env.DOCS_ORIGIN": JSON.stringify(docsOrigin),
   },
   plugins: [
     mdx(await import("./source.config.ts")),
@@ -68,7 +71,7 @@ export default defineConfig({
       })),
       sitemap: {
         enabled: true,
-        host: "https://docs.lumiscia.com",
+        host: productionOrigin,
       },
     }),
     react(),

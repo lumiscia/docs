@@ -9,6 +9,7 @@
     "typegen": "vp exec wrangler types",
     "deploy:dry-run": "vp build && vp exec wrangler deploy --dry-run",
     "deploy": "vp build && vp exec wrangler deploy",
+    "deploy:beta": "DOCS_ORIGIN=https://beta-lumiscia-docs.oglassyt.workers.dev vp build && vp exec wrangler versions upload --preview-alias beta",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
